@@ -1,0 +1,16 @@
+# build output
+/target
+**/target
+
+# harness state: chain data, wallet DBs, per-run evidence (regenerable, never committed)
+/data
+*.log
+
+# offline API doc snapshots (regenerable via scripts/phase0-warmup.sh)
+/docs/refs
+
+# editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

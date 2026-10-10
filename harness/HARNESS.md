@@ -1,0 +1,116 @@
+# CANARY harness — a throwaway Zcash chain with an indexer
+
+Everything here is a *test* chain. No real funds, no faucet, no sync, no network beyond this machine.
+A judge can reproduce the whole environment from this directory.
+
+## What runs
+
+```
+zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ──gRPC :9067──▶  canary-probe (our Rust code)
+   mines on demand, wallet                    CompactTxStreamer                   librustzcash wallet ops
+   holds the shielded pool                    over block/tx RPC
+```
+
+## One command
+
+```bash
+docker compose up -d          # or: docker-compose up -d
+docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary generate 130
+```
+
+Block production is manual and instant: the rig decides when a block exists, so tests never race a
+network. `generate N` mines N blocks in about two seconds.
+
+## Nodes
+
+| Service | Image | Ports | Notes |
+|---|---|---|---|
+| `zcashd` | `electriccoinco/zcashd:latest` (v6.20.0) | 18232 RPC · 18233 P2P | Needs `data/zcashd/.zcash/zcash.conf` (mounted). Runs as uid 1000 so the bind mount is writable. |
+| `lightwalletd` | `electriccoinco/lightwalletd:latest` (v0.5.5) | 9067 gRPC · 9068 HTTP | `--no-tls-very-insecure` is for this harness only; never expose it. |
+
+## The config file that matters
+
+`data/zcashd/.zcash/zcash.conf` — regtest, RPC open to the docker bridge, `txindex=1`, and the
+**network-upgrade activations**, which zcashd does *not* apply on regtest by default:
+
+```
+nuparams=5ba81b19:1   # Overwinter
+nuparams=76b809bb:1   # Sapling
+nuparams=2bb40e60:1   # Blossom
+nuparams=f5b9230b:1   # Heartwood
+nuparams=e9ff75a6:1   # Canopy
+nuparams=c2d6d0b4:1   # NU5 (Orchard)  ← without this, shielded sends fail with
+nuparams=c8e71055:1   # NU6              "Cannot create shielded transactions before Sapling has activated"
+```
+
+Branch ids taken from zcashd v6.20.0 `src/consensus/upgrades.cpp`. Verify with
+`getblockchaininfo | .upgrades` — every entry must read `"status": "active"`.
+
+## Verified on 2026-10-11 (first working chain)
+
+- 130 blocks mined in ~1.6 s; transparent pool 812.5 ZEC; wallet 100 ZEC spendable after maturity.
+- `z_shieldcoinbase` moved 187.5 ZEC into the Orchard pool (txid `c022e98d8bc829b29e79f833641d70542457aa0f81578ff6f380dc9c578ddceb`).
+- A **shielded Orchard payment carrying a 512-byte-class memo** landed and is readable at the recipient:
+  - source/recipient: a *fresh diversified Orchard-only receiver* of the same account
+    (`z_getaddressforaccount 0 '["orchard"]'`, diversifier index 6)
+  - txid `58e828cfc9d0beacf825cad3a3193e64697bc668a40447b4d94bfbc075d5f7dd`
+  - memo bytes `63616e6172792072656774657374…` = `canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef`
+  - `z_listunspent` shows the 0.01 ZEC Orchard note with its memo intact — the primitive the rig's
+    "memo-bound invoice" property sits on.
+
+## Two things this harness taught us (both become rig properties)
+1. **zcashd refuses to reveal amounts by default.** A shielded send that would have to spend from a
+   different pool than the recipient fails with *"…would reveal transaction amounts. THIS MAY AFFECT
+   YOUR PRIVACY. Resubmit with the privacyPolicy parameter set to AllowRevealedAmounts…"*.
+   An application that sets `AllowRevealedAmounts` silently is downgrading privacy — that is a
+   first-class leak class for the rig ("policy downgrade", testable, observable in review).
+2. **API drift is real.** `z_getnewaddress` is disabled in v6.20.0 in favour of
+   `z_getnewaccount` + `z_getaddressforaccount`; `z_shieldcoinbase` needs a real destination and
+   mined blocks before shielded spends are possible. The rig must not assume any single node's
+   RPC surface — which is exactly why the rig drives wallets through the **indexer gRPC**, not
+   through node-specific RPCs.
+
+## THE NODE WALLET IS NOT PART OF THE RIG (crash found 2026-10-11 19:06Z)
+
+`seed.sh`'s node-wallet path crashed the node:
+
+```
+zcashd: wallet/orchard.cpp:22: OrchardWallet::GetSpendInfo(...)
+  Assertion `walletAnchor.has_value() && walletAnchor.value() == anchor' failed.   → exit 139
+```
+
+It fired while the node's own Orchard wallet was listing/using notes after mining. Deprecated-code
+fragility, and irrelevant to what the rig is for — but it *does* change the harness design:
+
+- **zcashd is the chain and the miner. Nothing else.** No acceptance of, or dependence on, its wallet.
+- **Every wallet in the rig is ours** — built on librustzcash (`zcash_client_backend` 0.24 +
+  `zcash_client_sqlite` 0.22 + `zcash_keys` 0.16 / `zcash_address` 0.13), the same stack the test
+  subjects use. This is strictly better for the rig: the property library must observe *application*
+  behaviour, not a node's convenience methods.
+- **Seeding moves to mining straight to our own address** (zcashd's `generateblock <address>` if
+  available on v6.20.0, else a tiny getblocktemplate/submitblock miner). Coinbase pays our Rust
+  wallet directly; maturity is 100 blocks (≈ a fifth of a second of regtest mining), and no
+  node-wallet call is ever made.
+- `restart: unless-stopped` is set on the node so a crash self-heals during long test runs.
+
+## What is proven vs what is next
+
+**Proven (evidence above):** a throwaway chain with all upgrades active; instant block production;
+an Orchard payment carrying a structured memo, readable at the recipient; **and our own Rust binary
+speaking gRPC to the indexer over that chain** — `GetLightdInfo` returning `chain regtest`,
+`ECC LightWalletD v0.5.5`, `sapling at 1`, plus the tip hash from `GetLatestBlock`.
+
+**Next (the D1 gate):** librustzcash wallet in `canary-probe` — create account → sync → derive a
+diversified Orchard receiver → print balance; then mine coinbase straight to that address and have
+our own code shield/spend it with a memo. Nothing in that path may touch the node wallet.
+
+## Known limits (stated, not hidden)
+
+- This harness runs **zcashd**, whose shielded pool tops out at Orchard/NU6. Ironwood (NU6.3) is a
+  Zebra-era pool; the rig therefore tests *property classes* (linkability, address reuse, memo
+  binding, unshielding, policy downgrade) that are identical across pools, and keeps a Zebra-based
+  path for the real-network run. Do not claim in the README that the harness chain is Ironwood.
+- lightwalletd's regtest support is not part of its documented surface (its README covers Mainnet and
+  Testnet). It runs here; if it ever fails to serve regtest blocks, the fallback is Zaino
+  (`zingolabs/zaino`), which documents hermetic regtest chains, or Zebra regtest + Zaino.
+- Host has ~3 GB RAM free: run one chain stack at a time.

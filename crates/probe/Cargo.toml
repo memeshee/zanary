@@ -1,0 +1,21 @@
+[package]
+name = "canary-probe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "canary-probe"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+zcash_client_backend.workspace = true
+zcash_proofs.workspace = true
+zip321.workspace = true
+pczt.workspace = true

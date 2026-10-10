@@ -1,0 +1,50 @@
+# CANARY rig — throwaway Zcash chain for privacy tests.
+#
+#   docker compose up -d
+#   docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary generate 130
+#
+# See HARNESS.md for what this proves, what it does not, and the trap list.
+services:
+  zcashd:
+    image: electriccoinco/zcashd:latest
+    container_name: canary-zcashd
+    restart: unless-stopped
+    # uid 1000 so the bind-mounted datadir (owned by the host user) is writable
+    user: "1000:1000"
+    volumes:
+      - ../data/zcashd:/srv/zcashd
+    ports:
+      - "18232:18232" # JSON-RPC
+      - "18233:18233" # P2P (unused: regtest has no peers)
+    command:
+      - -regtest
+      - -rpcuser=canary
+      - -rpcpassword=canary
+      - -printtoconsole
+    healthcheck:
+      test: ["CMD", "zcash-cli", "-regtest", "-rpcuser=canary", "-rpcpassword=canary", "getblockcount"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  lightwalletd:
+    image: electriccoinco/lightwalletd:latest
+    container_name: canary-lwd
+    entrypoint: ["lightwalletd"]
+    depends_on:
+      zcashd:
+        condition: service_started
+    ports:
+      - "9067:9067" # gRPC CompactTxStreamer — what our Rust code speaks
+      - "9068:9068" # HTTP
+    command:
+      - --no-tls-very-insecure
+      - --grpc-bind-addr=0.0.0.0:9067
+      - --http-bind-addr=0.0.0.0:9068
+      - --rpchost=zcashd
+      - --rpcport=18232
+      - --rpcuser=canary
+      - --rpcpassword=canary
+      - --data-dir=/var/lib/lightwalletd/db
+      - --log-file=/dev/stdout
+      - --log-level=5
