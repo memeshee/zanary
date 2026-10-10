@@ -4,6 +4,7 @@
 
 # harness state: chain data, wallet DBs, per-run evidence (regenerable, never committed)
 /data
+/data/wallet/
 *.log
 
 # offline API doc snapshots (regenerable via scripts/phase0-warmup.sh)
