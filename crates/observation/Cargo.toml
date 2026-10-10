@@ -1,0 +1,10 @@
+[package]
+name = "canary-observation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CANARY: the observation model a flow run is recorded into"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

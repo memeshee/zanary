@@ -1,0 +1,11 @@
+[package]
+name = "canary-properties"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CANARY: the leak-class property library (pure checks over a recorded flow run)"
+
+[dependencies]
+canary-observation = { path = "../observation" }
+serde.workspace = true
+serde_json.workspace = true
