@@ -33,3 +33,7 @@ reddsa.workspace = true
 pasta_curves.workspace = true
 # Claim clocks (RFC3339 parse/format + TTL arithmetic) for the expiring index.
 time = { version = "0.3", features = ["parsing", "formatting"] }
+
+[dev-dependencies]
+# Keypairs for the receipt/attestation tests: real RedPallas signatures, generated locally.
+rand.workspace = true

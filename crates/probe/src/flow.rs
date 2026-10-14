@@ -65,6 +65,16 @@ fn default_receiver_strategy() -> String {
     "fresh".to_string()
 }
 
+/// The account a dedicated receipt key is derived at when the definition does not name one.
+/// Account 1, because the merchant's own account 0 is exactly the key a receipt must not publish.
+fn default_receipt_account() -> u32 {
+    1
+}
+
+fn is_default_receipt_account(value: &u32) -> bool {
+    *value == 1
+}
+
 fn default_true() -> bool {
     true
 }
@@ -99,6 +109,16 @@ pub struct FlowDefinition {
     /// ZIP-32 account of the merchant wallet (the merchant seed). Omitted means account 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub merchant_account: u32,
+    /// ZIP-32 account whose key signs receipts — a *dedicated* key derived from the merchant seed,
+    /// never the wallet's own spend authority. Signing with the wallet's key would put a linkable
+    /// identity on every receipt; with a dedicated key, a receipt names a receipt key, and the
+    /// wallet's attestation is what binds the two — optionally. Defaults to account 1 and is
+    /// skipped when it holds that value, so existing definitions' `flow_commit`s are unchanged.
+    #[serde(
+        default = "default_receipt_account",
+        skip_serializing_if = "is_default_receipt_account"
+    )]
+    pub receipt_account: u32,
     /// Settlement jitter: the inclusive range of blocks the runner mines between payments.
     ///
     /// Omitted means the fixed three blocks the earlier runs used. A wider range spreads
@@ -217,6 +237,14 @@ pub async fn run(raw: &[String]) -> Result<()> {
              per invoice) or `reused` (the insecure control)"
         ),
     }
+    if definition.receipt_account == definition.merchant_account {
+        bail!(
+            "`receipt_account` and `merchant_account` are both {}: a receipt signed by the \
+             merchant's own spend authority publishes the wallet's identity on every receipt, \
+             which is the thing the dedicated receipt key exists to avoid",
+            definition.merchant_account
+        );
+    }
     let settlement = definition.settlement.as_deref().unwrap_or("per_invoice");
     match settlement {
         "per_invoice" => {}
@@ -312,6 +340,16 @@ pub async fn run(raw: &[String]) -> Result<()> {
         core::bootstrap_with(WalletProfile::merchant(definition.merchant_account)).await?;
     println!("  payer account     : {:?}", payer.account);
     println!("  merchant account  : {:?}", merchant.account);
+    // The receipt key: derived from the merchant seed at its own account, used for nothing but
+    // signing. A receipt that named the wallet's own spend authority would be a linkable identity
+    // for the merchant's money; this key names neither.
+    let receipt_key =
+        WalletProfile::merchant(definition.receipt_account).usk(&merchant.network)?;
+    println!(
+        "  receipt account   : {} (a dedicated receipt key — the wallet attests it, and the \
+         attestation is optional to publish)",
+        definition.receipt_account
+    );
 
     let mut run = FlowRun {
         flow_id: definition.flow_id.clone(),
@@ -380,11 +418,27 @@ pub async fn run(raw: &[String]) -> Result<()> {
     // code, same property library; only the settlement step differs.
     match settlement {
         "batch" => {
-            settle_batch(&definition, policy, &mut payer, &mut merchant, &mut jitter, &mut run)
+            settle_batch(
+                &definition,
+                policy,
+                &mut payer,
+                &mut merchant,
+                &receipt_key,
+                &mut jitter,
+                &mut run,
+            )
                 .await?
         }
         _ => {
-            settle_per_invoice(&definition, policy, &mut payer, &mut merchant, &mut jitter, &mut run)
+            settle_per_invoice(
+                &definition,
+                policy,
+                &mut payer,
+                &mut merchant,
+                &receipt_key,
+                &mut jitter,
+                &mut run,
+            )
                 .await?
         }
     }
@@ -512,6 +566,7 @@ async fn settle_per_invoice(
     policy: ops::PrivacyPolicy,
     payer: &mut Probe,
     merchant: &mut Probe,
+    receipt_key: &zcash_keys::keys::UnifiedSpendingKey,
     jitter: &mut Jitter,
     run: &mut FlowRun,
 ) -> Result<()> {
@@ -670,10 +725,11 @@ async fn settle_per_invoice(
             discloses: Vec::new(),
             signer: None,
             signature: None,
+            attestation: None,
         };
         // The merchant signs its own receipt, so the receipt proves *who* issued it and a
         // stranger can check that offline (`canary-report verify-receipt`).
-        sign_receipt(merchant, &mut receipt)?;
+        sign_receipt(merchant, receipt_key, &mut receipt)?;
         run.receipts.push(receipt);
 
         // The payer must still be able to cover the remaining invoices.
@@ -716,6 +772,7 @@ async fn settle_batch(
     policy: ops::PrivacyPolicy,
     payer: &mut Probe,
     merchant: &mut Probe,
+    receipt_key: &zcash_keys::keys::UnifiedSpendingKey,
     jitter: &mut Jitter,
     run: &mut FlowRun,
 ) -> Result<()> {
@@ -956,8 +1013,9 @@ async fn settle_batch(
             discloses: Vec::new(),
             signer: None,
             signature: None,
+            attestation: None,
         };
-        sign_receipt(merchant, &mut receipt)?;
+        sign_receipt(merchant, receipt_key, &mut receipt)?;
         run.receipts.push(receipt);
     }
 
@@ -1289,21 +1347,47 @@ async fn mined_height_of(
 /// over the receipt's own fields and the public half is the key behind the address the invoice
 /// named. `canary-report verify-receipt --fvk <the merchant's ufvk>` checks that binding offline,
 /// with no node, no indexer and no rig running.
-fn sign_receipt(merchant: &Probe, receipt: &mut Receipt) -> Result<()> {
+fn sign_receipt(
+    merchant: &Probe,
+    receipt_key: &zcash_keys::keys::UnifiedSpendingKey,
+    receipt: &mut Receipt,
+) -> Result<()> {
     use orchard::keys::{FullViewingKey, SpendAuthorizingKey};
 
-    let payload = canary_report::receipt::signing_payload(receipt)?;
-    let authorizing_key = SpendAuthorizingKey::from(merchant.usk.orchard());
     // `randomize` with the identity scalar is the un-randomized key pair: the same derivation
-    // `canary_report::receipt::signer_of_ufvk` performs from the merchant's viewing key, so the
-    // signer a stranger derives from the merchant's UFVK is exactly the key named here.
-    let signing_key = authorizing_key.randomize(&pasta_curves::pallas::Scalar::from(0u64));
-    let signature = signing_key.sign(rand::rngs::OsRng, &payload);
-    let signer =
-        canary_report::receipt::ak_of_orchard_fvk(&FullViewingKey::from(merchant.usk.orchard()));
+    // `canary_report::receipt::verify_signature` rebuilds from a published key, so the signer a
+    // stranger derives is exactly the key named here.
+    let unrandomized = |sk: &orchard::keys::SpendingKey| {
+        SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64))
+    };
+    let rng = rand::rngs::OsRng;
 
-    receipt.signer = Some(canary_report::hex_encode(&signer));
-    receipt.signature = Some(canary_report::receipt::signature_to_hex(&signature));
+    // The receipt is signed by the *dedicated* receipt key — never the wallet's spend authority,
+    // which is what would make every receipt a linkable identity for the merchant's money.
+    let payload = canary_report::receipt::signing_payload(receipt)?;
+    let receipt_ak =
+        canary_report::receipt::ak_of_orchard_fvk(&FullViewingKey::from(receipt_key.orchard()));
+    receipt.signer = Some(canary_report::hex_encode(&receipt_ak));
+    receipt.signature = Some(canary_report::receipt::signature_to_hex(
+        &unrandomized(receipt_key.orchard()).sign(rng, &payload),
+    ));
+
+    // The wallet's side of the binding: a statement, signed with the wallet's own key, that this
+    // receipt key is its own. A verifier holding the merchant's UFVK checks it; a receipt
+    // published without it is bound to no wallet, which is the privacy property, not a gap.
+    let mut attestation = canary_observation::ReceiptAttestation {
+        format: "canary-receipt-attestation-v1".to_string(),
+        receipt_key: canary_report::hex_encode(&receipt_ak),
+        wallet_ak: canary_report::hex_encode(&canary_report::receipt::ak_of_orchard_fvk(
+            &FullViewingKey::from(merchant.usk.orchard()),
+        )),
+        signature: String::new(),
+    };
+    let attestation_payload = canary_report::receipt::attestation_payload(&attestation)?;
+    attestation.signature = canary_report::receipt::signature_to_hex(
+        &unrandomized(merchant.usk.orchard()).sign(rng, &attestation_payload),
+    );
+    receipt.attestation = Some(attestation);
     Ok(())
 }
 

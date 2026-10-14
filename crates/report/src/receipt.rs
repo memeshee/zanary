@@ -12,7 +12,7 @@
 //! chain evidence in the report is for.
 
 use anyhow::{anyhow, Context, Result};
-use canary_observation::Receipt;
+use canary_observation::{Receipt, ReceiptAttestation};
 use reddsa::orchard::SpendAuth;
 use serde::Serialize;
 
@@ -87,6 +87,107 @@ pub fn verify_signature(receipt: &Receipt) -> Result<SignatureCheck> {
         signer: hex_encode(&signer_array),
         signer_matches: true,
     })
+}
+
+/// The bytes an attestation signature covers: the statement's own fields, in a fixed order.
+///
+/// Like [`signing_payload`], this is a canonical projection — the attestation's signature field is
+/// not part of what it signs — so a verifier rebuilds the signed bytes from the artifact alone.
+#[derive(Serialize)]
+struct AttestationPayload<'a> {
+    format: &'a str,
+    receipt_key: &'a str,
+    wallet_ak: &'a str,
+}
+
+/// The exact bytes covered by an attestation's signature.
+pub fn attestation_payload(attestation: &ReceiptAttestation) -> Result<Vec<u8>> {
+    serde_json::to_vec(&AttestationPayload {
+        format: &attestation.format,
+        receipt_key: &attestation.receipt_key,
+        wallet_ak: &attestation.wallet_ak,
+    })
+    .context("serializing the attestation's signing payload")
+}
+
+/// Checks that a receipt's attestation binds its **receipt key** to `wallet_ak` — the wallet key a
+/// stranger derived from the merchant's UFVK.
+///
+/// This is what keeps the binding property while the receipt itself stops carrying the wallet's
+/// identity: the receipt is signed by a dedicated key, and this attestation is the wallet's signed
+/// statement that the key is its own. Fails when the receipt carries no attestation (nothing binds
+/// it to any wallet), when the attestation names a different receipt key or wallet, or when its
+/// signature does not verify.
+pub fn verify_attestation(receipt: &Receipt, wallet_ak_hex: &str) -> Result<()> {
+    let attestation = receipt.attestation.as_ref().ok_or_else(|| {
+        anyhow!(
+            "this receipt carries no attestation, so nothing binds its receipt key to a wallet — \
+             a dedicated-key receipt proves only which receipt key issued it"
+        )
+    })?;
+    if attestation.format != "canary-receipt-attestation-v1" {
+        return Err(anyhow!(
+            "unknown attestation format `{}` (expected `canary-receipt-attestation-v1`)",
+            attestation.format
+        ));
+    }
+    let signer = receipt
+        .signer
+        .as_deref()
+        .ok_or_else(|| anyhow!("this receipt is unsigned (no `signer` field)"))?;
+    if !attestation.receipt_key.eq_ignore_ascii_case(signer) {
+        return Err(anyhow!(
+            "the attestation names receipt key {} but the receipt is signed by {}",
+            short(attestation.receipt_key.as_str()),
+            short(signer)
+        ));
+    }
+    if !attestation.wallet_ak.eq_ignore_ascii_case(wallet_ak_hex) {
+        return Err(anyhow!(
+            "the attestation was made by wallet key {} and not by {}",
+            short(attestation.wallet_ak.as_str()),
+            short(wallet_ak_hex)
+        ));
+    }
+
+    let wallet_bytes = hex_decode(&attestation.wallet_ak).context("decoding the wallet key")?;
+    let wallet_array: [u8; 32] = wallet_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow!("the wallet key is {} bytes, expected 32", wallet_bytes.len()))?;
+    let signature_bytes =
+        hex_decode(&attestation.signature).context("decoding the attestation signature")?;
+    let signature_array: [u8; 64] = signature_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| {
+            anyhow!(
+                "the attestation signature is {} bytes, expected 64",
+                signature_bytes.len()
+            )
+        })?;
+
+    let verifying_key = reddsa::VerificationKey::<SpendAuth>::try_from(
+        reddsa::VerificationKeyBytes::<SpendAuth>::from(wallet_array),
+    )
+    .map_err(|e| {
+        anyhow!("the attesting wallet key is not a valid Orchard spend-authorizing key: {e:?}")
+    })?;
+    let signature = reddsa::Signature::<SpendAuth>::from(signature_array);
+    let payload = attestation_payload(attestation)?;
+    verifying_key
+        .verify(&payload, &signature)
+        .map_err(|e| anyhow!("the attestation's signature does not verify: {e}"))?;
+    Ok(())
+}
+
+/// `first8…last8` for a comparison message, so two different keys can never look alike in it.
+pub fn short(hex: &str) -> String {
+    if hex.len() > 20 {
+        format!("{}…{}", &hex[..8], &hex[hex.len() - 8..])
+    } else {
+        hex.to_string()
+    }
 }
 
 /// The Orchard spend-authorizing public key of a unified full viewing key, hex — the key a receipt
@@ -256,4 +357,159 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>> {
                 .map_err(|e| anyhow!("invalid hex at byte {}: {e}", i / 2))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use orchard::keys::{FullViewingKey, SpendAuthorizingKey, SpendingKey};
+
+    /// A deterministic Orchard keypair (spend key + its `ak` hex), the same derivation the probe
+    /// signs with: `SpendAuthorizingKey::from(&sk).randomize(identity)` is the un-randomized pair.
+    fn keypair(seed_byte: u8) -> (SpendingKey, String) {
+        let sk = SpendingKey::from_bytes([seed_byte; 32])
+            .into_option()
+            .expect("a valid spending key");
+        let ak = ak_of_orchard_fvk(&FullViewingKey::from(&sk));
+        (sk, hex_encode(&ak))
+    }
+
+    fn sign(sk: &SpendingKey, payload: &[u8]) -> String {
+        let key =
+            SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64));
+        signature_to_hex(&key.sign(rand::rngs::OsRng, payload))
+    }
+
+    /// A receipt signed by a *dedicated* receipt key, naming that key as its signer.
+    fn receipt_signed_by(receipt_key: &SpendingKey, receipt_ak_hex: &str) -> Receipt {
+        let mut receipt = Receipt {
+            label: "receipt test".to_string(),
+            format: "canary-receipt-v1".to_string(),
+            body: "{\"amount_zat\":1,\"invoice_id\":\"1\",\"memo_sha256\":\"00\",\"txid\":\"11\"}"
+                .to_string(),
+            claims: vec!["invoice 1 was paid 1 zatoshi".to_string()],
+            discloses: Vec::new(),
+            signer: Some(receipt_ak_hex.to_string()),
+            signature: None,
+            attestation: None,
+        };
+        let payload = signing_payload(&receipt).expect("payload");
+        receipt.signature = Some(sign(receipt_key, &payload));
+        receipt
+    }
+
+    /// The wallet's signed statement that a receipt key is its own.
+    fn attestation(
+        receipt_key_hex: &str,
+        wallet_sk: &SpendingKey,
+        wallet_ak_hex: &str,
+    ) -> ReceiptAttestation {
+        let mut att = ReceiptAttestation {
+            format: "canary-receipt-attestation-v1".to_string(),
+            receipt_key: receipt_key_hex.to_string(),
+            wallet_ak: wallet_ak_hex.to_string(),
+            signature: String::new(),
+        };
+        let payload = attestation_payload(&att).expect("payload");
+        att.signature = sign(wallet_sk, &payload);
+        att
+    }
+
+    #[test]
+    fn an_attestation_binds_the_receipt_key_to_the_wallet() {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        assert_ne!(wallet_ak, receipt_ak, "two keypairs must differ");
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        receipt.attestation = Some(attestation(&receipt_ak, &wallet_sk, &wallet_ak));
+
+        verify_signature(&receipt).expect("the receipt signature is intact");
+        verify_attestation(&receipt, &wallet_ak).expect("the wallet attests that receipt key");
+    }
+
+    #[test]
+    fn a_receipt_without_an_attestation_is_not_bound_to_any_wallet() {
+        let (_, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+
+        // The signature stands on its own — that is the privacy property: the receipt proves which
+        // receipt key issued it and says nothing about the wallet behind it.
+        verify_signature(&receipt).expect("the receipt signature is intact");
+        let err = verify_attestation(&receipt, &wallet_ak).expect_err("no attestation, no binding");
+        assert!(format!("{err}").contains("carries no attestation"), "{err}");
+    }
+
+    #[test]
+    fn an_attestation_that_names_another_receipt_key_is_refused() {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let (_, other_receipt_ak) = keypair(11);
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        // A genuine wallet attestation — for a *different* receipt key, grafted onto this receipt.
+        receipt.attestation = Some(attestation(&other_receipt_ak, &wallet_sk, &wallet_ak));
+
+        let err = verify_attestation(&receipt, &wallet_ak).expect_err("must not bind");
+        assert!(format!("{err}").contains("names receipt key"), "{err}");
+    }
+
+    #[test]
+    fn an_attestation_by_another_wallet_is_refused() {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let (_, other_wallet_ak) = keypair(11);
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        receipt.attestation = Some(attestation(&receipt_ak, &wallet_sk, &wallet_ak));
+
+        let err = verify_attestation(&receipt, &other_wallet_ak).expect_err("must not bind");
+        assert!(format!("{err}").contains("was made by wallet key"), "{err}");
+    }
+
+    #[test]
+    fn a_flipped_attestation_signature_fails() {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        let mut att = attestation(&receipt_ak, &wallet_sk, &wallet_ak);
+        // Flip one hex digit of the signature: the cheapest tamper there is.
+        let mut bytes = att.signature.into_bytes();
+        bytes[0] = if bytes[0] == b'0' { b'1' } else { b'0' };
+        att.signature = String::from_utf8(bytes).expect("hex stays hex");
+        receipt.attestation = Some(att);
+
+        let err = verify_attestation(&receipt, &wallet_ak).expect_err("tampered must fail");
+        assert!(format!("{err}").contains("does not verify"), "{err}");
+    }
+
+    #[test]
+    fn the_attestation_is_not_part_of_the_receipt_signature() {
+        // Attaching an attestation must not invalidate the receipt's own signature, or the field
+        // could not have been added to a format that already has receipts in the wild.
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        let before = signing_payload(&receipt).expect("payload");
+
+        receipt.attestation = Some(attestation(&receipt_ak, &wallet_sk, &wallet_ak));
+
+        assert_eq!(
+            before,
+            signing_payload(&receipt).expect("payload"),
+            "the signed bytes must not move when an attestation is attached"
+        );
+        verify_signature(&receipt).expect("the receipt signature still verifies");
+    }
+
+    #[test]
+    fn an_unknown_attestation_format_is_refused() {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let (receipt_sk, receipt_ak) = keypair(9);
+        let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
+        let mut att = attestation(&receipt_ak, &wallet_sk, &wallet_ak);
+        att.format = "canary-receipt-attestation-v2".to_string();
+        receipt.attestation = Some(att);
+
+        let err = verify_attestation(&receipt, &wallet_ak).expect_err("unknown format");
+        assert!(format!("{err}").contains("unknown attestation format"), "{err}");
+    }
 }

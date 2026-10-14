@@ -22,19 +22,19 @@ report from the chain.
 | `report-leak` (note) | pass | pass | pass | pass |
 | **verdict** | **12 pass · 0 fail · 0 skip** | **11 pass · 1 fail · 0 skip** | **7 pass · 4 fail · 1 skip** | **12 pass · 0 fail · 0 skip** |
 
-- `canary-checkout` @ `40d5f3a7` — run in `data/runs/checkout-private`; report `9774534adb484535539fa8d647e1b2df834afa04903df505e8cf284b264898a0`
+- `canary-checkout` @ `40d5f3a7` — run in `data/runs/checkout-private`; report `f23c0cd052b070cd7d7ad646263d0a4bb402c085afe7f846255b92f91bbf7660`
   ```
   canary-report verify data/runs/checkout-private/report.json --node <node>
   ```
-- `canary-checkout-batch` @ `f2f15593` — run in `data/runs/checkout-private-batch`; report `ffa951496701533a024edfb34dd1691256f327e71fb188b018fa4fdad6860fe0`
+- `canary-checkout-batch` @ `f2f15593` — run in `data/runs/checkout-private-batch`; report `47a8756c33b2256f7ac6d2e2aece6a7ec8d74b0c17418780579661adff236876`
   ```
   canary-report verify data/runs/checkout-private-batch/report.json --node <node>
   ```
-- `canary-checkout-control` @ `9e42ff0e` — run in `data/runs/checkout-control`; report `f0bf4917001b86b49086961dab0f76b3c746e26a350a61702d69d78cea38dd0f`
+- `canary-checkout-control` @ `9e42ff0e` — run in `data/runs/checkout-control`; report `8ec2d3fcea7acbffe13e6617b04a5d32f5f76ffd6b404fce7440c19538c591bc`
   ```
   canary-report verify data/runs/checkout-control/report.json --node <node>
   ```
-- `canary-checkout-jittered` @ `e3b7fb25` — run in `data/runs/checkout-private-jitter`; report `49d61e58e938ab999810421a1bb18c2a257e09d230ca965a93d1855233b582a8`
+- `canary-checkout-jittered` @ `e3b7fb25` — run in `data/runs/checkout-private-jitter`; report `8155952cac19e32a74e5968b1deaf31ee5c0b3fb87264aab57ddd973ec4a5f74`
   ```
   canary-report verify data/runs/checkout-private-jitter/report.json --node <node>
   ```

@@ -319,47 +319,66 @@ because `grep` exits 0 when the build fails, and the loop's own wrapper reported
 script had failed, for the same reason. Gate on the compiler's or the script's own status
 (`cargo build … && …`, `script; echo $?`), never on a filter downstream of it.
 
-### Receipt signing — a stranger checks it with the rig and the node stopped
+### Receipt signing — a dedicated receipt key, and a wallet attestation that binds it
 
-A receipt used to be an unsigned JSON blob: anyone could write one. Now the merchant signs its
-receipt with the **Orchard spend-authorizing key behind the address it was paid at** (RedPallas),
-and the receipt carries the matching 32-byte public key (`ak`), so it can be checked offline.
+A receipt used to be an unsigned JSON blob: anyone could write one. Now each receipt is signed with
+a **dedicated receipt key** — ZIP-32 account `receipt_account` of the merchant seed, default 1 — so
+a receipt never names the key that holds the merchant's money. The receipt carries that key's
+32-byte `ak` as its `signer`, and the wallet **attests** it: a second signature, by the wallet's own
+spend-authorizing key, over `{format, receipt_key, wallet_ak}`.
+
+The split is the point. A verifier holding the merchant's UFVK can bind receipt key → wallet, and a
+receipt published *without* the attestation is bound to no wallet at all — publishing a receipt
+must not publish a linkable identity for the wallet behind it.
 
 ```
-canary-probe flow --definition flows/checkout-private.json          # receipts now carry signer + signature
+canary-probe flow --definition flows/checkout-private.json  # receipts: signer + signature + attestation
 canary-report verify-receipt data/receipts/invoice-4471.json [--network regtest|test|main]
                              [--fvk <the merchant's ufvk>] [--signer <expected hex>]
 ```
 
-What was actually run, on the receipts from the `9774534a…` run (heights 475–487):
+What was actually run, on the receipts of the private flow that followed this change (report
+`f23c0cd0…`; merchant wallet key `3bae3a08…e7bfea1b`, receipt key `eea13067…afc89d39`):
 
 | check | command | result |
 |---|---|---|
-| good receipt | `verify-receipt data/receipts/invoice-4471.json` | `signature : VALID`, `claim ok : body: canary-receipt-v1, invoice 4471, 1234567 zatoshis…`, **exit 0** |
-| tampered body (amount +1) | `verify-receipt …-tampered.json` | `signature : INVALID — … Invalid signature.` **and** `claim : INVALID — the claims never state the amount in zatoshis (1234568) that its body carries`, **exit 1** |
-| body missing `txid` | `verify-receipt bad-no-txid.json` | `claim : INVALID — the receipt body has no 'txid'`, **exit 1** |
+| as issued, signature only | `verify-receipt data/receipts/invoice-4471.json` | `signature : VALID`, `signer : eea13067…afc89d39`, `attested : … attested by wallet key 3bae3a08…`, **exit 0** |
+| as issued, `--fvk` merchant | `… --fvk <merchant.ufvk>` | `from --fvk: 3bae3a08…` then `matches — the receipt key is attested by that wallet (binding verified)`, **exit 0** |
+| attestation stripped, no `--fvk` | `verify-receipt …-unattested.json` | `signature : VALID`, `binding : none — … bound to no wallet. That is the design, not a defect…`, **exit 0** |
+| attestation stripped, `--fvk` merchant | `… --fvk <merchant.ufvk>` | `FAIL — nothing binds this receipt to that wallet: … carries no attestation`, **exit 1** |
+| tampered body (amount +1) | `verify-receipt …-tampered.json --fvk …` | `signature : INVALID — … Invalid signature.`, **exit 1** |
+| body missing `txid` | `verify-receipt bad-no-txid.json` | `signature : INVALID` **and** `claim : INVALID — the receipt body has no \`txid\``, **exit 1** |
 | body field the format does not define | `verify-receipt bad-extra-field.json` | `claim : INVALID — the receipt body carries 'payer_note', which canary-receipt-v1 does not define`, **exit 1** |
 | claims disagree with the body | `verify-receipt bad-claim-mismatch.json` | `claim : INVALID — the claims never state the amount in zatoshis (999) that its body carries`, **exit 1** |
-| wrong wallet's key | `verify-receipt … --fvk <payer.ufvk>` | `FAIL — the signer is not the key that controls the address of that UFVK`, **exit 1** |
+| wrong wallet's key | `verify-receipt … --fvk <payer.ufvk>` | **exit 1** |
 | wrong expected signer | `verify-receipt … --signer 0000…` | `MISMATCH`, **exit 1** |
-| **node and indexer dead** | `CANARY_NODE_URL=http://127.0.0.1:1 CANARY_LWD_URL=http://127.0.0.1:1 verify-receipt … --fvk <merchant.ufvk>` | `VALID` … `matches`, **exit 0** |
+| **node and indexer dead** | `CANARY_NODE_URL=http://127.0.0.1:1 CANARY_LWD_URL=http://127.0.0.1:1 verify-receipt … --fvk <merchant.ufvk>` | `VALID` … `binding verified`, **exit 0** |
+
+The scheme itself is proven both ways by unit tests (`crates/report/src/receipt.rs`): an attestation
+binds the receipt key to the wallet; a receipt with no attestation is unbound; an attestation that
+names a different receipt key, was made by a different wallet, or has one flipped signature digit is
+refused; and attaching an attestation does **not** move the receipt's own signed bytes — which is
+why the field could be added to a format that already has receipts in the wild.
 
 The verifier reports **every** failure it finds rather than stopping at the first: the tampered row
-above names both the broken signature and the claims that no longer match the body, which are two
+names both the broken signature and the claim that no longer matches the body, which are two
 independent reasons to reject the same artifact.
 
 The **format** is `schemas/canary-receipt-v1.json` (JSON Schema 2020-12), shipped so a third-party
 tool can validate a receipt without this code: the body is a closed object (`invoice_id`,
 `amount_zat` as an integer, `txid` and `memo_sha256` as lowercase 64-hex, no extra fields), `claims`
-must state the body's figures in words, `discloses` must be empty, and `signer`/`signature` are the
-`ak` and the 64-byte RedPallas signature. `verify-receipt` implements exactly those rules — an extra
-body field is refused, because a field beyond the format is a disclosure nobody claimed.
+must state the body's figures in words, `discloses` must be empty, `signer`/`signature` are the
+receipt key's `ak` and its 64-byte RedPallas signature, and the optional `attestation` is itself a
+closed object (`format`, `receipt_key`, `wallet_ak`, `signature`). `verify-receipt` implements
+exactly those rules — an extra body field is refused, because a field beyond the format is a
+disclosure nobody claimed.
 
 The last row is the Phase-2 gate's "independent verifier validates a receipt **with the engine
 stopped**": with the node and the indexer both unreachable, the signature still verifies, because
-nothing in that path talks to either. The `--fvk` row is the identity binding: the signer derived
-from the merchant's unified full viewing key (`3bae3a08…ea1b`) equals the key named in the receipt,
-so the receipt provably came from the wallet behind the paid address — and the payer's key does not.
+nothing in that path talks to either. The `--fvk` row is the identity binding — and the two rows
+above it are why it can stay optional: with a dedicated key the receipt no longer carries a
+linkable identity, so the merchant chooses between being bound (publish the attestation) and being
+unlinked (withhold it). The payer's UFVK does not bind, which is the negative control.
 
 What is signed: the receipt's own fields in a fixed order (`format`, `body`, `claims`, `discloses`)
 as JSON — a projection of the struct, not the whole thing (the signature cannot cover itself). One

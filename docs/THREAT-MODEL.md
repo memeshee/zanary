@@ -28,11 +28,17 @@ anything that looks like PII or free text: an invoice id is a binding, not a con
 is also what makes settlement checkable by the merchant without a shared server, which is the point.
 
 **Signed receipts.** A receipt carries the invoice id, the amount, the transaction id, the SHA-256 of
-the memo, and the merchant's Orchard **spend-authorizing public key** (`ak`) as its signer. The `ak`
-is not a viewing key — it reveals no note contents or history — but it *is* a linkable identity: a
-receipt says "the holder of this spend authority issued it", and `ak` appears on chain in that
-wallet's spends. A merchant that wants receipts that are not tied to its wallet identity needs a
-dedicated receipt key; that is a known, deferred increment, not an oversight.
+the memo, and the **receipt key's** Orchard spend-authorizing public key (`ak`) as its signer. The
+receipt key is a *dedicated* key — ZIP-32 account `receipt_account` of the merchant seed, default
+account 1 — so a receipt never names the key that holds the merchant's money. The receipt can carry
+the wallet's **attestation**: a statement, signed with the wallet's own spend-authorizing key, that
+this receipt key is its own. A verifier holding the merchant's UFVK checks both signatures and gets
+the binding; a receipt published *without* the attestation is bound to no wallet at all, which is
+the point — publishing a receipt must not publish a linkable identity for the wallet behind it. The
+`ak` is still not a viewing key: it reveals no note contents or history, and the attestation is
+opt-in, so both the linked and the unlinked presentation are the merchant's choice. Signing with
+the wallet's own key remains accepted (a receipt signed that way binds itself), and a receipt signed
+by the wallet directly is what earlier runs produced.
 
 **Receipt bodies.** A receipt's `body` is a closed object and its `claims` must state the body's
 figures in words (`schemas/canary-receipt-v1.json`); an extra field is refused, because a field

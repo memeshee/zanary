@@ -116,6 +116,28 @@ pub struct Receipt {
     /// The signature over the receipt's signing payload, hex.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
+    /// The issuing wallet's statement that the receipt key is its own, present when the flow
+    /// attested it. A receipt signed by a *dedicated* receipt key plus an attestation binds the
+    /// signer to the wallet for anyone holding the wallet's UFVK; publishing the receipt without
+    /// the attestation links it to no wallet at all. See `docs/THREAT-MODEL.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attestation: Option<ReceiptAttestation>,
+}
+
+/// A wallet's statement that a receipt key belongs to it: the wallet's own Orchard
+/// spend-authorizing key signs a payload naming the receipt key's spend-authorizing key. This is
+/// what lets a third party bind a receipt's *dedicated* signer back to the wallet — and it is
+/// optional to publish, which is the point: a receipt on its own reveals neither.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptAttestation {
+    /// The attestation format, e.g. `canary-receipt-attestation-v1`.
+    pub format: String,
+    /// The receipt key being attested, hex — the same key as the receipt's `signer`.
+    pub receipt_key: String,
+    /// The wallet key making the statement, hex (its Orchard spend-authorizing key).
+    pub wallet_ak: String,
+    /// The signature by `wallet_ak` over the canonical attestation payload, hex.
+    pub signature: String,
 }
 
 /// Value-pool totals at a height, so pool crossings and unshielding are checkable after the fact.

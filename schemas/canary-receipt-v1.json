@@ -4,7 +4,12 @@
   "title": "CANARY receipt v1",
   "description": "A merchant's proof that an invoice was paid. `body` is the machine-readable claim; `claims` states in words exactly what the body carries, and `discloses` must be empty (an artifact that carries more than its claim is the leak the rig's report-leak property looks for). `signer` + `signature` are the merchant's Orchard spend-authorizing public key and a RedPallas signature over the receipt's own fields; `canary-report verify-receipt` checks both offline.",
   "type": "object",
-  "required": ["label", "format", "body", "claims"],
+  "required": [
+    "label",
+    "format",
+    "body",
+    "claims"
+  ],
   "additionalProperties": true,
   "properties": {
     "label": {
@@ -19,17 +24,23 @@
       "type": "string",
       "description": "JSON text. Machine-readable; its schema is `body_schema` below.",
       "contentMediaType": "application/json",
-      "contentSchema": { "$ref": "#/$defs/body_schema" }
+      "contentSchema": {
+        "$ref": "#/$defs/body_schema"
+      }
     },
     "claims": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "What the receipt is meant to prove, in words. Every fact in the body must appear here: verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and refuses a receipt whose claims contradict its body."
     },
     "discloses": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Anything the artifact carries beyond its claims. Must be empty for a receipt: a non-empty list is excess by construction (report-leak)."
     },
     "signer": {
@@ -41,13 +52,51 @@
       "type": "string",
       "pattern": "^[0-9a-f]{128}$",
       "description": "Hex of the 64-byte RedPallas signature (`r || s`) over the receipt's own fields (format, body, claims, discloses) in that order, as JSON."
+    },
+    "attestation": {
+      "type": "object",
+      "description": "The issuing wallet's signed statement that the receipt key (`signer`) is its own. Present when the flow attested it; optional to publish. A verifier holding the wallet's UFVK uses it to bind the receipt key to that wallet \u2014 without it the receipt is bound to no wallet, which is the privacy property, not a gap.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "canary-receipt-attestation-v1",
+          "description": "Attestation format. A verifier refuses a version it does not know."
+        },
+        "receipt_key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The attested receipt key (Orchard spend-authorizing key, hex) \u2014 the same value as the receipt's `signer`."
+        },
+        "wallet_ak": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The wallet's own spend-authorizing key (hex) making the statement."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "RedPallas signature by `wallet_ak` over the canonical attestation payload (format, receipt_key, wallet_ak, JSON, fixed order)."
+        }
+      },
+      "required": [
+        "format",
+        "receipt_key",
+        "wallet_ak",
+        "signature"
+      ],
+      "additionalProperties": false
     }
   },
   "$defs": {
     "body_schema": {
       "title": "CANARY receipt v1 body",
       "type": "object",
-      "required": ["invoice_id", "amount_zat", "txid", "memo_sha256"],
+      "required": [
+        "invoice_id",
+        "amount_zat",
+        "txid",
+        "memo_sha256"
+      ],
       "additionalProperties": false,
       "properties": {
         "invoice_id": {

@@ -146,7 +146,7 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
     }
 
     if let Some(ufvk) = fvk {
-        let signer_of_fvk = match network {
+        let wallet_ak = match network {
             "main" => canary_report::receipt::signer_of_ufvk(
                 &zcash_protocol::consensus::Network::MainNetwork,
                 &ufvk,
@@ -160,15 +160,37 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
                 &ufvk,
             )?,
         };
-        println!("from --fvk: {signer_of_fvk}");
-        if !signer_of_fvk.eq_ignore_ascii_case(&check.signer) {
-            println!(
-                "\n  FAIL — the signer is not the key that controls the address of that UFVK: \
-                 this receipt was not issued by that wallet"
-            );
-            return Ok(1);
+        println!("from --fvk: {wallet_ak}");
+        if wallet_ak.eq_ignore_ascii_case(&check.signer) {
+            // A receipt signed directly by the wallet's own key binds itself.
+            println!("            matches — this receipt is signed by that wallet's own key");
+        } else {
+            // A dedicated-key receipt binds through the wallet's attestation instead, and a
+            // receipt published without one is bound to no wallet at all — which is a failure of
+            // the check you asked for, not a failure of the receipt.
+            match canary_report::receipt::verify_attestation(&receipt, &wallet_ak) {
+                Ok(()) => println!(
+                    "            matches — the receipt key is attested by that wallet (binding verified)"
+                ),
+                Err(e) => {
+                    println!("\n  FAIL — nothing binds this receipt to that wallet: {e}");
+                    return Ok(1);
+                }
+            }
         }
-        println!("            matches — the receipt came from the wallet behind that address");
+    } else if let Some(att) = receipt.attestation.as_ref() {
+        println!(
+            "attested  : receipt key {} is attested by wallet key {} — verify the binding with \
+             --fvk <that wallet's UFVK>",
+            canary_report::receipt::short(&att.receipt_key),
+            canary_report::receipt::short(&att.wallet_ak)
+        );
+    } else {
+        println!(
+            "binding   : none — the receipt names a receipt key and carries no attestation, so it \
+             is bound to no wallet. That is the design, not a defect: publishing it reveals which \
+             receipt key issued it and nothing about the wallet behind it."
+        );
     }
 
     println!("\n  summary: signature verified offline (no node, no indexer, no rig)");
@@ -225,7 +247,9 @@ fn usage() {
          \x20 canary-report verify-receipt <receipt.json> [--network regtest|test|main]\n\
          \x20                     [--fvk <ufvk>] [--signer <hex>]\n\
          \x20                     offline: checks the receipt's signature over its own fields —\n\
-         \x20                     no node, no indexer, no rig. --fvk binds the signer to that wallet.\n\
+         \x20                     no node, no indexer, no rig. --fvk binds the receipt's key to\n\
+         \x20                     that wallet: directly, or through the wallet's attestation when\n\
+         \x20                     the receipt was signed by a dedicated receipt key.\n\
          \x20 canary-report build --run <run.json> [--findings <findings.json>]\n\
          \x20                     [--verified-at <rfc3339>] [--ttl-days <n>] [--out <report.json>]\n\
          \x20 canary-report sample-run [--out <run.json>]\n\

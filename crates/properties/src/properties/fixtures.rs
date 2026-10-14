@@ -117,6 +117,7 @@ pub(crate) fn clean_run() -> FlowRun {
             // `canary_report::receipt` (a well-formed receipt verifies, one flipped byte does not).
             signer: None,
             signature: None,
+            attestation: None,
         }],
         pool_totals: vec![
             PoolTotals {
@@ -263,6 +264,7 @@ pub(crate) fn leaky_run() -> FlowRun {
             discloses: vec!["viewing_key".to_string(), "other_payments".to_string()],
             signer: None,
             signature: None,
+            attestation: None,
         }],
         pool_totals: vec![
             PoolTotals {
