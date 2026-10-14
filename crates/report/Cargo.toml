@@ -3,7 +3,7 @@ name = "canary-report"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "CANARY: report schema, canonical hashing, evidence roots, and claim verification"
+description = "CANARY: report schema, canonical hashing, evidence roots, claim verification, and the expiring claim index"
 
 [dependencies]
 canary-observation = { path = "../observation" }
@@ -12,3 +12,24 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
+# `canary-report verify` re-derives evidence from the chain: gRPC to the indexer,
+# trial decryption with the harness dev account's (public) viewing key, and a minimal
+# read-only JSON-RPC client for the node's chain facts.
+tokio.workspace = true
+zcash_client_backend.workspace = true
+zcash_primitives.workspace = true
+zcash_protocol.workspace = true
+zcash_keys.workspace = true
+zcash_transparent.workspace = true
+zip32.workspace = true
+bip39.workspace = true
+base64.workspace = true
+tonic.workspace = true
+zcash_address = "0.13"
+# Receipt signature verification (`canary-report verify-receipt`): RedPallas, and the Orchard
+# component of a UFVK so a stranger can bind a receipt's signer to the address that was paid.
+orchard.workspace = true
+reddsa.workspace = true
+pasta_curves.workspace = true
+# Claim clocks (RFC3339 parse/format + TTL arithmetic) for the expiring index.
+time = { version = "0.3", features = ["parsing", "formatting"] }

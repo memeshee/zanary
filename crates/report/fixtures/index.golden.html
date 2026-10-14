@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CANARY — privacy claims that expire</title>
+<style>
+:root { color-scheme: dark; }
+body { margin: 0 auto; max-width: 62rem; padding: 2rem 1.25rem 4rem; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d1117; color: #d7dde5; }
+h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.05rem; margin: 2.2rem 0 .4rem; }
+.sub { color: #8b96a5; margin: 0 0 1.4rem; }
+.summary span { margin-right: 1rem; }
+.badge { display: inline-block; padding: .05rem .45rem; border-radius: .3rem; font-weight: 700; font-size: .82rem; }
+.live { background: #14351f; color: #58d68d; }
+.stale { background: #3a3113; color: #f4d03f; }
+.dead { background: #3b1b1b; color: #ec7063; }
+.undated { background: #262b33; color: #9aa4b2; }
+.pass { color: #58d68d; }
+.fail { color: #ec7063; font-weight: 700; }
+.skip { color: #9aa4b2; }
+.card { border: 1px solid #262b33; border-radius: .5rem; padding: 1rem 1.1rem; margin: 1rem 0; background: #10151c; }
+table { border-collapse: collapse; width: 100%; margin-top: .6rem; }
+th, td { text-align: left; padding: .25rem .6rem .25rem 0; vertical-align: top; }
+th { color: #8b96a5; font-weight: 400; }
+code { color: #c8d3e0; }
+.meta { color: #8b96a5; font-size: .9rem; }
+.warn { color: #f4d03f; }
+.reg { border-left: 3px solid #ec7063; padding-left: .8rem; margin: .8rem 0; }
+footer { margin-top: 3rem; color: #8b96a5; font-size: .9rem; }
+a { color: #7fb3ff; }
+</style>
+</head>
+<body>
+<h1>CANARY — privacy claims that expire</h1>
+<p class="sub">Every claim is “this exact revision of this flow passed these properties at this height, and here is the evidence”. Evidence, not scores: re-run <code>canary-report verify &lt;report.json&gt;</code> to falsify any row.</p>
+<p class="sub summary">generated 2026-10-25T00:00:00Z · <span class="badge live">2 live</span> <span class="badge stale">1 stale</span> <span class="badge dead">1 dead</span> <span>1 regression</span></p>
+<div class="card">
+<h2>canary-checkout-control @ <code>a7ade74d922a…</code> <span class="badge live">live</span></h2>
+<p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T20:30:00Z</code> · ttl 30d · expires in 15d 20h · <span class="meta">re-issued by <code>904274f8bff5…</code></span></p>
+<p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="8b4908e1a54a47f9a31d4c1302446b36535d4e27e8cef97559d3cc1c5afd0dd2">8b4908e1a54a…</code></p>
+<p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<table>
+<tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
+<tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(this run made a single payment; with one payment there is no pair to cluster)</span></td></tr>
+<tr><td><code>policy-downgrade</code></td><td>D</td><td class="pass">PASS</td><td>the wallet layer was never told to relax its privacy policy </td></tr>
+<tr><td><code>receiver-reuse</code></td><td>D</td><td class="pass">PASS</td><td>one payment, one fresh diversified Orchard receiver </td></tr>
+<tr><td><code>transparent-fallback</code></td><td>D</td><td class="pass">PASS</td><td>the payment path is Orchard-only; no transparent address is accepted or produced by it </td></tr>
+<tr><td><code>unshielding</code></td><td>D</td><td class="pass">PASS</td><td>value moved into the shielded pool; none left it </td></tr>
+<tr><td><code>amount-fingerprint</code></td><td>W</td><td class="fail">FAIL</td><td>payment amount echoes a public funding amount: four 6.25 ZEC coinbase inputs, 24.9975 ZEC output <span class="meta">(on a public chain the multiset of funding amounts would already be visible; on mainnet, fund the flow from a larger anonymity set or vary the funding amounts)</span></td></tr>
+<tr><td><code>memo-absent</code></td><td>W</td><td class="pass">PASS</td><td>invoice 4471 is bound to its payment in a shielded memo a verifier can recompute </td></tr>
+<tr><td><code>memo-content</code></td><td>W</td><td class="pass">PASS</td><td>the memo carries an invoice id and a receipt seed, nothing permanent and personal </td></tr>
+<tr><td><code>same-block-roundtrip</code></td><td>W</td><td class="pass">PASS</td><td>funding and spending never share a block </td></tr>
+<tr><td><code>server-metadata</code></td><td>W</td><td class="pass">PASS</td><td>the simulated merchant received the invoice id and the txid, and nothing that identifies the payer <span class="meta">(merchant side was simulated by the rig; this is what the rig's own merchant observed, stated as such)</span></td></tr>
+<tr><td><code>timing-correlation</code></td><td>W</td><td class="skip">SKIP</td><td>no repeat spend/funding pattern to correlate in this run <span class="meta">(one payment, delay to nearest preceding inflow is 100 blocks; the correlation window is not exercised)</span></td></tr>
+<tr><td><code>report-leak</code></td><td>N</td><td class="skip">SKIP</td><td>no receipt or report artifact was exported by this run <span class="meta">(nothing to inspect for excess disclosure)</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h2>canary-checkout-control @ <code>a7ade74d922a…</code> <span class="badge live">live</span></h2>
+<p class="meta">chain <code>regtest</code> · verified at height 273 · verified_at <code>2026-10-10T21:05:00Z</code> · ttl 30d · expires in 15d 21h</p>
+<p class="meta">evidence root <code title="a14443cbce68c58b4d6fe5813e7b48cf88e3534ff3c96103ebdeb88a88312319">a14443cbce68…</code> · report hash <code title="904274f8bff572dffb7c894bc73510569b1fa22b33c921c97cf552bcaf3bc123">904274f8bff5…</code></p>
+<p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<table>
+<tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
+<tr><td><code>receiver-reuse</code></td><td>D</td><td class="fail">FAIL</td><td>invoice 4470 was paid to the same receiver as invoice 4471 <span class="meta">(the fix is a fresh diversified receiver per invoice; the rig's own second run deliberately re-uses one to demonstrate the regression)</span></td></tr>
+<tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(this run made a single payment; the pair analysis needs the previous run's observation set)</span></td></tr>
+<tr><td><code>policy-downgrade</code></td><td>D</td><td class="pass">PASS</td><td>the wallet layer was never told to relax its privacy policy </td></tr>
+<tr><td><code>transparent-fallback</code></td><td>D</td><td class="pass">PASS</td><td>the payment path is Orchard-only; no transparent address is accepted or produced by it </td></tr>
+<tr><td><code>unshielding</code></td><td>D</td><td class="pass">PASS</td><td>value moved into the shielded pool; none left it </td></tr>
+<tr><td><code>amount-fingerprint</code></td><td>W</td><td class="fail">FAIL</td><td>payment amount echoes a public funding amount: four 6.25 ZEC coinbase inputs, 24.9975 ZEC output <span class="meta">(on a public chain the multiset of funding amounts would already be visible; on mainnet, fund the flow from a larger anonymity set or vary the funding amounts)</span></td></tr>
+<tr><td><code>memo-absent</code></td><td>W</td><td class="pass">PASS</td><td>invoice 4470 is bound to its payment in a shielded memo a verifier can recompute </td></tr>
+<tr><td><code>memo-content</code></td><td>W</td><td class="pass">PASS</td><td>the memo carries an invoice id and a receipt seed, nothing permanent and personal </td></tr>
+<tr><td><code>same-block-roundtrip</code></td><td>W</td><td class="pass">PASS</td><td>funding and spending never share a block </td></tr>
+<tr><td><code>server-metadata</code></td><td>W</td><td class="pass">PASS</td><td>the simulated merchant received the invoice id and the txid, and nothing that identifies the payer <span class="meta">(merchant side was simulated by the rig; this is what the rig's own merchant observed, stated as such)</span></td></tr>
+<tr><td><code>timing-correlation</code></td><td>W</td><td class="skip">SKIP</td><td>no repeat spend/funding pattern to correlate in this run <span class="meta">(one payment, delay to nearest preceding inflow is 100+ blocks; the correlation window is not exercised)</span></td></tr>
+<tr><td><code>report-leak</code></td><td>N</td><td class="skip">SKIP</td><td>no receipt or report artifact was exported by this run <span class="meta">(nothing to inspect for excess disclosure)</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h2>canary-checkout-control @ <code>fa7fc5cebc10…</code> <span class="badge dead">dead (two re-probes missed)</span></h2>
+<p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T18:00:00Z</code> · ttl 7d · expired 7d 6h ago · <span class="meta">re-issued by <code>5b0ae1c34885…</code></span></p>
+<p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="b0b053e51d4378959cfa294e939ee5a67d8787a828c980850cb5c6a9637dcdf9">b0b053e51d43…</code></p>
+<p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<table>
+<tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
+<tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(revision 1 recorded a single payment)</span></td></tr>
+<tr><td><code>policy-downgrade</code></td><td>D</td><td class="pass">PASS</td><td>no privacy-policy downgrade was passed to the wallet layer </td></tr>
+<tr><td><code>receiver-reuse</code></td><td>D</td><td class="pass">PASS</td><td>one payment, one fresh diversified Orchard receiver </td></tr>
+<tr><td><code>transparent-fallback</code></td><td>D</td><td class="pass">PASS</td><td>the payment path is Orchard-only </td></tr>
+<tr><td><code>unshielding</code></td><td>D</td><td class="pass">PASS</td><td>value moved into the shielded pool; none left it </td></tr>
+<tr><td><code>memo-absent</code></td><td>W</td><td class="pass">PASS</td><td>the invoice is bound to its payment in a shielded memo </td></tr>
+</table>
+</div>
+<div class="card">
+<h2>canary-checkout-control @ <code>fa7fc5cebc10…</code> <span class="badge stale">stale (one re-probe missed)</span></h2>
+<p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T18:30:00Z</code> · ttl 10d · expired 4d 5h ago</p>
+<p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="5b0ae1c348858a47c15a9437cf110922cda1af37fc4f9cdc6606ca58470b1a73">5b0ae1c34885…</code></p>
+<p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<table>
+<tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
+<tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(revision 1 recorded a single payment)</span></td></tr>
+<tr><td><code>policy-downgrade</code></td><td>D</td><td class="pass">PASS</td><td>no privacy-policy downgrade was passed to the wallet layer </td></tr>
+<tr><td><code>receiver-reuse</code></td><td>D</td><td class="pass">PASS</td><td>one payment, one fresh diversified Orchard receiver </td></tr>
+<tr><td><code>transparent-fallback</code></td><td>D</td><td class="pass">PASS</td><td>the payment path is Orchard-only </td></tr>
+<tr><td><code>unshielding</code></td><td>D</td><td class="pass">PASS</td><td>value moved into the shielded pool; none left it </td></tr>
+<tr><td><code>memo-absent</code></td><td>W</td><td class="pass">PASS</td><td>the invoice is bound to its payment in a shielded memo </td></tr>
+</table>
+</div>
+<h2>Regressions</h2>
+<p class="meta">A property that passed earlier now fails — both runs linked, because the failure is the finding.</p>
+<div class="reg"><code>receiver-reuse</code> <span class="badge">D</span> passed at <code>8b4908e1a54a…</code> (2026-10-10T20:30:00Z) and now <span class="fail">fails</span> at <code>904274f8bff5…</code> (2026-10-10T21:05:00Z)</div>
+<footer>An unverified privacy claim decays to a liability. This page is the convenience, not the authority — every row can be re-derived from the chain by anyone with the report and a node.</footer>
+</body>
+</html>

@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "flow_id": "canary-checkout-control",
+  "flow_commit": "fa7fc5cebc10df2c9d637df11a76527a97c1c2e4f097734128c0840da6fb8c88",
+  "chain": "regtest",
+  "verified_at_height": 261,
+  "verified_at": "2026-10-10T18:30:00Z",
+  "ttl_seconds": 864000,
+  "findings": [
+    {
+      "property": "payer-linkability",
+      "severity": "disqualifying",
+      "verdict": "skip",
+      "title": "clustering needs at least two payments by one payer",
+      "evidence": [],
+      "note": "revision 1 recorded a single payment"
+    },
+    {
+      "property": "policy-downgrade",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "no privacy-policy downgrade was passed to the wallet layer",
+      "evidence": [],
+      "note": null
+    },
+    {
+      "property": "receiver-reuse",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "one payment, one fresh diversified Orchard receiver",
+      "evidence": [],
+      "note": null
+    },
+    {
+      "property": "transparent-fallback",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "the payment path is Orchard-only",
+      "evidence": [],
+      "note": null
+    },
+    {
+      "property": "unshielding",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "value moved into the shielded pool; none left it",
+      "evidence": [],
+      "note": null
+    },
+    {
+      "property": "memo-absent",
+      "severity": "warn",
+      "verdict": "pass",
+      "title": "the invoice is bound to its payment in a shielded memo",
+      "evidence": [],
+      "note": null
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "transaction",
+      "txid": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf",
+      "height": 261
+    },
+    {
+      "kind": "receiver",
+      "address": "uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80",
+      "first_seen_payment": "invoice 4471",
+      "first_seen_txid": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf"
+    },
+    {
+      "kind": "memo",
+      "txid": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf",
+      "memo_hex": "63616e6172792072656774657374206d656d6f3a20696e766f6963652034343731202f207265636569707420736565642030786465616462656566"
+    },
+    {
+      "kind": "pool_totals",
+      "height": 261,
+      "transparent_zat": 160625030000,
+      "sapling_zat": 0,
+      "orchard_zat": 2499970000
+    },
+    {
+      "kind": "merchant_field",
+      "key": "invoice_id",
+      "value": "4471",
+      "path": "/webhook/invoice/4471"
+    },
+    {
+      "kind": "merchant_field",
+      "key": "txid",
+      "value": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf",
+      "path": "/webhook/invoice/4471"
+    }
+  ],
+  "merchant_is_simulated": true,
+  "report_hash": "5b0ae1c348858a47c15a9437cf110922cda1af37fc4f9cdc6606ca58470b1a73"
+}

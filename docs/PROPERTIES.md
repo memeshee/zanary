@@ -61,11 +61,17 @@ including repeats within one diversified-UA family that the flow reuses on purpo
 **Leaks:** even with fresh receivers, a payer whose payments share a distinguishable pattern is
 fingerprintable: the same "agent" buying twice is a profile.
 **Detect:** the rig acts as an adversary with full chain visibility and the merchant's logs, then tries
-to cluster. Signals scored: exact amount repeats, memo structure (prefix/structure, not content),
-intra-hour timing buckets, common change behaviour, and the payer's own funding transaction if the
-flow exposes it. The property fails if clustering links ≥ 2 payments to one payer with confidence.
-**Evidence:** the cluster (txids), the signals that produced it, and the control: the same analysis on
-a flow that is *designed* not to leak, where the cluster must not form.
+to cluster. Signals scored: **one transaction carrying both payments (a fact, not a heuristic: the
+outputs were created together, weight 1.00)**, exact amount repeats, memo structure (prefix/structure,
+not content), intra-hour timing buckets, common change behaviour, and the payer's own funding
+transaction if the flow exposes it. The property fails if clustering links ≥ 2 payments to one payer
+with confidence.
+**Evidence:** the cluster (txids), the signals that produced it with their weights, and the control: the
+same analysis on a flow that is *designed* not to leak, where the cluster must not form.
+**Built:** the shared-transaction signal exists because of the batched flow — a batch's invoices are
+in one txid by construction, so batching a flow buys throughput and gives up within-batch
+unlinkability, and the matrix has to say so (`docs/THREAT-MODEL.md`, the batched column in
+`docs/LEAK-MATRIX.md`).
 
 ### `policy-downgrade`
 **Leaks:** a wallet told to reveal amounts reveals amounts — the UI can still say "shielded".

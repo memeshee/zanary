@@ -11,16 +11,23 @@ description = "CANARY — an independent privacy prober for Zcash payment flows 
 [workspace.dependencies]
 anyhow = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "io-util", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Zcash stack (versions verified live via crates.io on 2026-10-11)
 zcash_client_backend = { version = "0.24", features = ["lightwalletd-tonic", "lightwalletd-tonic-transport", "sync", "transparent-inputs"] }
-zcash_proofs = "0.30"
+# `bundled-prover` embeds the Sapling parameters in the binary so `cargo run` works
+# on a machine with no ~/.zcash-params (the probe's sends are Orchard-only, but the
+# wallet's transaction builder takes Sapling provers by type regardless).
+zcash_proofs = { version = "0.30", features = ["bundled-prover"] }
+zcash_primitives = "0.30"
 zip321 = "0.9"
 pczt = "0.9"
+rusqlite = "0.37"
+base64 = "0.22"
+tonic = { version = "0.14", default-features = false, features = ["transport"] }
 # Wallet stack for the D1 gate (`canary-probe wallet`) — versions verified live 2026-10-11
 zcash_client_sqlite = { version = "0.22", features = ["transparent-inputs"] }
 zcash_keys = { version = "0.16", features = ["orchard", "sapling", "transparent-inputs"] }
@@ -31,3 +38,8 @@ async-trait = "0.1"
 bip39 = "2"
 zcash_transparent = "0.10"
 zcash_script = "0.4"
+# Receipt signatures: Orchard's RedPallas (the spend-authorizing key that controls a shielded
+# address), via reddsa. Both are already in the dependency tree through the Zcash stack.
+orchard = "0.15"
+reddsa = "0.5"
+pasta_curves = "0.5"

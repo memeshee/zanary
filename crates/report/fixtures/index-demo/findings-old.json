@@ -1,0 +1,50 @@
+[
+  {
+    "property": "payer-linkability",
+    "severity": "disqualifying",
+    "verdict": "skip",
+    "title": "clustering needs at least two payments by one payer",
+    "evidence": [],
+    "note": "revision 1 recorded a single payment"
+  },
+  {
+    "property": "policy-downgrade",
+    "severity": "disqualifying",
+    "verdict": "pass",
+    "title": "no privacy-policy downgrade was passed to the wallet layer",
+    "evidence": [],
+    "note": null
+  },
+  {
+    "property": "receiver-reuse",
+    "severity": "disqualifying",
+    "verdict": "pass",
+    "title": "one payment, one fresh diversified Orchard receiver",
+    "evidence": [],
+    "note": null
+  },
+  {
+    "property": "transparent-fallback",
+    "severity": "disqualifying",
+    "verdict": "pass",
+    "title": "the payment path is Orchard-only",
+    "evidence": [],
+    "note": null
+  },
+  {
+    "property": "unshielding",
+    "severity": "disqualifying",
+    "verdict": "pass",
+    "title": "value moved into the shielded pool; none left it",
+    "evidence": [],
+    "note": null
+  },
+  {
+    "property": "memo-absent",
+    "severity": "warn",
+    "verdict": "pass",
+    "title": "the invoice is bound to its payment in a shielded memo",
+    "evidence": [],
+    "note": null
+  }
+]

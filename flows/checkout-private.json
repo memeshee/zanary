@@ -1,0 +1,14 @@
+{
+  "flow_id": "canary-checkout",
+  "receiver_strategy": "fresh",
+  "memo": true,
+  "policy": "FullPrivacy",
+  "funding_zat": 50000000,
+  "invoices": [
+    { "invoice_id": "4471", "amount_zat": 1234567, "memo_template": "canary: invoice {invoice_id}" },
+    { "invoice_id": "4472", "amount_zat": 2345678, "memo_template": "canary: invoice {invoice_id}" },
+    { "invoice_id": "4473", "amount_zat": 3456789, "memo_template": "canary: invoice {invoice_id}" },
+    { "invoice_id": "4474", "amount_zat": 4567890, "memo_template": "canary: invoice {invoice_id}" },
+    { "invoice_id": "4475", "amount_zat": 5678901, "memo_template": "canary: invoice {invoice_id}" }
+  ]
+}

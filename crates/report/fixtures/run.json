@@ -1,0 +1,92 @@
+{
+  "flow_id": "canary-checkout-control",
+  "flow_commit": "a7ade74d922a4a6f990e8842ea51d859571c42d114a4b60aaa419308f6934d6a",
+  "chain": "regtest",
+  "started_at_height": 141,
+  "ended_at_height": 261,
+  "funding": [
+    {
+      "label": "coinbase 141",
+      "txid": "9755459075cc8e04f6b98e25d03c8525e2f5e35e65f00e49c5458593fbce2036",
+      "height": 141,
+      "amount_zat": 625000000,
+      "receiver": "tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts",
+      "pool": "transparent"
+    },
+    {
+      "label": "coinbase 153",
+      "txid": "7f9eceb6195c9ec08096f8b852ad87858dfd541f79436bf816dfce5b15bcbb4d",
+      "height": 153,
+      "amount_zat": 625000000,
+      "receiver": "tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts",
+      "pool": "transparent"
+    },
+    {
+      "label": "coinbase 160",
+      "txid": "2c53d4cc7b2b671bb48d77cf55b286722ea9d346cfc30a37054d2b96389f0c16",
+      "height": 160,
+      "amount_zat": 625000000,
+      "receiver": "tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts",
+      "pool": "transparent"
+    },
+    {
+      "label": "coinbase 161",
+      "txid": "cbae8a62e5d1eadb877fac282990dd826cd0e3630bae5fa57c59a19441a70235",
+      "height": 161,
+      "amount_zat": 625000000,
+      "receiver": "tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts",
+      "pool": "transparent"
+    }
+  ],
+  "payments": [
+    {
+      "label": "invoice 4471",
+      "txid": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf",
+      "height": 261,
+      "amount_zat": 2499970000,
+      "recipient_receivers": [
+        "uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80"
+      ],
+      "sender_receivers": [],
+      "memo_hex": "63616e6172792072656774657374206d656d6f3a20696e766f6963652034343731202f207265636569707420736565642030786465616462656566",
+      "memo_text": "canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef",
+      "invoice_id": "4471",
+      "pool_in": "transparent",
+      "pool_out": "orchard",
+      "kind": "cross_pool",
+      "policy": null,
+      "observed": {
+        "funding_inputs": "4",
+        "coinbase_only": "true",
+        "built_by": "canary-seed shield"
+      }
+    }
+  ],
+  "merchant_events": [
+    {
+      "height": 261,
+      "method": "POST",
+      "path": "/webhook/invoice/4471",
+      "headers": {
+        "content-type": "application/json",
+        "user-agent": "canary-rig/0.0.1"
+      },
+      "fields": {
+        "invoice_id": "4471",
+        "txid": "295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf"
+      },
+      "remote_ip": null,
+      "settled_payment_label": "invoice 4471"
+    }
+  ],
+  "receipts": [],
+  "pool_totals": [
+    {
+      "height": 261,
+      "transparent_zat": 160625030000,
+      "sapling_zat": 0,
+      "orchard_zat": 2499970000
+    }
+  ],
+  "merchant_is_simulated": true
+}

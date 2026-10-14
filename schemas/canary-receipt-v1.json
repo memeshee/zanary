@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://canary.example/schemas/canary-receipt-v1.json",
+  "title": "CANARY receipt v1",
+  "description": "A merchant's proof that an invoice was paid. `body` is the machine-readable claim; `claims` states in words exactly what the body carries, and `discloses` must be empty (an artifact that carries more than its claim is the leak the rig's report-leak property looks for). `signer` + `signature` are the merchant's Orchard spend-authorizing public key and a RedPallas signature over the receipt's own fields; `canary-report verify-receipt` checks both offline.",
+  "type": "object",
+  "required": ["label", "format", "body", "claims"],
+  "additionalProperties": true,
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Human label for the artifact in a run, e.g. \"receipt 4471\"."
+    },
+    "format": {
+      "const": "canary-receipt-v1",
+      "description": "Format identifier. Bumping it means the body schema changed."
+    },
+    "body": {
+      "type": "string",
+      "description": "JSON text. Machine-readable; its schema is `body_schema` below.",
+      "contentMediaType": "application/json",
+      "contentSchema": { "$ref": "#/$defs/body_schema" }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "What the receipt is meant to prove, in words. Every fact in the body must appear here: verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and refuses a receipt whose claims contradict its body."
+    },
+    "discloses": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Anything the artifact carries beyond its claims. Must be empty for a receipt: a non-empty list is excess by construction (report-leak)."
+    },
+    "signer": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Hex of the 32-byte Orchard spend-authorizing public key (`ak`) that signed this receipt. Not a viewing key: it reveals no note contents or history."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{128}$",
+      "description": "Hex of the 64-byte RedPallas signature (`r || s`) over the receipt's own fields (format, body, claims, discloses) in that order, as JSON."
+    }
+  },
+  "$defs": {
+    "body_schema": {
+      "title": "CANARY receipt v1 body",
+      "type": "object",
+      "required": ["invoice_id", "amount_zat", "txid", "memo_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "invoice_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The merchant's identifier for the invoice this receipt settles."
+        },
+        "amount_zat": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Amount settled, in zatoshis. An integer, never a float: floating point money is a bug."
+        },
+        "txid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The transaction that paid the invoice, lowercase hex, in the same byte order as the chain's RPC."
+        },
+        "memo_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the ZIP-302 memo bytes carried by that transaction. The memo itself is not in the receipt: the payer and the amount are the merchant's business, not a stranger's."
+        }
+      }
+    }
+  }
+}

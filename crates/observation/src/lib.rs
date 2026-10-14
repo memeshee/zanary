@@ -109,6 +109,13 @@ pub struct Receipt {
     /// What else it carries, as observed by the rig.
     #[serde(default)]
     pub discloses: Vec<String>,
+    /// The public key that signed this receipt, hex (Orchard spend-authorizing key, RedPallas) —
+    /// present when the flow signed it. See `canary_report::receipt` for the scheme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
+    /// The signature over the receipt's signing payload, hex.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// Value-pool totals at a height, so pool crossings and unshielding are checkable after the fact.

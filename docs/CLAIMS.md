@@ -62,6 +62,14 @@ A verifier therefore needs no trust in CANARY's servers to check a claim: the re
 properties, the evidence array, and the anchor memo are all checkable against the chain. The index is
 the *convenience*, not the authority.
 
+**As built** (`docs/ANCHOR-NOTES.md`): `canary-probe anchor --report <report.json>` writes the payload
+into a shielded memo paid to the beacon (`8f760aa8…`, mined at height 630 for the batched run's report),
+and `canary-report verify-anchor --report <report.json> --beacon-ufvk <the published key> --node <node>`
+finds the **earliest** anchor carrying that root — 640 blocks and 693 transactions scanned in ~3 s, and
+exit 1 for an unanchored report, a flipped root, a `--root` that disagrees with the report, or a report
+whose hash no longer recomputes. Anchoring is permissionless, which cannot forge a timestamp (earliest
+hit wins) but does mean the log can be spammed and that the verifier must name the hit it accepted.
+
 ## What the page shows a judge in ten seconds
 
 ```

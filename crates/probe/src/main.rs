@@ -1,14 +1,17 @@
-//! CANARY probe — Phase 0 walking skeleton.
+//! CANARY probe — the rig's own librustzcash wallet on the harness chain.
 //!
 //! No subcommand (unchanged since step 2): talk to the harness indexer over its
 //! CompactTxStreamer gRPC interface and report what chain we are actually attached to.
 //!
-//! `canary-probe wallet` (step 3, the D1 gate): create/open the probe's own
-//! librustzcash wallet, import the dev account, sync it from the indexer, and print
-//! an Orchard-only receiver plus balances. See `src/wallet.rs`.
+//! `canary-probe wallet` (the D1 gate): create/open the probe's own librustzcash
+//! wallet, import the dev account, sync it from the indexer, and print an
+//! Orchard-only receiver plus balances. See `src/wallet.rs`.
 //!
-//! Next: build a shielded self-payment carrying a memo, prove + sign it, broadcast it,
-//! and print the txid — all from our own wallet, never the node wallet.
+//! `canary-probe address | fund | shield | pay`: move real value on the harness
+//! chain — derive receivers, fund from the node's transparent wallet, shield into
+//! the Orchard pool, and send shielded payments with ZIP-302 memos. All shielded
+//! operations are the probe's own code (propose -> build/prove/sign -> broadcast
+//! via the indexer); see `src/ops.rs`, `src/node.rs` and `src/core.rs`.
 
 use anyhow::{bail, Context, Result};
 use std::env;
@@ -16,6 +19,10 @@ use zcash_client_backend::proto::service::{
     compact_tx_streamer_client::CompactTxStreamerClient, ChainSpec, Empty,
 };
 
+mod core;
+mod flow;
+mod node;
+mod ops;
 mod wallet;
 
 #[tokio::main]
@@ -23,12 +30,29 @@ async fn main() -> Result<()> {
     let filter = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    match env::args().nth(1).as_deref() {
+    let argv: Vec<String> = env::args().collect();
+    let rest: &[String] = argv.get(2..).unwrap_or(&[]);
+    match argv.get(1).map(String::as_str) {
         None => probe_indexer().await,
         Some("wallet") => wallet::run().await,
+        Some("address") => ops::address(rest).await,
+        Some("fund") => ops::fund(rest).await,
+        Some("shield") => ops::shield(rest).await,
+        Some("pay") => ops::pay(rest).await,
+        Some("anchor") => ops::anchor(rest).await,
+        Some("flow") => flow::run(rest).await,
+        Some("invoice") => flow::issue_invoice(rest).await,
+        Some("verify-invoice") => flow::verify_invoice(rest).await,
         Some(other) => bail!(
-            "unknown subcommand `{other}` — usage: `canary-probe` (indexer probe) \
-             or `canary-probe wallet` (wallet bootstrap + sync)"
+            "unknown subcommand `{other}`\nusage:\n  \
+             canary-probe                        indexer probe (GetLightdInfo + latest tip)\n  \
+             canary-probe wallet                 create/import the dev wallet, sync, print receivers + balances\n  \
+             canary-probe address [--transparent|--orchard] [--index N] [--account N]\n  \
+             canary-probe fund --zec <amount>    fund the wallet's transparent receiver from the node wallet\n  \
+             canary-probe shield [--policy <p>]  shield transparent funds into the wallet's own Orchard pool\n  \
+             canary-probe pay --to <address> --zec <amount> --memo <text> [--policy <p>] [--account N]\n  \
+             canary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N]\n  \
+             canary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report"
         ),
     }
 }

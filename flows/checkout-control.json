@@ -1,0 +1,14 @@
+{
+  "flow_id": "canary-checkout-control",
+  "receiver_strategy": "reused",
+  "memo": false,
+  "policy": "AllowRevealedAmounts",
+  "funding_zat": 50000000,
+  "invoices": [
+    { "invoice_id": "5511", "amount_zat": 25000000 },
+    { "invoice_id": "5512", "amount_zat": 25000000 },
+    { "invoice_id": "5513", "amount_zat": 25000000 },
+    { "invoice_id": "5514", "amount_zat": 25000000 },
+    { "invoice_id": "5515", "amount_zat": 25000000 }
+  ]
+}

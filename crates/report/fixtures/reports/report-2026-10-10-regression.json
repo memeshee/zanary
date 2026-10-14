@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "flow_id": "canary-checkout-control",
+  "flow_commit": "a7ade74d922a4a6f990e8842ea51d859571c42d114a4b60aaa419308f6934d6a",
+  "chain": "regtest",
+  "verified_at_height": 273,
+  "verified_at": "2026-10-10T21:05:00Z",
+  "findings": [
+    {
+      "property": "receiver-reuse",
+      "severity": "disqualifying",
+      "verdict": "fail",
+      "title": "invoice 4470 was paid to the same receiver as invoice 4471",
+      "evidence": [
+        "invoice 4471 -> tx 295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf @261 -> uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80",
+        "invoice 4470 -> tx a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102 @273 -> the same receiver",
+        "two distinct invoices, one receiver: the merchant (or anyone the merchant shares with) can graph both payments to one customer"
+      ],
+      "note": "the fix is a fresh diversified receiver per invoice; the rig's own second run deliberately re-uses one to demonstrate the regression"
+    },
+    {
+      "property": "payer-linkability",
+      "severity": "disqualifying",
+      "verdict": "skip",
+      "title": "clustering needs at least two payments by one payer",
+      "evidence": [],
+      "note": "this run made a single payment; the pair analysis needs the previous run's observation set"
+    },
+    {
+      "property": "policy-downgrade",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "the wallet layer was never told to relax its privacy policy",
+      "evidence": [
+        "wallet call: propose_shielding_coinbase with default spend policy (no AllowRevealedAmounts, no AllowLinkingAccountAddresses, no AllowFullyTransparent)"
+      ],
+      "note": null
+    },
+    {
+      "property": "transparent-fallback",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "the payment path is Orchard-only; no transparent address is accepted or produced by it",
+      "evidence": [
+        "payment a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102 has exactly one shielded output and no transparent output"
+      ],
+      "note": null
+    },
+    {
+      "property": "unshielding",
+      "severity": "disqualifying",
+      "verdict": "pass",
+      "title": "value moved into the shielded pool; none left it",
+      "evidence": [
+        "tx a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102: 25.0000 ZEC transparent in -> 24.9997 ZEC Orchard out (fee 0.0003)",
+        "pool totals @273: transparent 165625060000 zat, orchard 4999940000 zat"
+      ],
+      "note": null
+    },
+    {
+      "property": "amount-fingerprint",
+      "severity": "warn",
+      "verdict": "fail",
+      "title": "payment amount echoes a public funding amount: four 6.25 ZEC coinbase inputs, 24.9975 ZEC output",
+      "evidence": [
+        "funding: 4 x 625000000 zat, each a public coinbase output to tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts",
+        "payment: 2499970000 zat = 4 x 625000000 - 30000 fee",
+        "match type: exact round multiple of a public funding amount"
+      ],
+      "note": "on a public chain the multiset of funding amounts would already be visible; on mainnet, fund the flow from a larger anonymity set or vary the funding amounts"
+    },
+    {
+      "property": "memo-absent",
+      "severity": "warn",
+      "verdict": "pass",
+      "title": "invoice 4470 is bound to its payment in a shielded memo a verifier can recompute",
+      "evidence": [
+        "tx a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102 carries memo 63616e6172792072656774657374206d656d6f3a20696e766f6963652034343730202f207265636569707420736565642030786361666562616265 = \"canary regtest memo: invoice 4470 / receipt seed 0xcafebabe\""
+      ],
+      "note": null
+    },
+    {
+      "property": "memo-content",
+      "severity": "warn",
+      "verdict": "pass",
+      "title": "the memo carries an invoice id and a receipt seed, nothing permanent and personal",
+      "evidence": [
+        "memo bytes decode to ASCII invoice id + receipt seed; no email, phone, name, or free text beyond the structured record"
+      ],
+      "note": null
+    },
+    {
+      "property": "same-block-roundtrip",
+      "severity": "warn",
+      "verdict": "pass",
+      "title": "funding and spending never share a block",
+      "evidence": [
+        "funding heights 162, 165, 166, 170; payment height 273"
+      ],
+      "note": null
+    },
+    {
+      "property": "server-metadata",
+      "severity": "warn",
+      "verdict": "pass",
+      "title": "the simulated merchant received the invoice id and the txid, and nothing that identifies the payer",
+      "evidence": [
+        "POST /webhook/invoice/4470 fields: invoice_id, txid; no identity field, no remote_ip recorded"
+      ],
+      "note": "merchant side was simulated by the rig; this is what the rig's own merchant observed, stated as such"
+    },
+    {
+      "property": "timing-correlation",
+      "severity": "warn",
+      "verdict": "skip",
+      "title": "no repeat spend/funding pattern to correlate in this run",
+      "evidence": [],
+      "note": "one payment, delay to nearest preceding inflow is 100+ blocks; the correlation window is not exercised"
+    },
+    {
+      "property": "report-leak",
+      "severity": "note",
+      "verdict": "skip",
+      "title": "no receipt or report artifact was exported by this run",
+      "evidence": [],
+      "note": "nothing to inspect for excess disclosure"
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "transaction",
+      "txid": "a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102",
+      "height": 273
+    },
+    {
+      "kind": "receiver",
+      "address": "uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80",
+      "first_seen_payment": "invoice 4470",
+      "first_seen_txid": "a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102"
+    },
+    {
+      "kind": "memo",
+      "txid": "a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102",
+      "memo_hex": "63616e6172792072656774657374206d656d6f3a20696e766f6963652034343730202f207265636569707420736565642030786361666562616265"
+    },
+    {
+      "kind": "pool_totals",
+      "height": 273,
+      "transparent_zat": 165625060000,
+      "sapling_zat": 0,
+      "orchard_zat": 4999940000
+    },
+    {
+      "kind": "merchant_field",
+      "key": "invoice_id",
+      "value": "4470",
+      "path": "/webhook/invoice/4470"
+    },
+    {
+      "kind": "merchant_field",
+      "key": "txid",
+      "value": "a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102",
+      "path": "/webhook/invoice/4470"
+    }
+  ],
+  "merchant_is_simulated": true,
+  "report_hash": "904274f8bff572dffb7c894bc73510569b1fa22b33c921c97cf552bcaf3bc123"
+}

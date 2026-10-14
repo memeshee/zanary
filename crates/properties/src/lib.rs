@@ -9,6 +9,10 @@
 //!    (a skip is honest; a guessed pass is not);
 //!  * every `Fail` carries evidence a stranger could re-check (txids, receivers, heights).
 
+pub mod properties;
+
+pub use properties::{AMOUNT_EPSILON_ZAT, PAYER_LINKABILITY_THRESHOLD, TIMING_WINDOW_BLOCKS};
+
 use canary_observation::FlowRun;
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +59,14 @@ pub struct Finding {
 
 impl Finding {
     pub fn pass(property: &'static str, severity: Severity, title: impl Into<String>) -> Self {
-        Finding { property: property.into(), severity, verdict: Verdict::Pass, title: title.into(), evidence: vec![], note: None }
+        Finding {
+            property: property.into(),
+            severity,
+            verdict: Verdict::Pass,
+            title: title.into(),
+            evidence: vec![],
+            note: None,
+        }
     }
 
     pub fn fail(
@@ -64,10 +75,22 @@ impl Finding {
         title: impl Into<String>,
         evidence: Vec<String>,
     ) -> Self {
-        Finding { property: property.into(), severity, verdict: Verdict::Fail, title: title.into(), evidence, note: None }
+        Finding {
+            property: property.into(),
+            severity,
+            verdict: Verdict::Fail,
+            title: title.into(),
+            evidence,
+            note: None,
+        }
     }
 
-    pub fn skip(property: &'static str, severity: Severity, title: impl Into<String>, why: impl Into<String>) -> Self {
+    pub fn skip(
+        property: &'static str,
+        severity: Severity,
+        title: impl Into<String>,
+        why: impl Into<String>,
+    ) -> Self {
         Finding {
             property: property.into(),
             severity,
@@ -94,7 +117,7 @@ pub trait Property: Send + Sync {
 
 /// Every property the rig implements, in report order (disqualifying first).
 pub fn all_properties() -> Vec<Box<dyn Property>> {
-    // Implemented in `properties/*.rs`; registry filled in as each lands.
+    // Implemented in `properties/*.rs`, one module per leak class.
     crate::registry()
 }
 
@@ -126,7 +149,7 @@ pub fn passes(findings: &[Finding]) -> bool {
 }
 
 fn registry() -> Vec<Box<dyn Property>> {
-    Vec::new()
+    crate::properties::registry()
 }
 
 #[cfg(test)]
@@ -134,8 +157,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_registry_is_valid() {
-        assert!(all_properties().is_empty());
+    fn registry_exposes_all_twelve_properties() {
+        let props = all_properties();
+        assert_eq!(props.len(), 12);
+        let mut ids: Vec<&str> = props.iter().map(|p| p.id()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 12, "property ids must be unique");
     }
 
     #[test]
