@@ -1,4 +1,4 @@
-# CANARY threat model
+# ZANARY threat model
 
 What this rig claims, what it does not, and every place it deliberately discloses something. Written
 before the features that need the decisions (batching), not after — a trade-off discovered late is a
@@ -6,7 +6,7 @@ trade-off nobody agreed to.
 
 ## The claim
 
-CANARY measures **what a payment flow reveals to the parties that can see it** — the chain, the
+ZANARY measures **what a payment flow reveals to the parties that can see it** — the chain, the
 merchant, and whatever the flow hands to a third party. For a given flow definition it produces a
 run, a set of property verdicts, and a claim with an expiry. It does not claim that a flow is private
 in any absolute sense, and it cannot see leaks that are not in its twelve properties.
@@ -41,7 +41,7 @@ the wallet's own key remains accepted (a receipt signed that way binds itself), 
 by the wallet directly is what earlier runs produced.
 
 **Receipt bodies.** A receipt's `body` is a closed object and its `claims` must state the body's
-figures in words (`schemas/canary-receipt-v1.json`); an extra field is refused, because a field
+figures in words (`schemas/zanary-receipt-v1.json`); an extra field is refused, because a field
 beyond the format is a disclosure nobody claimed. `report-leak` applies the same rule to every
 artifact the flow exports.
 
@@ -99,7 +99,7 @@ transaction `2b35669d…` at height 616):
 - `payer-linkability` failed, as this page said it would: a cluster of five at
   `confidence=1.00 signals=[shared_transaction(1.00), memo_structure(0.20), same_height(0.15)]`. The
   other eleven properties passed, so the failure names what batching costs rather than everything;
-- the report's transaction evidence carries `batch_size`, and `canary-report verify` re-checks it
+- the report's transaction evidence carries `batch_size`, and `zanary-report verify` re-checks it
   against the chain — *"batch: 5 payments in one transaction, 6 orchard action(s) on chain"* — so the
   batch claim is falsifiable by a stranger with no keys;
 - **the request order is not the output order.** The runner drew `[2, 4, 1, 0, 3]`; the chain carries

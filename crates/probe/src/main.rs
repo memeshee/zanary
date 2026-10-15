@@ -1,13 +1,13 @@
-//! CANARY probe — the rig's own librustzcash wallet on the harness chain.
+//! ZANARY probe — the rig's own librustzcash wallet on the harness chain.
 //!
 //! No subcommand (unchanged since step 2): talk to the harness indexer over its
 //! CompactTxStreamer gRPC interface and report what chain we are actually attached to.
 //!
-//! `canary-probe wallet` (the D1 gate): create/open the probe's own librustzcash
+//! `zanary-probe wallet` (the D1 gate): create/open the probe's own librustzcash
 //! wallet, import the dev account, sync it from the indexer, and print an
 //! Orchard-only receiver plus balances. See `src/wallet.rs`.
 //!
-//! `canary-probe address | fund | shield | pay`: move real value on the harness
+//! `zanary-probe address | fund | shield | pay`: move real value on the harness
 //! chain — derive receivers, fund from the node's transparent wallet, shield into
 //! the Orchard pool, and send shielded payments with ZIP-302 memos. All shielded
 //! operations are the probe's own code (propose -> build/prove/sign -> broadcast
@@ -45,14 +45,14 @@ async fn main() -> Result<()> {
         Some("verify-invoice") => flow::verify_invoice(rest).await,
         Some(other) => bail!(
             "unknown subcommand `{other}`\nusage:\n  \
-             canary-probe                        indexer probe (GetLightdInfo + latest tip)\n  \
-             canary-probe wallet                 create/import the dev wallet, sync, print receivers + balances\n  \
-             canary-probe address [--transparent|--orchard] [--index N] [--account N]\n  \
-             canary-probe fund --zec <amount>    fund the wallet's transparent receiver from the node wallet\n  \
-             canary-probe shield [--policy <p>]  shield transparent funds into the wallet's own Orchard pool\n  \
-             canary-probe pay --to <address> --zec <amount> --memo <text> [--policy <p>] [--account N]\n  \
-             canary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N]\n  \
-             canary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report"
+             zanary-probe                        indexer probe (GetLightdInfo + latest tip)\n  \
+             zanary-probe wallet                 create/import the dev wallet, sync, print receivers + balances\n  \
+             zanary-probe address [--transparent|--orchard] [--index N] [--account N]\n  \
+             zanary-probe fund --zec <amount>    fund the wallet's transparent receiver from the node wallet\n  \
+             zanary-probe shield [--policy <p>]  shield transparent funds into the wallet's own Orchard pool\n  \
+             zanary-probe pay --to <address> --zec <amount> --memo <text> [--policy <p>] [--account N]\n  \
+             zanary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N]\n  \
+             zanary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report"
         ),
     }
 }
@@ -60,11 +60,11 @@ async fn main() -> Result<()> {
 /// The original no-subcommand behaviour: report the indexer we are attached to.
 async fn probe_indexer() -> Result<()> {
     let endpoint =
-        env::var("CANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string());
-    let network = env::var("CANARY_NETWORK").unwrap_or_else(|_| "regtest".to_string());
+        env::var("ZANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string());
+    let network = env::var("ZANARY_NETWORK").unwrap_or_else(|_| "regtest".to_string());
 
     println!(
-        "canary-probe {} — CANARY (ZECATHON, Core & Tooling)",
+        "zanary-probe {} — ZANARY (ZECATHON, Core & Tooling)",
         env!("CARGO_PKG_VERSION")
     );
     println!("  configured network : {network}");

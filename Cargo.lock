@@ -270,90 +270,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
-name = "canary-observation"
-version = "0.0.1"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "canary-probe"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "bip39",
- "bls12_381",
- "canary-observation",
- "canary-properties",
- "canary-report",
- "jubjub",
- "orchard",
- "pasta_curves",
- "pczt",
- "rand",
- "rand_core",
- "rusqlite",
- "sapling-crypto",
- "serde",
- "serde_json",
- "tokio",
- "tonic",
- "tracing",
- "tracing-subscriber",
- "zcash_address",
- "zcash_client_backend",
- "zcash_client_sqlite",
- "zcash_keys",
- "zcash_primitives",
- "zcash_proofs",
- "zcash_protocol",
- "zcash_script",
- "zcash_transparent",
- "zip32",
- "zip321",
-]
-
-[[package]]
-name = "canary-properties"
-version = "0.0.1"
-dependencies = [
- "canary-observation",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "canary-report"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bip39",
- "canary-observation",
- "canary-properties",
- "orchard",
- "pasta_curves",
- "rand",
- "reddsa",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "time",
- "tokio",
- "tonic",
- "zcash_address",
- "zcash_client_backend",
- "zcash_keys",
- "zcash_primitives",
- "zcash_protocol",
- "zcash_transparent",
- "zip32",
-]
-
-[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2910,6 +2826,90 @@ name = "xdg"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fb433233f2df9344722454bc7e96465c9d03bff9d77c248f9e7523fe79585b5"
+
+[[package]]
+name = "zanary-observation"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "zanary-probe"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bip39",
+ "bls12_381",
+ "jubjub",
+ "orchard",
+ "pasta_curves",
+ "pczt",
+ "rand",
+ "rand_core",
+ "rusqlite",
+ "sapling-crypto",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+ "zanary-observation",
+ "zanary-properties",
+ "zanary-report",
+ "zcash_address",
+ "zcash_client_backend",
+ "zcash_client_sqlite",
+ "zcash_keys",
+ "zcash_primitives",
+ "zcash_proofs",
+ "zcash_protocol",
+ "zcash_script",
+ "zcash_transparent",
+ "zip32",
+ "zip321",
+]
+
+[[package]]
+name = "zanary-properties"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "zanary-observation",
+]
+
+[[package]]
+name = "zanary-report"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bip39",
+ "orchard",
+ "pasta_curves",
+ "rand",
+ "reddsa",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "time",
+ "tokio",
+ "tonic",
+ "zanary-observation",
+ "zanary-properties",
+ "zcash_address",
+ "zcash_client_backend",
+ "zcash_keys",
+ "zcash_primitives",
+ "zcash_protocol",
+ "zcash_transparent",
+ "zip32",
+]
 
 [[package]]
 name = "zcash_address"

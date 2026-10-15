@@ -1,4 +1,4 @@
-# CANARY — the leak classes the rig tests
+# ZANARY — the leak classes the rig tests
 
 This is the intellectual core of the rig: a named, evidence-producing test for each way a Zcash
 payment flow can leak. Every property is written so that it can be **executed** (real shielded

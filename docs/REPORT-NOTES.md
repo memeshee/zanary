@@ -4,14 +4,14 @@
 machine). Every chain fact below was re-derived from the running chain; the raw outputs are
 pasted verbatim. Nothing here is projected or imagined.*
 
-Three deliverables, all in `canary-report` (plus one seeding tool that had to exist first):
+Three deliverables, all in `zanary-report` (plus one seeding tool that had to exist first):
 
-1. **Verifier** — `canary-report verify <report.json>` re-checks every `Evidence` entry against
+1. **Verifier** — `zanary-report verify <report.json>` re-checks every `Evidence` entry against
    the live chain (node reads + indexer gRPC + trial decryption) and exits non-zero on any
    mismatch.
-2. **Builder** — `canary-report build --run <run.json>` produces a `report.json` with the hash
+2. **Builder** — `zanary-report build --run <run.json>` produces a `report.json` with the hash
    and evidence root filled in, plus `sample-run` to emit a run to start from.
-3. **Index** — `canary-report index --reports <dir> --out index.html [--now <iso8601>]`
+3. **Index** — `zanary-report index --reports <dir> --out index.html [--now <iso8601>]`
    renders every claim with `live`/`stale`/`dead` status, regressions, and the evidence root;
    deterministic output, with a golden test over the bundled fixture.
 
@@ -24,7 +24,7 @@ did not exist), and `seed.sh`'s node-wallet path is both forbidden for this task
 the node's wallet `z_*` RPCs") and documented as crashing zcashd. So the chain was seeded
 *from our own wallet*, exactly the direction `harness/HARNESS.md` describes:
 
-**`crates/probe/src/bin/canary-seed.rs`** (new file, additive; auto-discovered as a second
+**`crates/probe/src/bin/zanary-seed.rs`** (new file, additive; auto-discovered as a second
 binary in the probe crate — no existing file was modified except the probe `Cargo.toml`, which
 gained five cached dependencies: `zcash_address`, `sapling-crypto`, `jubjub`, `bls12_381`,
 `rand_core`):
@@ -58,24 +58,24 @@ the hash160 of `tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts`.
 Seeding session (raw):
 
 ```
-$ canary-seed addr
+$ zanary-seed addr
 {"diversifier_index":"DiversifierIndex([0, 0, …])","orchard_receiver":"uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80","transparent_receiver":"tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts"}
 
 $ zcash-cli generate 119          # heights 142..260, all coinbase to tmF1…
-$ canary-seed sync
+$ zanary-seed sync
 {"account":"AccountUuid(d7315cf8-…)"…,"balance":{"orchard_zat":0,…,"total_zat":75000000000,"transparent_zat":75000000000},"chain_tip_height":260,"fully_scanned_height":260}
 
-$ canary-seed learn-coinbase --from 141 --to 260
+$ zanary-seed learn-coinbase --from 141 --to 260
 {"from":141,"skipped":0,"stored":120,"to":260}
 
-$ canary-seed shield --memo "canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef" --limit 4
-{"built_against_height":260,"memo_hex":"63616e6172792072656774657374206d656d6f3a20696e766f6963652034343731202f207265636569707420736565642030786465616462656566","memo_text":"canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef","to":"uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80","tx_bytes":9755,"txid":"295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf"}
+$ zanary-seed shield --memo "zanary regtest memo: invoice 4471 / receipt seed 0xdeadbeef" --limit 4
+{"built_against_height":260,"memo_hex":"63616e6172792072656774657374206d656d6f3a20696e766f6963652034343731202f207265636569707420736565642030786465616462656566","memo_text":"zanary regtest memo: invoice 4471 / receipt seed 0xdeadbeef","to":"uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80","tx_bytes":9755,"txid":"295e61d6e0e5b43b5ab4f60466f021d4f5f602eae5db425f9e35375099c712bf"}
 ```
 
 Run 1's payment landed at height 261 (node: `version 5`, `orchard? True`, 9755 bytes; indexer
 agrees). A second run — **deliberately paying the same receiver**, so the receiver-reuse
 regression is real and checkable — produced tx `a3887b72996140c8d7053c6de841caa2a1ccc0c194c0e10eb5c1582c951b7102`
-at height 273 with memo `canary regtest memo: invoice 4470 / receipt seed 0xcafebabe`.
+at height 273 with memo `zanary regtest memo: invoice 4470 / receipt seed 0xcafebabe`.
 
 Chain facts captured to `data/harness-evidence.json` and the fixtures:
 
@@ -123,8 +123,8 @@ adds another.
 ### Live verification — run 1 (raw output)
 
 ```
-$ cargo run -p canary-report -- verify crates/report/fixtures/report.json
-canary-report verify — canary-checkout-control @ a7ade74d922a…
+$ cargo run -p zanary-report -- verify crates/report/fixtures/report.json
+zanary-report verify — zanary-checkout-control @ a7ade74d922a…
   chain regtest · verified at height 261 · 6 evidence entries
 
   report hash                                    PASS  sha256 over canonical JSON recomputes: 8b4908e1a54a…
@@ -153,7 +153,7 @@ text), each verified against the same live chain. All exit 1.
 **Tampered txid** (`…2bf` → `…2be`):
 
 ```
-$ canary-report verify …/report-tampered-txid.json
+$ zanary-report verify …/report-tampered-txid.json
   report hash                                    FAIL  stored 8b4908e1a54a… but the canonical JSON hashes to 910f8177474c…
   evidence root                                  PASS  merkle root over 6 evidence leaves recomputes: 94204ebd80ae…
   chain                                          PASS  node reports chain `regtest`, report claims `regtest`
@@ -194,11 +194,11 @@ EXIT CODE: 1
 ## 2. The builder
 
 ```
-$ canary-report build --run crates/report/fixtures/run.json \
+$ zanary-report build --run crates/report/fixtures/run.json \
     --findings crates/report/fixtures/findings.json \
     --verified-at 2026-10-10T20:30:00Z --out crates/report/fixtures/report.json
 built crates/report/fixtures/report.json
-  flow        : canary-checkout-control @ a7ade74d922a…
+  flow        : zanary-checkout-control @ a7ade74d922a…
   chain       : regtest (verified at height 261)
   verified_at : 2026-10-10T20:30:00Z
   ttl         : 30d
@@ -208,7 +208,7 @@ built crates/report/fixtures/report.json
   evidence_root: 4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864
 ```
 
-`--findings` is optional; without it the builder runs `canary_properties::evaluate(run)` (the
+`--findings` is optional; without it the builder runs `zanary_properties::evaluate(run)` (the
 property registry is still being filled in, so today that yields no findings — the evidence is
 still checkable). `--ttl-days N` sets the claim lifetime (default 30 days). `sample-run
 [--out run.json]` emits the bundled fixture run so the whole pipeline can be exercised from a
@@ -227,7 +227,7 @@ exist deserialize, and the verifier fails them with a clear message instead of g
 ## 3. The index
 
 ```
-$ canary-report index --reports crates/report/fixtures/reports \
+$ zanary-report index --reports crates/report/fixtures/reports \
     --out crates/report/fixtures/index.golden.html --now 2026-10-25T00:00:00Z
 indexed 4 report(s) → crates/report/fixtures/index.golden.html
   live 2 · stale 1 · dead 1 · regressions 1
@@ -265,7 +265,7 @@ whose hash does not recompute is rendered with an explicit warning. The golden t
 ## 4. Tests
 
 ```
-$ cargo test -p canary-report --jobs 2
+$ cargo test -p zanary-report --jobs 2
 running 2 tests  (lib)         evidence_root_is_deterministic_and_order_sensitive, claim_status_follows_ttl_arithmetic … ok
 running 4 tests  (golden.rs)   fixture_report_rebuilds_to_the_same_hash, fixture_reports_hash_correctly,
                                index_matches_golden_html, fixture_claims_expire_on_schedule … ok
@@ -293,7 +293,7 @@ the evidence a finding rests on, not the finding's prose. The index does not re-
 
 ## 6. Limitations / honest notes
 
-* **Fixture findings.** The property registry in `canary-properties` is still being filled in,
+* **Fixture findings.** The property registry in `zanary-properties` is still being filled in,
   so `crates/report/fixtures/findings.json` / `findings2.json` are hand-authored to the runs'
   observed shape (the `amount-fingerprint` FAIL is a genuine observation: four 6.25 ZEC public
   coinbase inputs, 24.9975 ZEC out; `receiver-reuse` FAILs in run 2 because run 2 really does
@@ -307,14 +307,14 @@ the evidence a finding rests on, not the finding's prose. The index does not re-
   followed only by zero padding. Both representations are unambiguous.
 * **Regtest quirk found.** lightwalletd's compact blocks on this chain carry no `vtx` (the
   transparent-only blocks are stripped), so coinbase txids come from the node (`getblock`,
-  read-only) in `canary-seed learn-coinbase`; raw tx bytes still come from the indexer. This
+  read-only) in `zanary-seed learn-coinbase`; raw tx bytes still come from the indexer. This
   also means a wallet cannot learn `tx_index` for coinbase UTXOs from the UTXO stream alone —
   hence `learn-coinbase`, which mirrors the `zcash_client_sqlite` FIXME.
 * **Network support.** The verifier supports `regtest` (harness params: all upgrades at height
   1), `main`, `test`. The claim index is chain-agnostic.
 * **Harness state.** The chain was mined to height 273; `data/harness-evidence.json` was
   written; `data/zcashd/.zcash/zcash.conf` carries the `mineraddress`/`minetolocalwallet`
-  lines (see §0 — remove and restart to revert); `data/wallet-seed/canary-seed.db` is the seed
+  lines (see §0 — remove and restart to revert); `data/wallet-seed/zanary-seed.db` is the seed
   wallet. `probe`'s `Cargo.toml` gained five cached deps; the workspace manifest also carries
   additions made concurrently by another agent (`zcash_primitives`, `rusqlite`, `base64`,
   `tonic`, `zcash_proofs/bundled-prover`) which this work uses.
@@ -323,19 +323,19 @@ the evidence a finding rests on, not the finding's prose. The index does not re-
 
 ```bash
 # 1. seed (already done on this chain; reproducible from scratch):
-cargo run -p canary-probe --bin canary-seed -- addr
-cargo run -p canary-probe --bin canary-seed -- sync
-cargo run -p canary-probe --bin canary-seed -- learn-coinbase --from 141 --to 260
-cargo run -p canary-probe --bin canary-seed -- shield --memo "canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef" --limit 4
-docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary generate 1
-cargo run -p canary-probe --bin canary-seed -- sync
+cargo run -p zanary-probe --bin zanary-seed -- addr
+cargo run -p zanary-probe --bin zanary-seed -- sync
+cargo run -p zanary-probe --bin zanary-seed -- learn-coinbase --from 141 --to 260
+cargo run -p zanary-probe --bin zanary-seed -- shield --memo "zanary regtest memo: invoice 4471 / receipt seed 0xdeadbeef" --limit 4
+docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary generate 1
+cargo run -p zanary-probe --bin zanary-seed -- sync
 
 # 2. build / verify / index:
-cargo run -p canary-report -- build --run crates/report/fixtures/run.json --findings crates/report/fixtures/findings.json --verified-at 2026-10-10T20:30:00Z --out crates/report/fixtures/report.json
-cargo run -p canary-report -- verify crates/report/fixtures/report.json
-cargo run -p canary-report -- verify crates/report/fixtures/report2.json
-cargo run -p canary-report -- sample-run --out run.json
-cargo run -p canary-report -- index --reports crates/report/fixtures/reports --out crates/report/fixtures/index.golden.html --now 2026-10-25T00:00:00Z
+cargo run -p zanary-report -- build --run crates/report/fixtures/run.json --findings crates/report/fixtures/findings.json --verified-at 2026-10-10T20:30:00Z --out crates/report/fixtures/report.json
+cargo run -p zanary-report -- verify crates/report/fixtures/report.json
+cargo run -p zanary-report -- verify crates/report/fixtures/report2.json
+cargo run -p zanary-report -- sample-run --out run.json
+cargo run -p zanary-report -- index --reports crates/report/fixtures/reports --out crates/report/fixtures/index.golden.html --now 2026-10-25T00:00:00Z
 
 # 3. tamper demo:
 python3 - <<'PY'
@@ -345,8 +345,8 @@ for e in r['evidence']:
     if e['kind'] == 'transaction': e['txid'] = e['txid'][:-1] + 'e'
 json.dump(r, open('/tmp/tampered.json','w'))
 PY
-cargo run -p canary-report -- verify /tmp/tampered.json   # exit 1
+cargo run -p zanary-report -- verify /tmp/tampered.json   # exit 1
 
 # 4. tests:
-cargo test -p canary-report --jobs 2
+cargo test -p zanary-report --jobs 2
 ```

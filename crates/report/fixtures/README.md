@@ -5,6 +5,11 @@ from the local regtest harness chain on 2026-10-10 by `canary-seed` (see
 `crates/probe/src/bin/canary-seed.rs` and `docs/REPORT-NOTES.md`). Two shielded payments were
 made, each a coinbase-funded shield into an Orchard output carrying a memo.
 
+> Recorded by the tool under its former name (*CANARY*). Kept byte-identical through the rename to
+> ZANARY so `report_hash`, `evidence_root` and the golden index below stay verifiable — a fixture
+> edited to match the new name would no longer be the run it claims to be. Live runs now emit
+> `zanary-checkout*` flow ids.
+
 ## Files
 
 | file | what it is |

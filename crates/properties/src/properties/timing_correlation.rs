@@ -15,7 +15,7 @@
 //! events recorded at that height; a chain-wide count is not part of the observation model).
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, Funding, Payment};
+use zanary_observation::{FlowRun, Funding, Payment};
 
 use super::common::height_str;
 

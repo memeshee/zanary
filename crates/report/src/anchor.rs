@@ -37,7 +37,7 @@ use crate::verify::ChainParams;
 use crate::Report;
 
 /// The memo prefix: a scanner can filter on it before parsing anything.
-pub const MEMO_PREFIX: &str = "canary-anchor:v1:";
+pub const MEMO_PREFIX: &str = "zanary-anchor:v1:";
 /// Payload version, carried in the payload as well as in the prefix.
 pub const ANCHOR_VERSION: u32 = 1;
 /// What an anchor payment carries, in zatoshis. An anchor needs a note to hang the memo on, so the
@@ -89,7 +89,7 @@ impl Anchor {
             if !KNOWN_FIELDS.contains(&key.as_str()) {
                 bail!(
                     "a memo carries an anchor-shaped payload with field `{key}`, which \
-                     canary-anchor-v{ANCHOR_VERSION} does not define"
+                     zanary-anchor-v{ANCHOR_VERSION} does not define"
                 );
             }
         }
@@ -137,7 +137,7 @@ impl Anchor {
 /// chain, and the chain facts that make it findable again.
 ///
 /// This file is a convenience, not an authority: everything in it is re-derivable from the chain by
-/// `canary-report verify-anchor`, which is why it may carry the beacon's viewing key — that key only
+/// `zanary-report verify-anchor`, which is why it may carry the beacon's viewing key — that key only
 /// ever reads this public log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnchorRecord {
@@ -224,7 +224,7 @@ pub struct AnchorHit {
 /// first.
 ///
 /// This is the stranger's path: a node, a chain, the published beacon viewing key, and nothing from
-/// CANARY. `getblock <hash> 2` returns each block's transactions with their raw bytes, so the whole
+/// ZANARY. `getblock <hash> 2` returns each block's transactions with their raw bytes, so the whole
 /// scan is two RPC calls per block and no per-transaction calls at all.
 ///
 /// A scan that finds nothing must never look like a scan that did not run: the caller reports how
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn a_non_anchor_memo_is_none_and_a_broken_one_is_an_error() {
-        assert_eq!(Anchor::from_memo_text("canary: invoice 4471").unwrap(), None);
+        assert_eq!(Anchor::from_memo_text("zanary: invoice 4471").unwrap(), None);
         assert_eq!(Anchor::from_memo_text("").unwrap(), None);
         // Prefix matches, so it claims to be an anchor: it must fail loudly, never parse as absent.
         assert!(Anchor::from_memo_text(&format!("{MEMO_PREFIX}not json")).is_err());

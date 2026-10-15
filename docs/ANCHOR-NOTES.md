@@ -1,20 +1,20 @@
 # ANCHOR-NOTES — turning a report into a timestamped claim
 
-What this documents: `canary-probe anchor` and `canary-report verify-anchor`, the two halves of the
-one thing that makes a CANARY report more than a file someone could have edited last night. A report's
+What this documents: `zanary-probe anchor` and `zanary-report verify-anchor`, the two halves of the
+one thing that makes a ZANARY report more than a file someone could have edited last night. A report's
 `evidence_root` and `report_hash` go into a **shielded memo** paid to a public beacon address, and
 from then on the chain says for everyone, without any authority, that this evidence existed by that
 height.
 
 ```
-canary-probe anchor --report data/runs/<run>/report.json     # → data/runs/<run>/anchor.json
-canary-report verify-anchor --report data/runs/<run>/report.json \
+zanary-probe anchor --report data/runs/<run>/report.json     # → data/runs/<run>/anchor.json
+zanary-report verify-anchor --report data/runs/<run>/report.json \
     --beacon-ufvk <the beacon's published UFVK> --node http://127.0.0.1:18232
 ```
 
 ## What goes on chain
 
-The memo is `canary-anchor:v1:` followed by a **closed** JSON payload — a field the format does not
+The memo is `zanary-anchor:v1:` followed by a **closed** JSON payload — a field the format does not
 define is refused, the same rule receipts follow:
 
 ```json
@@ -31,9 +31,9 @@ says *"evidence with this root existed by then"* and nothing else.
 
 The anchor rides on a **payment** (1 000 zatoshis — the smallest thing that gives a memo a note to
 sit on), paid to the beacon's next fresh receiver, from a third wallet of its own seed
-(`core::BEACON_MNEMONIC`, `data/wallet-beacon/canary-beacon.db`). The beacon's *viewing key* is
+(`core::BEACON_MNEMONIC`, `data/wallet-beacon/zanary-beacon.db`). The beacon's *viewing key* is
 published in the anchor record, on purpose: it can only ever read this public log of hashes, and
-publishing it is what lets a stranger do the check below with no trust in CANARY.
+publishing it is what lets a stranger do the check below with no trust in ZANARY.
 
 ## What was actually run
 
@@ -115,12 +115,12 @@ only the second one is what the command reports.
   (it is a payment to a published address). That cannot forge a timestamp: a root's *earliest* anchor
   is still the moment it first existed on chain. It does mean the log can be spammed, which is exactly
   why the verifier reports which hit it accepted instead of "an anchor exists".
-- **Not a proof of the claim's content.** The anchor says these bytes existed by then; `canary-report
+- **Not a proof of the claim's content.** The anchor says these bytes existed by then; `zanary-report
   verify` is what says the bytes are what the report claims. The two checks are independent on purpose.
 
 ## The claim page
 
-`canary-report index` reads an `anchor.json` beside each `report.json` (either layout: a run
+`zanary-report index` reads an `anchor.json` beside each `report.json` (either layout: a run
 directory or a flat directory of reports) and puts the timestamp on the page:
 
 ```html
@@ -145,7 +145,7 @@ anchor records at all produces the same HTML as before anchoring existed — the
    `DiversifierIndex([12, 207, 186, 18, 1, 0, …])`, not 0 — this stack draws indices rather than
    walking them. It is recorded as a *tag* for the anchor, and the docs say so, because a number that
    looks like a sequence invites "where are anchors 1–11?".
-3. **A prefix match that does not parse is an error, not an absent anchor.** `canary-anchor:v1:` that
+3. **A prefix match that does not parse is an error, not an absent anchor.** `zanary-anchor:v1:` that
    is not valid JSON, or carries a field v1 does not define, fails loudly — silently skipping it
    would turn a corrupted anchor into "this run was never anchored".
 4. **`short()` hides the difference in the tail.** A root that differs only in its last digit printed
@@ -155,17 +155,17 @@ anchor records at all produces the same HTML as before anchoring existed — the
 ## Reproduce
 
 ```sh
-cd /home/kiter/hackathon/canary
-cargo build --bin canary-probe --bin canary-report
-export CANARY_LWD_URL=http://127.0.0.1:9067
+cd /home/kiter/hackathon/zanary
+cargo build --bin zanary-probe --bin zanary-report
+export ZANARY_LWD_URL=http://127.0.0.1:9067
 
-./target/debug/canary-probe anchor --report data/runs/checkout-private-batch/report.json
+./target/debug/zanary-probe anchor --report data/runs/checkout-private-batch/report.json
 UFVK=$(python3 -c "import json;print(json.load(open('data/runs/checkout-private-batch/anchor.json'))['beacon_ufvk'])")
-./target/debug/canary-report verify-anchor --report data/runs/checkout-private-batch/report.json \
+./target/debug/zanary-report verify-anchor --report data/runs/checkout-private-batch/report.json \
     --beacon-ufvk "$UFVK" --node http://127.0.0.1:18232
 
 # the negative case: a report nobody anchored
-./target/debug/canary-report verify-anchor --report data/runs/checkout-private/report.json \
+./target/debug/zanary-report verify-anchor --report data/runs/checkout-private/report.json \
     --beacon-ufvk "$UFVK" --node http://127.0.0.1:18232      # exit 1
 ```
 

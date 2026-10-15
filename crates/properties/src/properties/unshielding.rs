@@ -15,7 +15,7 @@
 //! Evidence: the txid that moved value out of the pool, with before/after pool totals.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, Payment, PaymentKind, Pool, PoolTotals};
+use zanary_observation::{FlowRun, Payment, PaymentKind, Pool, PoolTotals};
 
 use super::common::{height_str, pool_str};
 

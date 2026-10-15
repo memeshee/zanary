@@ -1,4 +1,4 @@
-//! CANARY property library — the 12 leak classes from `docs/PROPERTIES.md`, each a pure function
+//! ZANARY property library — the 12 leak classes from `docs/PROPERTIES.md`, each a pure function
 //! over a recorded [`FlowRun`].
 //!
 //! Contract for every property:
@@ -13,7 +13,7 @@ pub mod properties;
 
 pub use properties::{AMOUNT_EPSILON_ZAT, PAYER_LINKABILITY_THRESHOLD, TIMING_WINDOW_BLOCKS};
 
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 use serde::{Deserialize, Serialize};
 
 /// How bad a failure of this property is. `D` failures disqualify a flow's privacy claim.

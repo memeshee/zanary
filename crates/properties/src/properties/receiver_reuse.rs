@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 pub struct ReceiverReuse;
 

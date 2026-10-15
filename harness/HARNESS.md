@@ -1,4 +1,4 @@
-# CANARY harness — a throwaway Zcash chain with an indexer
+# ZANARY harness — a throwaway Zcash chain with an indexer
 
 Everything here is a *test* chain. No real funds, no faucet, no sync, no network beyond this machine.
 A judge can reproduce the whole environment from this directory.
@@ -6,7 +6,7 @@ A judge can reproduce the whole environment from this directory.
 ## What runs
 
 ```
-zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ──gRPC :9067──▶  canary-probe (our Rust code)
+zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ──gRPC :9067──▶  zanary-probe (our Rust code)
    mines on demand, wallet                    CompactTxStreamer                   librustzcash wallet ops
    holds the shielded pool                    over block/tx RPC
 ```
@@ -15,7 +15,7 @@ zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ─
 
 ```bash
 docker compose up -d          # or: docker-compose up -d
-docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary generate 130
+docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary generate 130
 ```
 
 Block production is manual and instant: the rig decides when a block exists, so tests never race a
@@ -54,7 +54,7 @@ Branch ids taken from zcashd v6.20.0 `src/consensus/upgrades.cpp`. Verify with
   - source/recipient: a *fresh diversified Orchard-only receiver* of the same account
     (`z_getaddressforaccount 0 '["orchard"]'`, diversifier index 6)
   - txid `58e828cfc9d0beacf825cad3a3193e64697bc668a40447b4d94bfbc075d5f7dd`
-  - memo bytes `63616e6172792072656774657374…` = `canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef`
+  - memo bytes `63616e6172792072656774657374…` = `zanary regtest memo: invoice 4471 / receipt seed 0xdeadbeef`
   - `z_listunspent` shows the 0.01 ZEC Orchard note with its memo intact — the primitive the rig's
     "memo-bound invoice" property sits on.
 
@@ -100,7 +100,7 @@ an Orchard payment carrying a structured memo, readable at the recipient; **and 
 speaking gRPC to the indexer over that chain** — `GetLightdInfo` returning `chain regtest`,
 `ECC LightWalletD v0.5.5`, `sapling at 1`, plus the tip hash from `GetLatestBlock`.
 
-**Next (the D1 gate):** librustzcash wallet in `canary-probe` — create account → sync → derive a
+**Next (the D1 gate):** librustzcash wallet in `zanary-probe` — create account → sync → derive a
 diversified Orchard receiver → print balance; then mine coinbase straight to that address and have
 our own code shield/spend it with a memo. Nothing in that path may touch the node wallet.
 

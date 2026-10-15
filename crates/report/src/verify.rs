@@ -111,7 +111,7 @@ impl Default for VerifyOptions {
     fn default() -> Self {
         Self {
             node: NodeRpc::from_env(),
-            indexer_url: std::env::var("CANARY_LWD_URL")
+            indexer_url: std::env::var("ZANARY_LWD_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:9067".into()),
             extra_ufvk: None,
         }

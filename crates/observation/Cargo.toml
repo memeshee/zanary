@@ -1,9 +1,9 @@
 [package]
-name = "canary-observation"
+name = "zanary-observation"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "CANARY: the observation model a flow run is recorded into"
+description = "ZANARY: the observation model a flow run is recorded into"
 
 [dependencies]
 serde.workspace = true

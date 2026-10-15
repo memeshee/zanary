@@ -1,14 +1,14 @@
-# CANARY property implementation notes (`canary-properties`)
+# ZANARY property implementation notes (`zanary-properties`)
 
 Implementation of the 12 leak classes from `docs/PROPERTIES.md` as pure functions over
-`canary_observation::FlowRun`. No network, no filesystem, no clock, no randomness — every verdict
+`zanary_observation::FlowRun`. No network, no filesystem, no clock, no randomness — every verdict
 is derived from recorded observations only, and labels are never trusted.
 
 - Code: `crates/properties/src/properties/` — one module per property plus `common.rs`
   (address classification, memo decoding, pattern scanners) and `fixtures.rs` + `tests.rs` (proof suite).
 - Registry: `properties::registry()` fills `all_properties()` in report order
   (D, D, D, D, D, W, W, W, W, W, W, N). `evaluate()` re-sorts by severity → verdict → id.
-- Run the proof: `cargo test -p canary-properties` — 33 tests, all green.
+- Run the proof: `cargo test -p zanary-properties` — 33 tests, all green.
 
 ## One-line detection rules
 

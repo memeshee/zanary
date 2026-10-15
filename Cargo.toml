@@ -6,7 +6,7 @@ members = ["crates/observation", "crates/properties", "crates/report", "crates/p
 edition = "2021"
 license = "MIT"
 version = "0.0.1"
-description = "CANARY — an independent privacy prober for Zcash payment flows (ZECATHON, Core & Tooling)"
+description = "ZANARY — an independent privacy prober for Zcash payment flows (ZECATHON, Core & Tooling)"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -28,7 +28,7 @@ pczt = "0.9"
 rusqlite = "0.37"
 base64 = "0.22"
 tonic = { version = "0.14", default-features = false, features = ["transport"] }
-# Wallet stack for the D1 gate (`canary-probe wallet`) — versions verified live 2026-10-11
+# Wallet stack for the D1 gate (`zanary-probe wallet`) — versions verified live 2026-10-11
 zcash_client_sqlite = { version = "0.22", features = ["transparent-inputs"] }
 zcash_keys = { version = "0.16", features = ["orchard", "sapling", "transparent-inputs"] }
 zcash_protocol = { version = "0.10", features = ["local-consensus"] }

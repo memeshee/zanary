@@ -1,12 +1,12 @@
-//! `canary-probe wallet` — bootstrap the CANARY probe's own librustzcash wallet.
+//! `zanary-probe wallet` — bootstrap the ZANARY probe's own librustzcash wallet.
 //!
-//! * creates or opens a `zcash_client_sqlite` wallet database under `$CANARY_DATA_DIR`
+//! * creates or opens a `zcash_client_sqlite` wallet database under `$ZANARY_DATA_DIR`
 //!   (default `./data/wallet`),
 //! * derives the unified spending key for ZIP-32 account 0 from the fixed dev seed
 //!   phrase — the BIP-39 English test vector, obviously not a real wallet seed — and
 //!   imports its unified full viewing key into the wallet for the regtest network
 //!   (`LocalNetwork`, matching the harness `nuparams`),
-//! * syncs the wallet from the harness indexer at `$CANARY_LWD_URL`
+//! * syncs the wallet from the harness indexer at `$ZANARY_LWD_URL`
 //!   (default `http://127.0.0.1:9067`),
 //! * prints a diversified Orchard-only receiver for account 0, the wallet balances
 //!   (shielded + transparent), and the synced height.
@@ -29,7 +29,7 @@ pub async fn run() -> Result<()> {
     let network = core::regtest_network();
 
     println!(
-        "canary-probe {} wallet — CANARY (ZECATHON, Core & Tooling)",
+        "zanary-probe {} wallet — ZANARY (ZECATHON, Core & Tooling)",
         env!("CARGO_PKG_VERSION")
     );
     println!("  network           : regtest (throwaway harness chain)");

@@ -1,6 +1,6 @@
-# CANARY — wallet send path (address / fund / shield / pay)
+# ZANARY — wallet send path (address / fund / shield / pay)
 
-What this documents: the `canary-probe` subcommands that let the CANARY wallet move
+What this documents: the `zanary-probe` subcommands that let the ZANARY wallet move
 value with its **own** librustzcash code on the regtest harness, plus the funding path
 that gets coinbase from the node's wallet to the probe's transparent receiver.
 
@@ -12,9 +12,9 @@ as a transparent-only wallet: `getblockcount`, `getblockhash`, `getblock`,
 `getwalletinfo`, `getaddressutxos`, `sendtoaddress`. **No `z_*` RPC is ever called** —
 the node's shielded wallet is never touched.
 
-Wallet: `data/wallet/canary-wallet.db` (ZIP-32 account 0 `canary-dev`, account 1
-`canary-dev-1`, both derived from the dev test-vector seed). Harness: docker
-`canary-zcashd` (regtest, RPC `127.0.0.1:18232`) + `canary-lwd` (lightwalletd v0.5.5,
+Wallet: `data/wallet/zanary-wallet.db` (ZIP-32 account 0 `zanary-dev`, account 1
+`zanary-dev-1`, both derived from the dev test-vector seed). Harness: docker
+`zanary-zcashd` (regtest, RPC `127.0.0.1:18232`) + `zanary-lwd` (lightwalletd v0.5.5,
 `127.0.0.1:9067`).
 
 ## 1. Subcommands
@@ -44,13 +44,13 @@ transparent receiver. An unsatisfied policy refuses before broadcast, with a non
 exit (observed):
 
 ```
-$ ./target/debug/canary-probe shield --policy FullPrivacy
+$ ./target/debug/zanary-probe shield --policy FullPrivacy
 Error: privacy policy FullPrivacy is too strict for this shielding transaction: it would reveal the transparent senders and their amounts.
   Re-run with `--policy AllowRevealedSenders` (or a more permissive policy). Nothing was broadcast.
 $ echo $?
 1
 
-$ ./target/debug/canary-probe shield --policy Bogus
+$ ./target/debug/zanary-probe shield --policy Bogus
 Error: unknown privacy policy `Bogus` — expected one of FullPrivacy, AllowRevealedAmounts, AllowRevealedRecipients, AllowRevealedSenders, AllowFullyTransparent, NoPrivacy
 $ echo $?
 1
@@ -75,12 +75,12 @@ recorded in the outputs.
 ### 2.2 `fund --zec 20` — txid `878a2c014368fa997eb30245d3a66abe84049d5a238a4961a70cf1486ec455b5`
 
 ```
-$ CANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/canary-probe fund --zec 20
-canary-probe 0.0.1 fund — CANARY (ZECATHON, Core & Tooling)
+$ ZANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/zanary-probe fund --zec 20
+zanary-probe 0.0.1 fund — ZANARY (ZECATHON, Core & Tooling)
   network           : regtest (throwaway harness chain)
   indexer endpoint  : http://127.0.0.1:9067
-  wallet db         : ./data/wallet/canary-wallet.db
-  account           : canary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
+  wallet db         : ./data/wallet/zanary-wallet.db
+  account           : zanary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
   recipient (t)     : tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts
   amount            : 20.00000000 ZEC
   node wallet       : 862.99990000 ZEC spendable · 0.00000000 ZEC immature · chain height 337
@@ -97,12 +97,12 @@ receives, because the node mines to this wallet's address.
 ### 2.3 `shield` — txid `826ed1383cbbdc7604441a311449838ba85001f98d6fca63fab841acd474e94e`
 
 ```
-$ CANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/canary-probe shield
-canary-probe 0.0.1 shield — CANARY (ZECATHON, Core & Tooling)
+$ ZANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/zanary-probe shield
+zanary-probe 0.0.1 shield — ZANARY (ZECATHON, Core & Tooling)
   network           : regtest (throwaway harness chain)
   indexer endpoint  : http://127.0.0.1:9067
-  wallet db         : ./data/wallet/canary-wallet.db
-  account           : canary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
+  wallet db         : ./data/wallet/zanary-wallet.db
+  account           : zanary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
   policy            : AllowRevealedSenders (shielding reveals the transparent senders and amounts)
   before            : transparent 651.25455000 ZEC · orchard 483.49575000 ZEC · total 1134.75030000 ZEC
   proposal          : 1 step(s) · fee 0.00180000 ZEC · shielding 226.25000000 ZEC
@@ -136,19 +136,19 @@ Recipient: account 1's Orchard receiver
 identity but a different ZIP-32 account and diversifier.
 
 ```
-$ CANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/canary-probe pay \
+$ ZANARY_LWD_URL=http://127.0.0.1:9067 ./target/debug/zanary-probe pay \
     --to uregtest1lqhms8gkj6dcgftfgtugnrj2f8dglkdtr60tsra3x5s9sg4seaafllpwhwmr2mfu78sn7es6uvwnydmcp4h2y5653m27klxfhghjwgcd \
-    --zec 7.25 --memo "CANARY fresh-run memo: shielded Orchard payment, readable at the recipient" \
+    --zec 7.25 --memo "ZANARY fresh-run memo: shielded Orchard payment, readable at the recipient" \
     --policy AllowRevealedAmounts
-canary-probe 0.0.1 pay — CANARY (ZECATHON, Core & Tooling)
+zanary-probe 0.0.1 pay — ZANARY (ZECATHON, Core & Tooling)
   network           : regtest (throwaway harness chain)
   indexer endpoint  : http://127.0.0.1:9067
-  wallet db         : ./data/wallet/canary-wallet.db
-  from account      : canary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
+  wallet db         : ./data/wallet/zanary-wallet.db
+  from account      : zanary-dev (AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec))
   to                : uregtest1lqhms8gkj6dcgftfgtugnrj2f8dglkdtr60tsra3x5s9sg4seaafllpwhwmr2mfu78sn7es6uvwnydmcp4h2y5653m27klxfhghjwgcd
   recipient         : unified (orchard receivers)
   amount            : 7.25000000 ZEC
-  memo              : "CANARY fresh-run memo: shielded Orchard payment, readable at the recipient" (74 bytes, ZIP-302)
+  memo              : "ZANARY fresh-run memo: shielded Orchard payment, readable at the recipient" (74 bytes, ZIP-302)
   policy            : AllowRevealedAmounts
   before            : transparent 459.38135000 ZEC · orchard 709.74395000 ZEC · total 1169.12530000 ZEC
   proposal          : 1 step(s) · fee 0.00010000 ZEC
@@ -163,9 +163,9 @@ canary-probe 0.0.1 pay — CANARY (ZECATHON, Core & Tooling)
     transparent    : 34.37510000 ZEC
 
   --- recipient-side check (our code decrypts the mined transaction) ---
-  orchard output #1 → account AccountUuid(48b70fe7-8e0f-4f7c-a216-99b44807a3bf) · Incoming · 7.25000000 ZEC · memo: "CANARY fresh-run memo: shielded Orchard payment, readable at the recipient"
+  orchard output #1 → account AccountUuid(48b70fe7-8e0f-4f7c-a216-99b44807a3bf) · Incoming · 7.25000000 ZEC · memo: "ZANARY fresh-run memo: shielded Orchard payment, readable at the recipient"
   orchard output #0 → account AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec) · AccountInternal · 17.74960000 ZEC · memo: "\ufffd"
-  orchard output #1 → account AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec) · Outgoing · 7.25000000 ZEC · memo: "CANARY fresh-run memo: shielded Orchard payment, readable at the recipient"
+  orchard output #1 → account AccountUuid(c9ec347b-c703-4e40-a1be-925cd34604ec) · Outgoing · 7.25000000 ZEC · memo: "ZANARY fresh-run memo: shielded Orchard payment, readable at the recipient"
 ```
 
 **The memo is readable at the recipient.** The last block is our own code
@@ -194,16 +194,16 @@ pay       after       : transparent 493.75645000 · orchard 702.49385000 · tota
 ### 2.5 `address` — raw output
 
 ```
-$ ./target/debug/canary-probe address --transparent
+$ ./target/debug/zanary-probe address --transparent
   --- receivers ---
   transparent       : tmF1xjfhsSzhy55dmhorzTnKjtHhZmPKzts
 
-$ ./target/debug/canary-probe address --orchard
+$ ./target/debug/zanary-probe address --orchard
   --- receivers ---
   orchard           : uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80
   diversifier index : DiversifierIndex([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
-$ ./target/debug/canary-probe address --orchard --account 1
+$ ./target/debug/zanary-probe address --orchard --account 1
   orchard           : uregtest1lqhms8gkj6dcgftfgtugnrj2f8dglkdtr60tsra3x5s9sg4seaafllpwhwmr2mfu78sn7es6uvwnydmcp4h2y5653m27klxfhghjwgcd
   diversifier index : DiversifierIndex([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 ```
@@ -220,7 +220,7 @@ then `shield` → `dffad397c2122c68ce984c7dde45746ba36553722448e6a05192043cbd186
 (69 transparent inputs, 437.00000000 ZEC total, including that fund's 12.00000000 ZEC
 output — verified by reading the wallet DB's spend records), then `pay --zec 3.5` →
 `6c0cd2d289134041fbab2c2f3c8f2d928537a6021e760275ba745de172272478` with the memo
-"canary-probe pay: ZIP-302 memo on the regtest harness" read back at the recipient
+"zanary-probe pay: ZIP-302 memo on the regtest harness" read back at the recipient
 (`Incoming · 3.50000000 ZEC`). The shield's `after` line is byte-identical to the pay's
 `before` line (`transparent 562.50425000 ZEC · orchard 486.99585000 ZEC · total
 1049.50010000 ZEC`), which is the balance chain that ties the two runs together.
@@ -296,7 +296,7 @@ would have come back at expiry and broken the next send the same way.
 
 ### 3.3 `put_received_transparent_utxo` costs ~350 ms per output in a debug build, and every sync re-reports every UTXO
 
-Symptom — every command paid ~45 s of sync: with `CANARY_TIMINGS=1` the refresh loop
+Symptom — every command paid ~45 s of sync: with `ZANARY_TIMINGS=1` the refresh loop
 showed 126 UTXO replies taking 44 s, and the whole bootstrap ~50 s.
 
 Evidence — before the change, `TIMING utxo reply #125: 44.6s` and the whole bootstrap
@@ -381,28 +381,28 @@ reported by the `fund` command as `node wallet`.
 ## 4. Reproduce
 
 ```sh
-cd /home/kiter/hackathon/canary
-cargo build --bin canary-probe
+cd /home/kiter/hackathon/zanary
+cargo build --bin zanary-probe
 
-export CANARY_LWD_URL=http://127.0.0.1:9067
+export ZANARY_LWD_URL=http://127.0.0.1:9067
 
-./target/debug/canary-probe                        # lightd info (unchanged)
-./target/debug/canary-probe wallet                 # D1 gate (unchanged)
-./target/debug/canary-probe address --transparent
-./target/debug/canary-probe address --orchard
-./target/debug/canary-probe address --orchard --account 1
+./target/debug/zanary-probe                        # lightd info (unchanged)
+./target/debug/zanary-probe wallet                 # D1 gate (unchanged)
+./target/debug/zanary-probe address --transparent
+./target/debug/zanary-probe address --orchard
+./target/debug/zanary-probe address --orchard --account 1
 
-./target/debug/canary-probe fund --zec 20          # node -> probe transparent
-./target/debug/canary-probe shield                 # transparent -> own Orchard
-./target/debug/canary-probe pay --to <address> --zec 7.25 --memo "text" --policy AllowRevealedAmounts
+./target/debug/zanary-probe fund --zec 20          # node -> probe transparent
+./target/debug/zanary-probe shield                 # transparent -> own Orchard
+./target/debug/zanary-probe pay --to <address> --zec 7.25 --memo "text" --policy AllowRevealedAmounts
 
-CANARY_TIMINGS=1 ./target/debug/canary-probe wallet   # per-phase timings on stderr/stdout
+ZANARY_TIMINGS=1 ./target/debug/zanary-probe wallet   # per-phase timings on stderr/stdout
 ```
 
-`CANARY_TIMINGS=1` also re-enables the informational lines that are silent by default
+`ZANARY_TIMINGS=1` also re-enables the informational lines that are silent by default
 (the UTXO-refresh counters and the tx-index annotation count), so the content of the
 `wallet` and no-subcommand output is what it was before this work. Other knobs:
-`CANARY_DATA_DIR` (default `./data/wallet`), `CANARY_DEBUG_TX_INDEX=1`, `RUST_LOG`
+`ZANARY_DATA_DIR` (default `./data/wallet`), `ZANARY_DEBUG_TX_INDEX=1`, `RUST_LOG`
 (default `info`; the library's own `INFO … Storing decrypted transaction` lines come
 from the logger that was already in `main.rs`, and the spend-detection sweep can emit
 them when it finds a spend — `RUST_LOG=warn` silences that stream).

@@ -1,18 +1,18 @@
-//! `canary-report` — build a report from a run, verify one against the chain, and turn a
+//! `zanary-report` — build a report from a run, verify one against the chain, and turn a
 //! directory of reports into an expiring claim index.
 //!
 //! ```text
-//! canary-report verify <report.json> [--ufvk <ufvk>] [--node <url>] [--indexer <url>]
-//! canary-report build --run <run.json> [--findings <findings.json>]
+//! zanary-report verify <report.json> [--ufvk <ufvk>] [--node <url>] [--indexer <url>]
+//! zanary-report build --run <run.json> [--findings <findings.json>]
 //!                     [--verified-at <rfc3339>] [--ttl-days <n>] [--out <report.json>]
-//! canary-report sample-run [--out <run.json>]
-//! canary-report index --reports <dir> --out <index.html> [--now <rfc3339>]
+//! zanary-report sample-run [--out <run.json>]
+//! zanary-report index --reports <dir> --out <index.html> [--now <rfc3339>]
 //! ```
 
 use anyhow::{Context, Result};
-use canary_observation::FlowRun;
-use canary_properties::Finding;
-use canary_report::{
+use zanary_observation::FlowRun;
+use zanary_properties::Finding;
+use zanary_report::{
     build_with_claim,
     index::render_index_with_anchors,
     verify::{verify_report, VerifyOptions},
@@ -55,7 +55,7 @@ async fn main() {
     }
 }
 
-/// `canary-report verify-receipt <receipt.json> [--fvk <ufvk>] [--signer <hex>]`
+/// `zanary-report verify-receipt <receipt.json> [--fvk <ufvk>] [--signer <hex>]`
 ///
 /// Offline by construction: it reads the receipt, rebuilds the bytes the merchant signed, and
 /// checks the signature. No node, no indexer, no wallet, no rig — so it runs with the engine
@@ -99,7 +99,7 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
 
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("reading {path}"))?;
-    let receipt: canary_observation::Receipt = serde_json::from_str(&text)
+    let receipt: zanary_observation::Receipt = serde_json::from_str(&text)
         .with_context(|| format!("parsing {path} as a receipt"))?;
 
     println!("receipt   : {path}");
@@ -111,8 +111,8 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
         println!("discloses : {}", receipt.discloses.join(", "));
     }
 
-    let signature_check = canary_report::receipt::verify_signature(&receipt);
-    let claim_check = canary_report::receipt::validate_claim(&receipt);
+    let signature_check = zanary_report::receipt::verify_signature(&receipt);
+    let claim_check = zanary_report::receipt::validate_claim(&receipt);
 
     match &signature_check {
         Ok(check) => {
@@ -147,16 +147,16 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
 
     if let Some(ufvk) = fvk {
         let wallet_ak = match network {
-            "main" => canary_report::receipt::signer_of_ufvk(
+            "main" => zanary_report::receipt::signer_of_ufvk(
                 &zcash_protocol::consensus::Network::MainNetwork,
                 &ufvk,
             )?,
-            "test" => canary_report::receipt::signer_of_ufvk(
+            "test" => zanary_report::receipt::signer_of_ufvk(
                 &zcash_protocol::consensus::Network::TestNetwork,
                 &ufvk,
             )?,
-            _ => canary_report::receipt::signer_of_ufvk(
-                &canary_report::receipt::regtest_params(),
+            _ => zanary_report::receipt::signer_of_ufvk(
+                &zanary_report::receipt::regtest_params(),
                 &ufvk,
             )?,
         };
@@ -168,7 +168,7 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
             // A dedicated-key receipt binds through the wallet's attestation instead, and a
             // receipt published without one is bound to no wallet at all — which is a failure of
             // the check you asked for, not a failure of the receipt.
-            match canary_report::receipt::verify_attestation(&receipt, &wallet_ak) {
+            match zanary_report::receipt::verify_attestation(&receipt, &wallet_ak) {
                 Ok(()) => println!(
                     "            matches — the receipt key is attested by that wallet (binding verified)"
                 ),
@@ -182,8 +182,8 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
         println!(
             "attested  : receipt key {} is attested by wallet key {} — verify the binding with \
              --fvk <that wallet's UFVK>",
-            canary_report::receipt::short(&att.receipt_key),
-            canary_report::receipt::short(&att.wallet_ak)
+            zanary_report::receipt::short(&att.receipt_key),
+            zanary_report::receipt::short(&att.wallet_ak)
         );
     } else {
         println!(
@@ -197,7 +197,7 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
     Ok(0)
 }
 
-/// `canary-report matrix --runs <dir> --out <file.md>`
+/// `zanary-report matrix --runs <dir> --out <file.md>`
 ///
 /// One property × flow table over every run directory under `--runs`. The submission artifact: the
 /// private flows and the control side by side, each column pinned to its `flow_commit`.
@@ -206,16 +206,16 @@ fn matrix(args: &[String]) -> Result<i32> {
         .ok_or_else(|| anyhow::anyhow!("matrix needs --runs <dir>"))?;
     let out =
         arg_value(args, "--out").ok_or_else(|| anyhow::anyhow!("matrix needs --out <file.md>"))?;
-    let columns = canary_report::matrix::collect(std::path::Path::new(runs))?;
+    let columns = zanary_report::matrix::collect(std::path::Path::new(runs))?;
     if columns.is_empty() {
         return Err(anyhow::anyhow!(
             "no run directories with run.json + findings.json under {runs}"
         ));
     }
-    let markdown = canary_report::matrix::render_markdown(&columns);
+    let markdown = zanary_report::matrix::render_markdown(&columns);
     fs::write(out, &markdown).with_context(|| format!("writing {out}"))?;
 
-    use canary_properties::Verdict;
+    use zanary_properties::Verdict;
     for column in &columns {
         println!(
             "  {} @ {} — {} pass · {} fail · {} skip",
@@ -240,33 +240,33 @@ fn matrix(args: &[String]) -> Result<i32> {
 
 fn usage() {
     eprintln!(
-        "canary-report — reports a stranger can check, claims that expire\n\
+        "zanary-report — reports a stranger can check, claims that expire\n\
          \n\
          USAGE:\n\
-         \x20 canary-report verify <report.json> [--ufvk <ufvk>] [--node <url>] [--indexer <url>]\n\
-         \x20 canary-report verify-receipt <receipt.json> [--network regtest|test|main]\n\
+         \x20 zanary-report verify <report.json> [--ufvk <ufvk>] [--node <url>] [--indexer <url>]\n\
+         \x20 zanary-report verify-receipt <receipt.json> [--network regtest|test|main]\n\
          \x20                     [--fvk <ufvk>] [--signer <hex>]\n\
          \x20                     offline: checks the receipt's signature over its own fields —\n\
          \x20                     no node, no indexer, no rig. --fvk binds the receipt's key to\n\
          \x20                     that wallet: directly, or through the wallet's attestation when\n\
          \x20                     the receipt was signed by a dedicated receipt key.\n\
-         \x20 canary-report build --run <run.json> [--findings <findings.json>]\n\
+         \x20 zanary-report build --run <run.json> [--findings <findings.json>]\n\
          \x20                     [--verified-at <rfc3339>] [--ttl-days <n>] [--out <report.json>]\n\
-         \x20 canary-report sample-run [--out <run.json>]\n\
-         \x20 canary-report index --reports <dir> --out <index.html> [--now <rfc3339>]\n\
-         \x20 canary-report matrix --runs <dir> --out <file.md>\n\
-         \x20 canary-report verify-anchor --report <report.json> [--root <hex>]\n\
+         \x20 zanary-report sample-run [--out <run.json>]\n\
+         \x20 zanary-report index --reports <dir> --out <index.html> [--now <rfc3339>]\n\
+         \x20 zanary-report matrix --runs <dir> --out <file.md>\n\
+         \x20 zanary-report verify-anchor --report <report.json> [--root <hex>]\n\
          \x20                     --beacon-ufvk <ufvk> [--since <height>] [--chain regtest]\n\
          \x20                     [--node <url>]\n\
          \x20                     anchored evidence: scans the chain for a shielded memo carrying\n\
          \x20                     this evidence root and reports the EARLIEST one — the timestamp\n\
          \x20                     nobody has to be trusted for. Needs a node and the beacon's\n\
-         \x20                     published viewing key, never CANARY. Exits 0 when the anchor\n\
+         \x20                     published viewing key, never ZANARY. Exits 0 when the anchor\n\
          \x20                     agrees with the report, 1 otherwise.\n\
          \n\
          verify exits 0 when every check passes, 1 on any mismatch.\n\
-         Environment: CANARY_NODE_URL (default http://127.0.0.1:18232),\n\
-         \x20 CANARY_NODE_USER/PASS (default canary/canary), CANARY_LWD_URL (default\n\
+         Environment: ZANARY_NODE_URL (default http://127.0.0.1:18232),\n\
+         \x20 ZANARY_NODE_USER/PASS (default zanary/zanary), ZANARY_LWD_URL (default\n\
          \x20 http://127.0.0.1:9067)."
     );
 }
@@ -293,11 +293,11 @@ fn parse_ts(s: &str) -> Result<OffsetDateTime> {
         .with_context(|| format!("`{s}` is not an RFC3339 timestamp (e.g. 2026-10-11T20:30:00Z)"))
 }
 
-/// `canary-report verify-anchor --report <report.json> [--root <hex>] --beacon-ufvk <ufvk>`
+/// `zanary-report verify-anchor --report <report.json> [--root <hex>] --beacon-ufvk <ufvk>`
 ///                      `[--since <height>] [--chain regtest] [--node <url>]`
 ///
 /// The stranger's check on an anchor: with a node, a chain and the beacon's *published viewing key*
-/// — nothing from CANARY — scan the chain for a shielded memo carrying this evidence root, and
+/// — nothing from ZANARY — scan the chain for a shielded memo carrying this evidence root, and
 /// report the earliest one. The height of that memo is the only timestamp in this system that
 /// nobody has to be trusted for.
 ///
@@ -321,12 +321,12 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
             .with_context(|| format!("--since expects a height, got `{value}`"))?;
     }
     let node = match arg_value(args, "--node") {
-        Some(url) => canary_report::node::NodeRpc::new(
+        Some(url) => zanary_report::node::NodeRpc::new(
             url.strip_prefix("http://").unwrap_or(url).trim_end_matches('/'),
-            std::env::var("CANARY_NODE_USER").unwrap_or_else(|_| "canary".into()),
-            std::env::var("CANARY_NODE_PASS").unwrap_or_else(|_| "canary".into()),
+            std::env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into()),
+            std::env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into()),
         ),
-        None => canary_report::node::NodeRpc::from_env(),
+        None => zanary_report::node::NodeRpc::from_env(),
     };
 
     // The report, when given, is read and re-hashed here: anchoring is about an exact artifact, so
@@ -344,8 +344,8 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
     let mut recomputed_hash: Option<String> = None;
     let mut recomputed_root: Option<String> = None;
     if let Some(report) = &report {
-        let hash = canary_report::hash_report(report)?;
-        let root = canary_report::evidence_root(&report.evidence)?;
+        let hash = zanary_report::hash_report(report)?;
+        let root = zanary_report::evidence_root(&report.evidence)?;
         if report.report_hash != hash {
             checks.push((
                 "report hash".to_string(),
@@ -387,10 +387,10 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
         ));
     };
 
-    println!("canary-report verify-anchor — evidence root {}", short(&root));
+    println!("zanary-report verify-anchor — evidence root {}", short(&root));
     println!("  chain             : {chain} (scanning from height {since})");
     println!();
-    let outcome = canary_report::anchor::scan(&node, &chain, &beacon_ufvk, since)
+    let outcome = zanary_report::anchor::scan(&node, &chain, &beacon_ufvk, since)
         .context("scanning the chain for anchor memos with the beacon's viewing key")?;
     println!(
         "  scan              : {} block(s) {}..={} read · {} transaction(s) trial-decrypted",
@@ -500,7 +500,7 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
     );
     if fail == 0 {
         println!(
-            "\n  re-check: canary-report verify-anchor --report <report.json> --beacon-ufvk <ufvk> \
+            "\n  re-check: zanary-report verify-anchor --report <report.json> --beacon-ufvk <ufvk> \
              --node <node>\n  root     : {recheck_root}"
         );
         Ok(0)
@@ -520,10 +520,10 @@ async fn verify(args: &[String]) -> Result<i32> {
 
     let mut opts = VerifyOptions::default();
     if let Some(url) = arg_value(args, "--node") {
-        opts.node = canary_report::node::NodeRpc::new(
+        opts.node = zanary_report::node::NodeRpc::new(
             url.strip_prefix("http://").unwrap_or(url).trim_end_matches('/'),
-            std::env::var("CANARY_NODE_USER").unwrap_or_else(|_| "canary".into()),
-            std::env::var("CANARY_NODE_PASS").unwrap_or_else(|_| "canary".into()),
+            std::env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into()),
+            std::env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into()),
         );
     }
     if let Some(url) = arg_value(args, "--indexer") {
@@ -534,7 +534,7 @@ async fn verify(args: &[String]) -> Result<i32> {
     }
 
     println!(
-        "canary-report verify — {} @ {}",
+        "zanary-report verify — {} @ {}",
         report.flow_id,
         short(&report.flow_commit)
     );
@@ -586,7 +586,7 @@ fn build(args: &[String]) -> Result<i32> {
         .with_context(|| format!("parsing {path} as findings"))?,
         // The property registry is filled in as each property lands; until then a run with no
         // findings is honest — the evidence is still checkable.
-        None => canary_properties::evaluate(&run),
+        None => zanary_properties::evaluate(&run),
     };
 
     let verified_at = match arg_value(args, "--verified-at") {
@@ -610,12 +610,12 @@ fn build(args: &[String]) -> Result<i32> {
     fs::write(&out, serde_json::to_string_pretty(&report)?)
         .with_context(|| format!("writing {}", out.display()))?;
 
-    let root = canary_report::evidence_root(&report.evidence)?;
+    let root = zanary_report::evidence_root(&report.evidence)?;
     println!("built {}", out.display());
     println!("  flow        : {} @ {}", report.flow_id, short(&report.flow_commit));
     println!("  chain       : {} (verified at height {})", report.chain, report.verified_at_height);
     println!("  verified_at : {}", report.verified_at.as_deref().unwrap_or("(none)"));
-    println!("  ttl         : {}d", canary_report::claim_ttl_seconds(&report) / 86_400);
+    println!("  ttl         : {}d", zanary_report::claim_ttl_seconds(&report) / 86_400);
     println!("  findings    : {}", report.findings.len());
     println!("  evidence    : {} entries", report.evidence.len());
     println!("  report_hash : {}", report.report_hash);
@@ -630,7 +630,7 @@ fn sample_run(args: &[String]) -> Result<i32> {
     println!(
         "  a real run recorded against the local harness chain (see crates/report/fixtures/);\n\
          \x20 build it with:\n\
-         \x20   canary-report build --run {} --findings crates/report/fixtures/findings.json \\\n\
+         \x20   zanary-report build --run {} --findings crates/report/fixtures/findings.json \\\n\
          \x20     --verified-at 2026-10-10T20:30:00Z --out report.json",
         out.display()
     );
@@ -647,7 +647,7 @@ fn index(args: &[String]) -> Result<i32> {
 
     // Two layouts are accepted, because both are natural ways to keep runs on disk: a flat
     // directory of report files, and a directory of run directories each holding its own
-    // `report.json` (which is what `canary-probe flow` writes under `data/runs/`). Reading only
+    // `report.json` (which is what `zanary-probe flow` writes under `data/runs/`). Reading only
     // one of them would make the documented command silently index nothing.
     let mut files: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(dir).with_context(|| format!("reading reports dir {dir}"))? {
@@ -678,7 +678,7 @@ fn index(args: &[String]) -> Result<i32> {
     // (`<run>/anchor.json` for the run-directory layout, `<report.json>.anchor.json` for a flat one).
     // A report whose hash recomputes and whose anchor record agrees is a claim with a public
     // timestamp; the page says which of those it has.
-    let mut anchors: std::collections::BTreeMap<String, canary_report::anchor::AnchorRef> =
+    let mut anchors: std::collections::BTreeMap<String, zanary_report::anchor::AnchorRef> =
         std::collections::BTreeMap::new();
     for path in &files {
         let candidate = match path.file_name().map(|n| n == "report.json") {
@@ -689,11 +689,11 @@ fn index(args: &[String]) -> Result<i32> {
         if !candidate.is_file() {
             continue;
         }
-        match canary_report::anchor::AnchorRecord::from_path(&candidate.to_string_lossy()) {
+        match zanary_report::anchor::AnchorRecord::from_path(&candidate.to_string_lossy()) {
             Ok(record) => {
                 anchors.insert(
                     record.anchor.report_hash.clone(),
-                    canary_report::anchor::AnchorRef {
+                    zanary_report::anchor::AnchorRef {
                         txid: record.txid.clone(),
                         height: record.height,
                     },
@@ -705,10 +705,10 @@ fn index(args: &[String]) -> Result<i32> {
 
     let html = render_index_with_anchors(&reports, &anchors, now)?;
     fs::write(out, html).with_context(|| format!("writing {out}"))?;
-    let (claims, regressions) = canary_report::index::index_claims(&reports, now);
-    let live = claims.iter().filter(|c| c.status == Some(canary_report::ClaimStatus::Live)).count();
-    let stale = claims.iter().filter(|c| c.status == Some(canary_report::ClaimStatus::Stale)).count();
-    let dead = claims.iter().filter(|c| c.status == Some(canary_report::ClaimStatus::Dead)).count();
+    let (claims, regressions) = zanary_report::index::index_claims(&reports, now);
+    let live = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Live)).count();
+    let stale = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Stale)).count();
+    let dead = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Dead)).count();
     println!("indexed {} report(s) → {out}", reports.len());
     println!("  live {live} · stale {stale} · dead {dead} · regressions {}", regressions.len());
     println!(

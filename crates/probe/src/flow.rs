@@ -1,9 +1,9 @@
-//! `canary-probe flow` — execute a payment flow on the harness and record what happened.
+//! `zanary-probe flow` — execute a payment flow on the harness and record what happened.
 //!
 //! The rig's product is not "a wallet that can pay", it is "a flow whose privacy claims can be
 //! checked": this command runs a flow definition end to end — N invoices, each paid by the payer
 //! wallet to a receiver the *merchant* issued, carrying a ZIP-302 memo — records every
-//! observation into the shared `canary_observation::FlowRun` model, evaluates the property
+//! observation into the shared `zanary_observation::FlowRun` model, evaluates the property
 //! library over that record, and writes a report. One command, real transactions, no mocks.
 //!
 //! The merchant is a separate wallet: different seed, different database, its own sync and its
@@ -19,7 +19,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, path::PathBuf};
 
-use canary_observation::{
+use zanary_observation::{
     FlowRun, Funding, MerchantEvent, Payment, PaymentKind, Pool, PoolTotals, Receipt,
 };
 use zcash_client_backend::{
@@ -220,7 +220,7 @@ impl FlowDefinition {
 // entry point
 // ---------------------------------------------------------------------------
 
-/// `canary-probe flow --definition <path> [--out <dir>]`
+/// `zanary-probe flow --definition <path> [--out <dir>]`
 pub async fn run(raw: &[String]) -> Result<()> {
     let (definition_path, out_dir) = parse_args(raw)?;
     let text = std::fs::read_to_string(&definition_path)
@@ -273,7 +273,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
         ),
     }
 
-    let flow_commit = canary_report::sha256_hex(definition.canonical()?.as_bytes());
+    let flow_commit = zanary_report::sha256_hex(definition.canonical()?.as_bytes());
     let policy = match &definition.policy {
         Some(policy) => ops::PrivacyPolicy::parse(policy)?,
         // Default: the strictest policy that still permits a shielded payment.
@@ -281,7 +281,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
     };
 
     println!(
-        "canary-probe {} flow — CANARY (ZECATHON, Core & Tooling)",
+        "zanary-probe {} flow — ZANARY (ZECATHON, Core & Tooling)",
         env!("CARGO_PKG_VERSION")
     );
     println!("  flow              : {}", definition.flow_id);
@@ -463,19 +463,19 @@ pub async fn run(raw: &[String]) -> Result<()> {
     std::fs::write(&run_path, serde_json::to_string_pretty(&run)?)
         .with_context(|| format!("writing {}", run_path.display()))?;
 
-    let findings = canary_properties::evaluate(&run);
+    let findings = zanary_properties::evaluate(&run);
     let findings_path = out_dir.join("findings.json");
     std::fs::write(&findings_path, serde_json::to_string_pretty(&findings)?)
         .with_context(|| format!("writing {}", findings_path.display()))?;
 
-    let report = canary_report::build_with_claim(
+    let report = zanary_report::build_with_claim(
         &run,
         findings.clone(),
         Some(utc_now_rfc3339()?),
         None,
     )?;
     let report_path = out_dir.join("report.json");
-    std::fs::write(&report_path, canary_report::canonical_json(&report)?)
+    std::fs::write(&report_path, zanary_report::canonical_json(&report)?)
         .with_context(|| format!("writing {}", report_path.display()))?;
 
     // --- summary --------------------------------------------------------------------
@@ -517,17 +517,17 @@ pub async fn run(raw: &[String]) -> Result<()> {
     let (mut pass, mut fail, mut skip) = (0usize, 0usize, 0usize);
     for finding in &findings {
         match finding.verdict {
-            canary_properties::Verdict::Pass => pass += 1,
-            canary_properties::Verdict::Fail => fail += 1,
-            canary_properties::Verdict::Skip => skip += 1,
+            zanary_properties::Verdict::Pass => pass += 1,
+            zanary_properties::Verdict::Fail => fail += 1,
+            zanary_properties::Verdict::Skip => skip += 1,
         }
         println!(
             "  {} {} {} — {}",
             finding.severity.as_str(),
             match finding.verdict {
-                canary_properties::Verdict::Pass => "pass",
-                canary_properties::Verdict::Fail => "FAIL",
-                canary_properties::Verdict::Skip => "skip",
+                zanary_properties::Verdict::Pass => "pass",
+                zanary_properties::Verdict::Fail => "FAIL",
+                zanary_properties::Verdict::Skip => "skip",
             },
             finding.property,
             finding.title
@@ -540,7 +540,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
     println!("  run               : {}", run_path.display());
     println!("  findings          : {}", findings_path.display());
     println!(
-        "\n  next: canary-report verify {} --node http://127.0.0.1:18232",
+        "\n  next: zanary-report verify {} --node http://127.0.0.1:18232",
         report_path.display()
     );
 
@@ -598,7 +598,7 @@ async fn settle_per_invoice(
             invoice
                 .memo_template
                 .clone()
-                .unwrap_or_else(|| "canary: invoice {invoice_id}".to_string())
+                .unwrap_or_else(|| "zanary: invoice {invoice_id}".to_string())
                 .replace("{invoice_id}", &invoice.invoice_id)
         } else {
             String::new()
@@ -608,7 +608,7 @@ async fn settle_per_invoice(
             println!("  invoice memo      : {memo_text:?}");
         }
 
-        // 2. The payer pays it, through the same code path `canary-probe pay` uses.
+        // 2. The payer pays it, through the same code path `zanary-probe pay` uses.
         let recipient = Address::decode(&payer.network, &receiver).ok_or_else(|| {
             anyhow!("the merchant issued an address this chain cannot decode: {receiver}")
         })?;
@@ -627,7 +627,7 @@ async fn settle_per_invoice(
         // drawn number when it asks for jitter.
         ops::mine_and_resync(payer, jitter.next()).await?;
         // The payment's height is the block that mined it — not the tip after mining. The
-        // indexer reports it, and `canary-report verify` re-checks exactly this number.
+        // indexer reports it, and `zanary-report verify` re-checks exactly this number.
         let height = mined_height_of(&mut payer.client, txid).await?;
         let Some(height) = height else {
             bail!(
@@ -672,7 +672,7 @@ async fn settle_per_invoice(
             kind: PaymentKind::Shielded,
             policy: Some(policy.name().to_string()),
             observed: std::collections::BTreeMap::from([
-                ("built_by".to_string(), "canary-probe flow".to_string()),
+                ("built_by".to_string(), "zanary-probe flow".to_string()),
                 ("fee_zat".to_string(), fee_zat.to_string()),
                 (
                     "merchant_verified".to_string(),
@@ -688,7 +688,7 @@ async fn settle_per_invoice(
         fields.insert("amount_zat".to_string(), invoice.amount_zat.to_string());
         let mut headers = std::collections::BTreeMap::new();
         headers.insert("content-type".to_string(), "application/json".to_string());
-        headers.insert("user-agent".to_string(), "canary-rig/0.0.1".to_string());
+        headers.insert("user-agent".to_string(), "zanary-rig/0.0.1".to_string());
         run.merchant_events.push(MerchantEvent {
             height: Some(height),
             method: "POST".to_string(),
@@ -706,12 +706,12 @@ async fn settle_per_invoice(
         // claim is the leak `report-leak` looks for. Nothing about the payer is in here.
         let mut receipt = Receipt {
             label: format!("receipt {}", invoice.invoice_id),
-            format: "canary-receipt-v1".to_string(),
+            format: "zanary-receipt-v1".to_string(),
             body: serde_json::json!({
                 "invoice_id": invoice.invoice_id,
                 "amount_zat": invoice.amount_zat,
                 "txid": txid.to_string(),
-                "memo_sha256": canary_report::sha256_hex(memo.as_slice()),
+                "memo_sha256": zanary_report::sha256_hex(memo.as_slice()),
             })
             .to_string(),
             claims: vec![
@@ -728,7 +728,7 @@ async fn settle_per_invoice(
             attestation: None,
         };
         // The merchant signs its own receipt, so the receipt proves *who* issued it and a
-        // stranger can check that offline (`canary-report verify-receipt`).
+        // stranger can check that offline (`zanary-report verify-receipt`).
         sign_receipt(merchant, receipt_key, &mut receipt)?;
         run.receipts.push(receipt);
 
@@ -798,7 +798,7 @@ async fn settle_batch(
             invoice
                 .memo_template
                 .clone()
-                .unwrap_or_else(|| "canary: invoice {invoice_id}".to_string())
+                .unwrap_or_else(|| "zanary: invoice {invoice_id}".to_string())
                 .replace("{invoice_id}", &invoice.invoice_id)
         } else {
             String::new()
@@ -928,7 +928,7 @@ async fn settle_batch(
         let mut observed = std::collections::BTreeMap::from([
             (
                 "built_by".to_string(),
-                "canary-probe flow (batch)".to_string(),
+                "zanary-probe flow (batch)".to_string(),
             ),
             ("batch_id".to_string(), txid.to_string()),
             ("batch_size".to_string(), count.to_string()),
@@ -978,7 +978,7 @@ async fn settle_batch(
         fields.insert("batch_size".to_string(), count.to_string());
         let mut headers = std::collections::BTreeMap::new();
         headers.insert("content-type".to_string(), "application/json".to_string());
-        headers.insert("user-agent".to_string(), "canary-rig/0.0.1".to_string());
+        headers.insert("user-agent".to_string(), "zanary-rig/0.0.1".to_string());
         run.merchant_events.push(MerchantEvent {
             height: Some(height),
             method: "POST".to_string(),
@@ -994,12 +994,12 @@ async fn settle_batch(
         // made by the transaction itself, not hidden by the receipt formatting.
         let mut receipt = Receipt {
             label: format!("receipt {}", item.invoice_id),
-            format: "canary-receipt-v1".to_string(),
+            format: "zanary-receipt-v1".to_string(),
             body: serde_json::json!({
                 "invoice_id": item.invoice_id,
                 "amount_zat": item.amount_zat,
                 "txid": txid.to_string(),
-                "memo_sha256": canary_report::sha256_hex(item.memo.as_slice()),
+                "memo_sha256": zanary_report::sha256_hex(item.memo.as_slice()),
             })
             .to_string(),
             claims: vec![
@@ -1069,7 +1069,7 @@ fn batch_order(count: usize, seed: Option<u64>) -> Vec<usize> {
 
 /// Parses `--definition <path>` and `--out <dir>` (default `data/runs/<flow_id>`).
 fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf)> {
-    const USAGE: &str = "canary-probe flow --definition <path> [--out <dir>]";
+    const USAGE: &str = "zanary-probe flow --definition <path> [--out <dir>]";
     let mut definition: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut iter = raw.iter();
@@ -1345,7 +1345,7 @@ async fn mined_height_of(
 ///
 /// RedPallas, the same key that authorizes the merchant's shielded spends, so the signature is
 /// over the receipt's own fields and the public half is the key behind the address the invoice
-/// named. `canary-report verify-receipt --fvk <the merchant's ufvk>` checks that binding offline,
+/// named. `zanary-report verify-receipt --fvk <the merchant's ufvk>` checks that binding offline,
 /// with no node, no indexer and no rig running.
 fn sign_receipt(
     merchant: &Probe,
@@ -1355,7 +1355,7 @@ fn sign_receipt(
     use orchard::keys::{FullViewingKey, SpendAuthorizingKey};
 
     // `randomize` with the identity scalar is the un-randomized key pair: the same derivation
-    // `canary_report::receipt::verify_signature` rebuilds from a published key, so the signer a
+    // `zanary_report::receipt::verify_signature` rebuilds from a published key, so the signer a
     // stranger derives is exactly the key named here.
     let unrandomized = |sk: &orchard::keys::SpendingKey| {
         SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64))
@@ -1364,27 +1364,27 @@ fn sign_receipt(
 
     // The receipt is signed by the *dedicated* receipt key — never the wallet's spend authority,
     // which is what would make every receipt a linkable identity for the merchant's money.
-    let payload = canary_report::receipt::signing_payload(receipt)?;
+    let payload = zanary_report::receipt::signing_payload(receipt)?;
     let receipt_ak =
-        canary_report::receipt::ak_of_orchard_fvk(&FullViewingKey::from(receipt_key.orchard()));
-    receipt.signer = Some(canary_report::hex_encode(&receipt_ak));
-    receipt.signature = Some(canary_report::receipt::signature_to_hex(
+        zanary_report::receipt::ak_of_orchard_fvk(&FullViewingKey::from(receipt_key.orchard()));
+    receipt.signer = Some(zanary_report::hex_encode(&receipt_ak));
+    receipt.signature = Some(zanary_report::receipt::signature_to_hex(
         &unrandomized(receipt_key.orchard()).sign(rng, &payload),
     ));
 
     // The wallet's side of the binding: a statement, signed with the wallet's own key, that this
     // receipt key is its own. A verifier holding the merchant's UFVK checks it; a receipt
     // published without it is bound to no wallet, which is the privacy property, not a gap.
-    let mut attestation = canary_observation::ReceiptAttestation {
-        format: "canary-receipt-attestation-v1".to_string(),
-        receipt_key: canary_report::hex_encode(&receipt_ak),
-        wallet_ak: canary_report::hex_encode(&canary_report::receipt::ak_of_orchard_fvk(
+    let mut attestation = zanary_observation::ReceiptAttestation {
+        format: "zanary-receipt-attestation-v1".to_string(),
+        receipt_key: zanary_report::hex_encode(&receipt_ak),
+        wallet_ak: zanary_report::hex_encode(&zanary_report::receipt::ak_of_orchard_fvk(
             &FullViewingKey::from(merchant.usk.orchard()),
         )),
         signature: String::new(),
     };
-    let attestation_payload = canary_report::receipt::attestation_payload(&attestation)?;
-    attestation.signature = canary_report::receipt::signature_to_hex(
+    let attestation_payload = zanary_report::receipt::attestation_payload(&attestation)?;
+    attestation.signature = zanary_report::receipt::signature_to_hex(
         &unrandomized(merchant.usk.orchard()).sign(rng, &attestation_payload),
     );
     receipt.attestation = Some(attestation);
@@ -1416,12 +1416,12 @@ pub struct Invoice {
     pub merchant_account: u32,
 }
 
-/// `canary-probe invoice --out <file> [--id <id>] [--amount-zec <zec>] [--account N]`
+/// `zanary-probe invoice --out <file> [--id <id>] [--amount-zec <zec>] [--account N]`
 ///
 /// The merchant side of an agent payment: issue an invoice the payer can act on with no channel
 /// other than the file.
 pub async fn issue_invoice(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe invoice --out <file> [--id <invoice id>] \
+    const USAGE: &str = "zanary-probe invoice --out <file> [--id <invoice id>] \
                          [--amount-zec <amount>] [--account N]";
     let mut out: Option<String> = None;
     let mut invoice_id = format!("{}", 7000 + (rand::random::<u16>() % 999));
@@ -1471,7 +1471,7 @@ pub async fn issue_invoice(raw: &[String]) -> Result<()> {
         .context("issuing a fresh Orchard receiver")?
         .ok_or_else(|| anyhow!("the merchant wallet has no Orchard address left to issue"))?;
     let receiver = address.encode(&merchant.network);
-    let memo = format!("canary: invoice {invoice_id}");
+    let memo = format!("zanary: invoice {invoice_id}");
     let memo_bytes = MemoBytes::from_bytes(memo.as_bytes())
         .map_err(|e| anyhow!("building the invoice memo: {e}"))?;
     let payment = zip321::Payment::new(
@@ -1507,18 +1507,18 @@ pub async fn issue_invoice(raw: &[String]) -> Result<()> {
     println!("  issued at height  : {tip}");
     println!("  written to        : {out}");
     println!(
-        "\n  next: canary-probe pay --invoice {out} --policy AllowRevealedAmounts"
+        "\n  next: zanary-probe pay --invoice {out} --policy AllowRevealedAmounts"
     );
     Ok(())
 }
 
-/// `canary-probe verify-invoice --invoice <file> --txid <txid>`
+/// `zanary-probe verify-invoice --invoice <file> --txid <txid>`
 ///
 /// The merchant side of settlement, standalone: its own wallet syncs, fetches the transaction, and
 /// trial-decrypts it with its own UFVK. Nothing here trusts the payer's word — only the chain and
 /// the merchant's own keys.
 pub async fn verify_invoice(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe verify-invoice --invoice <file> --txid <txid>";
+    const USAGE: &str = "zanary-probe verify-invoice --invoice <file> --txid <txid>";
     let mut invoice_path: Option<String> = None;
     let mut txid_hex: Option<String> = None;
     let mut i = 0;

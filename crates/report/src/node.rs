@@ -16,12 +16,12 @@ pub struct NodeRpc {
 }
 
 impl NodeRpc {
-    /// Defaults match the harness (`CANARY_NODE_URL` / `CANARY_NODE_USER` / `CANARY_NODE_PASS`).
+    /// Defaults match the harness (`ZANARY_NODE_URL` / `ZANARY_NODE_USER` / `ZANARY_NODE_PASS`).
     pub fn from_env() -> Self {
         Self {
             hostport: env_hostport(),
-            user: std::env::var("CANARY_NODE_USER").unwrap_or_else(|_| "canary".into()),
-            pass: std::env::var("CANARY_NODE_PASS").unwrap_or_else(|_| "canary".into()),
+            user: std::env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into()),
+            pass: std::env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into()),
         }
     }
 
@@ -36,7 +36,7 @@ impl NodeRpc {
     pub fn call(&self, method: &str, params: Value) -> Result<Value> {
         let body = serde_json::json!({
             "jsonrpc": "1.0",
-            "id": "canary-report",
+            "id": "zanary-report",
             "method": method,
             "params": params,
         })
@@ -178,7 +178,7 @@ pub struct PoolTotals {
 }
 
 fn env_hostport() -> String {
-    let url = std::env::var("CANARY_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:18232".into());
+    let url = std::env::var("ZANARY_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:18232".into());
     url.strip_prefix("http://")
         .unwrap_or(&url)
         .trim_end_matches('/')

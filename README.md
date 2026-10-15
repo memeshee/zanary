@@ -1,10 +1,15 @@
-# CANARY
+# ZANARY
 
-**Privacy claims should be falsifiable.** CANARY is an independent prober for Zcash payment flows: it
+**Privacy claims should be falsifiable.** ZANARY is an independent prober for Zcash payment flows: it
 runs a flow with real shielded transactions on a throwaway chain, proves or breaks each privacy claim
 with reproducible evidence, and publishes claims that **expire** unless someone re-proves them.
 
 Built for **ZECATHON** (Core & Tooling track), by kiter + Hermes.
+
+> **On the name:** this project ran as *CANARY* until Oct 15, 2026 and is **ZANARY** since. Evidence
+> recorded before the rename — `crates/report/fixtures/`, the claim rows in `docs/LEAK-MATRIX.md` —
+> is kept byte-identical, because editing a recorded run invalidates the hashes that make it
+> checkable. New runs carry ZANARY's flow ids (`zanary-checkout*`).
 
 > Status: **in build** (Oct 11 → Oct 28, 2026). What runs today is listed under *What works now* —
 > nothing below claims more than the code does. The README is updated as phases land; the
@@ -25,7 +30,7 @@ The Zcash ecosystem funds audits, privacy research and formal verification, but 
 has **no executable privacy test**: nothing a developer can run in CI that fails the build when the
 flow starts leaking.
 
-## What CANARY is
+## What ZANARY is
 
 1. **A rig** — one command brings up a disposable Zcash chain (instant blocks, no sync, no faucet) and
    an indexer; flows execute against it with real shielded transactions.
@@ -47,30 +52,30 @@ flow starts leaking.
 |---|---|
 | Disposable chain + indexer (`harness/`) | **works** — zcashd v6.20.0 regtest + lightwalletd v0.5.5, one `docker compose up -d`, 140 blocks in ~2 s |
 | Seeding + evidence script (`harness/seed.sh`) | **works** for chain + shielded-memo payments (node-wallet path retired — see `harness/HARNESS.md`) |
-| Our own Rust client over the chain | **works** — `canary-probe` connects to the indexer, reports chain/version/tip via `GetLightdInfo` + `GetLatestBlock` |
-| librustzcash wallet (create → sync → receiver → balance) | **works** — `canary-probe wallet`, `address --transparent/--orchard` (see `docs/WALLET-NOTES.md`) |
-| Shielded send path — fund → shield → pay with a ZIP-302 memo | **works** — `canary-probe fund/shield/pay`, all built/proved/signed in our code, txids + before/after balances + recipient-side memo read in `docs/WALLET-SEND-NOTES.md` |
-| Flow runner — one command, real evidence | **works** — `canary-probe flow --definition flows/checkout-private.json` executes N invoices (fresh diversified receiver + ZIP-302 memo each, verified by a separate merchant wallet), then writes `run.json` + `findings.json` + `report.json`; the private flow scores 12 pass / 0 fail, the control flow fails by design (`docs/FLOW-RUNNER-NOTES.md`) |
+| Our own Rust client over the chain | **works** — `zanary-probe` connects to the indexer, reports chain/version/tip via `GetLightdInfo` + `GetLatestBlock` |
+| librustzcash wallet (create → sync → receiver → balance) | **works** — `zanary-probe wallet`, `address --transparent/--orchard` (see `docs/WALLET-NOTES.md`) |
+| Shielded send path — fund → shield → pay with a ZIP-302 memo | **works** — `zanary-probe fund/shield/pay`, all built/proved/signed in our code, txids + before/after balances + recipient-side memo read in `docs/WALLET-SEND-NOTES.md` |
+| Flow runner — one command, real evidence | **works** — `zanary-probe flow --definition flows/checkout-private.json` executes N invoices (fresh diversified receiver + ZIP-302 memo each, verified by a separate merchant wallet), then writes `run.json` + `findings.json` + `report.json`; the private flow scores 12 pass / 0 fail, the control flow fails by design (`docs/FLOW-RUNNER-NOTES.md`) |
 | Batched settlement — N invoices, one transaction | **works** — `settlement: "batch"` puts every invoice in one transaction (one txid, one fee, shuffled output order, a distinct amount per invoice enforced before anything is built) and reads each payment back at the merchant by amount + memo; `flows/checkout-private-batch.json` scores 11 pass / 1 fail — the failure is `payer-linkability`, because a batch links its own invoices by construction (`docs/THREAT-MODEL.md`) |
-| Signed receipts, verified offline | **works** — each receipt is signed by a *dedicated receipt key* (ZIP-32 account 1 of the merchant seed), never the wallet's own spend authority, and the wallet **attests** that key with its own signature; `canary-report verify-receipt` checks the receipt with no node, no indexer and no rig (proven with both pointed at dead ports), and `--fvk` binds receipt key → wallet through the attestation — a receipt published without it is bound to no wallet, which is the point |
-| Leak matrix | **works** — `canary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`: 12 properties × 4 flows, each column pinned to its `flow_commit`; the control shows its four designed failures, and the batched column shows the one the batch discloses, next to two clean private runs |
+| Signed receipts, verified offline | **works** — each receipt is signed by a *dedicated receipt key* (ZIP-32 account 1 of the merchant seed), never the wallet's own spend authority, and the wallet **attests** that key with its own signature; `zanary-report verify-receipt` checks the receipt with no node, no indexer and no rig (proven with both pointed at dead ports), and `--fvk` binds receipt key → wallet through the attestation — a receipt published without it is bound to no wallet, which is the point |
+| Leak matrix | **works** — `zanary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`: 12 properties × 4 flows, each column pinned to its `flow_commit`; the control shows its four designed failures, and the batched column shows the one the batch discloses, next to two clean private runs |
 | Agent payment loop | **works** — `scripts/agent-pay-loop.sh`: three invoice → pay → verify cycles unassisted, with the merchant's own wallet reading each memo back (invoices 8101–8103, txids in `docs/FLOW-RUNNER-NOTES.md`) |
-| Anchored reports — a claim with a chain timestamp | **works** — `canary-probe anchor --report <report.json>` puts the report's `evidence_root` + `report_hash` in a shielded memo to a public beacon, and `canary-report verify-anchor` finds the earliest anchor for that root with a node and the beacon's *published* viewing key, nothing from CANARY (640 blocks / 693 txs in ~3 s); unanchored reports, flipped roots, disagreeing `--root`s and post-hoc edits all exit 1 (`docs/ANCHOR-NOTES.md`) |
+| Anchored reports — a claim with a chain timestamp | **works** — `zanary-probe anchor --report <report.json>` puts the report's `evidence_root` + `report_hash` in a shielded memo to a public beacon, and `zanary-report verify-anchor` finds the earliest anchor for that root with a node and the beacon's *published* viewing key, nothing from ZANARY (640 blocks / 693 txs in ~3 s); unanchored reports, flipped roots, disagreeing `--root`s and post-hoc edits all exit 1 (`docs/ANCHOR-NOTES.md`) |
 | Property library, profiler, report, claim index | **in build** |
 
 ## How it fits the track
 
 Core & Tooling: "Build something the next Zcash developer will thank you for. SDKs, explorers,
 **testing tools**, better integrations. Solve a problem you wish someone already had solved."
-CANARY is a testing tool that answers the event's own first judging criterion — *does it actually
+ZANARY is a testing tool that answers the event's own first judging criterion — *does it actually
 preserve privacy; leaks are disqualifying* — with a run instead of a claim.
 
 **Not to be confused with** (stated because naming neighbours is cheaper than being accused of
 ignoring them):
 - **Tells** — diagnoses a wallet's *existing history* (round trips, quick exits, fingerprint amounts).
-  CANARY tests a flow's *future behaviour*, before users are exposed.
+  ZANARY tests a flow's *future behaviour*, before users are exposed.
 - **Zcash Selected-Payment Receipts SDK** — *discloses* one payment minimally, from the Orchard
-  outgoing cipher key. CANARY *tests* implementations, and can test this format's verifier.
+  outgoing cipher key. ZANARY *tests* implementations, and can test this format's verifier.
 - **ZAP1 (`@frontiercompute/zcash-mcp`)** — attestations about Zcash *workflows*; a receipt of state,
   not a payment-privacy test.
 
@@ -81,7 +86,7 @@ cd harness
 docker compose up -d                      # chain + indexer (regtest, throwaway)
 ./seed.sh                                 # mine, fund, and produce evidence
 cd ..
-cargo run --bin canary-probe              # our client, over the indexer
+cargo run --bin zanary-probe              # our client, over the indexer
 ```
 
 Requirements: Docker, Rust (stable, ≥ 1.88 — the Zcash stack refuses older toolchains), ~3 GB RAM free.

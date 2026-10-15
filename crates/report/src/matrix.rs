@@ -7,8 +7,8 @@
 //! revision of a flow, never about a flow name — and the re-check command for that run's report.
 
 use anyhow::{Context, Result};
-use canary_observation::FlowRun;
-use canary_properties::{Finding, Verdict};
+use zanary_observation::FlowRun;
+use zanary_properties::{Finding, Verdict};
 use std::path::{Path, PathBuf};
 
 /// One run's column in the matrix.
@@ -76,7 +76,7 @@ pub fn collect(runs_dir: &Path) -> Result<Vec<RunColumn>> {
 /// Renders the matrix as markdown: a table a reader can scan, then the per-run re-check lines.
 pub fn render_markdown(columns: &[RunColumn]) -> String {
     let mut out = String::new();
-    out.push_str("# CANARY leak matrix\n\n");
+    out.push_str("# ZANARY leak matrix\n\n");
     out.push_str(
         "Every cell is one property of the leak library applied to one run of one flow definition.\n\
          `pass` means the property held; **FAIL** means it did not; `skip` means the run did not\n\
@@ -147,14 +147,14 @@ pub fn render_markdown(columns: &[RunColumn]) -> String {
         ));
         match &column.report_hash {
             Some(hash) => out.push_str(&format!(
-                "; report `{hash}`\n  ```\n  canary-report verify {}/report.json --node <node>\n  ```\n",
+                "; report `{hash}`\n  ```\n  zanary-report verify {}/report.json --node <node>\n  ```\n",
                 column.dir.display()
             )),
             None => out.push('\n'),
         }
     }
     out.push_str(
-        "\nRegenerate: `canary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`.\n",
+        "\nRegenerate: `zanary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`.\n",
     );
     out
 }

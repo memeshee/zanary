@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# CANARY — Phase 0 warm-up.
+# ZANARY — Phase 0 warm-up.
 # Builds the Zcash dependency graph (the long pole) and pulls chain images,
 # while snapshotting the API docs we will need for wallet wiring.
 # Safe to re-run. Logs to ../phase0-warmup.log when invoked by the agent.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-echo "=== CANARY phase 0 warm-up ==="
+echo "=== ZANARY phase 0 warm-up ==="
 date -u +"started %Y-%m-%dT%H:%M:%SZ"
 
 echo; echo "--- toolchain ---"
@@ -23,7 +23,7 @@ else
 fi
 
 echo; echo "--- running the probe ---"
-cargo run -q --bin canary-probe 2>&1 | tail -10
+cargo run -q --bin zanary-probe 2>&1 | tail -10
 
 echo; echo "--- docker images (best effort; failures are non-fatal) ---"
 for img in zfnd/zebra:latest zfnd/zebra:v6.4.2 zfnd/lightwalletd:latest zfnd/zallet:latest electriccoinco/zcashd:latest; do

@@ -23,7 +23,7 @@
 use std::collections::BTreeSet;
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, Payment};
+use zanary_observation::{FlowRun, Payment};
 
 use super::common::{memo_plaintext, memo_structure, Dsu};
 

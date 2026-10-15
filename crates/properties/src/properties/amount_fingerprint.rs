@@ -16,7 +16,7 @@
 //! Evidence: the two events, the match type, and the candidate count.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 /// Near-echo tolerance in zatoshis (0.00005 ZEC — covers a conventional fee's drift).
 pub const AMOUNT_EPSILON_ZAT: u64 = 5_000;
@@ -76,7 +76,7 @@ impl Property for AmountFingerprint {
 
         // Funding echoes.
         for p in &run.payments {
-            let candidates: Vec<&canary_observation::Funding> = run
+            let candidates: Vec<&zanary_observation::Funding> = run
                 .funding
                 .iter()
                 .filter(|f| f.amount_zat.abs_diff(p.amount_zat) <= AMOUNT_EPSILON_ZAT)

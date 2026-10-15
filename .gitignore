@@ -10,6 +10,12 @@
 # offline API doc snapshots (regenerable via scripts/phase0-warmup.sh)
 /docs/refs
 
+# secrets — never committed
+.env
+*.env
+*.key
+.vercel
+
 # editor / OS noise
 .DS_Store
 *.swp

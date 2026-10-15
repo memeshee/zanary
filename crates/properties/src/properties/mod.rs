@@ -1,6 +1,6 @@
 //! The 12 leak-class properties, one module each, plus the registry that returns them in report
 //! order (disqualifying first). Each property is a pure function over a recorded
-//! [`canary_observation::FlowRun`].
+//! [`zanary_observation::FlowRun`].
 
 pub(crate) mod common;
 

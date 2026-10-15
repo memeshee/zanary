@@ -1,4 +1,4 @@
-//! Shared plumbing for every `canary-probe` subcommand.
+//! Shared plumbing for every `zanary-probe` subcommand.
 //!
 //! * regtest consensus parameters (matching the harness `nuparams`),
 //! * the dev account's keys (BIP-39 test vector — TEST ONLY),
@@ -64,7 +64,7 @@ pub const DEV_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 /// Name recorded for the dev account (ZIP-32 account 0) in the wallet database.
-pub const DEV_ACCOUNT_NAME: &str = "canary-dev";
+pub const DEV_ACCOUNT_NAME: &str = "zanary-dev";
 
 /// The concrete wallet database type the probe uses everywhere.
 pub type ProbeDb = WalletDb<rusqlite::Connection, LocalNetwork, SystemClock, rand::rngs::OsRng>;
@@ -96,19 +96,19 @@ pub fn regtest_network() -> LocalNetwork {
     }
 }
 
-/// Indexer endpoint (`CANARY_LWD_URL`, default `http://127.0.0.1:9067`).
+/// Indexer endpoint (`ZANARY_LWD_URL`, default `http://127.0.0.1:9067`).
 pub fn endpoint() -> String {
-    env::var("CANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
+    env::var("ZANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
 }
 
-/// Wallet data directory (`CANARY_DATA_DIR`, default `./data/wallet`).
+/// Wallet data directory (`ZANARY_DATA_DIR`, default `./data/wallet`).
 pub fn data_dir() -> PathBuf {
-    PathBuf::from(env::var("CANARY_DATA_DIR").unwrap_or_else(|_| "./data/wallet".to_string()))
+    PathBuf::from(env::var("ZANARY_DATA_DIR").unwrap_or_else(|_| "./data/wallet".to_string()))
 }
 
 /// Path of the wallet database inside [`data_dir`].
 pub fn db_path() -> PathBuf {
-    data_dir().join("canary-wallet.db")
+    data_dir().join("zanary-wallet.db")
 }
 
 /// Decodes the dev mnemonic into a 64-byte seed.
@@ -148,7 +148,7 @@ pub const MERCHANT_MNEMONIC: &str =
 /// The anchor beacon's seed: the third canonical BIP-39 English test vector, so anchors come from a
 /// wallet that is neither the payer's nor the merchant's. TEST ONLY — and the beacon's *viewing key*
 /// is published on purpose: it can only ever decrypt a public log of hashes, which is what lets a
-/// stranger check an anchor without trusting CANARY.
+/// stranger check an anchor without trusting ZANARY.
 pub const BEACON_MNEMONIC: &str =
     "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
 
@@ -169,16 +169,16 @@ pub struct WalletProfile {
 }
 
 impl WalletProfile {
-    /// The probe's own wallet: the dev seed in `CANARY_DATA_DIR` (default
+    /// The probe's own wallet: the dev seed in `ZANARY_DATA_DIR` (default
     /// `./data/wallet`), account names exactly as before this type existed.
     pub fn dev(account: u32) -> Self {
         WalletProfile {
             mnemonic: DEV_MNEMONIC.to_string(),
             account,
             name: account_name(account),
-            source: "canary dev seed (BIP-39 test vector)".to_string(),
+            source: "zanary dev seed (BIP-39 test vector)".to_string(),
             data_dir: data_dir(),
-            db_file: "canary-wallet.db".to_string(),
+            db_file: "zanary-wallet.db".to_string(),
         }
     }
 
@@ -188,16 +188,16 @@ impl WalletProfile {
             mnemonic: MERCHANT_MNEMONIC.to_string(),
             account,
             name: if account == 0 {
-                "canary-merchant".to_string()
+                "zanary-merchant".to_string()
             } else {
-                format!("canary-merchant-{account}")
+                format!("zanary-merchant-{account}")
             },
-            source: "canary merchant seed (BIP-39 test vector)".to_string(),
+            source: "zanary merchant seed (BIP-39 test vector)".to_string(),
             data_dir: PathBuf::from(
-                env::var("CANARY_MERCHANT_DATA_DIR")
+                env::var("ZANARY_MERCHANT_DATA_DIR")
                     .unwrap_or_else(|_| "./data/wallet-merchant".to_string()),
             ),
-            db_file: "canary-merchant.db".to_string(),
+            db_file: "zanary-merchant.db".to_string(),
         }
     }
 
@@ -208,16 +208,16 @@ impl WalletProfile {
             mnemonic: BEACON_MNEMONIC.to_string(),
             account,
             name: if account == 0 {
-                "canary-beacon".to_string()
+                "zanary-beacon".to_string()
             } else {
-                format!("canary-beacon-{account}")
+                format!("zanary-beacon-{account}")
             },
-            source: "canary anchor beacon seed (BIP-39 test vector)".to_string(),
+            source: "zanary anchor beacon seed (BIP-39 test vector)".to_string(),
             data_dir: PathBuf::from(
-                env::var("CANARY_BEACON_DATA_DIR")
+                env::var("ZANARY_BEACON_DATA_DIR")
                     .unwrap_or_else(|_| "./data/wallet-beacon".to_string()),
             ),
-            db_file: "canary-beacon.db".to_string(),
+            db_file: "zanary-beacon.db".to_string(),
         }
     }
 
@@ -251,7 +251,7 @@ pub fn seed_from_mnemonic(mnemonic: &str) -> Result<[u8; 64]> {
 
 /// Creates (if needed) and opens the wallet database, running the schema migrations.
 pub fn open_db(data_dir: &PathBuf) -> Result<(ProbeDb, PathBuf)> {
-    let db_path = data_dir.join("canary-wallet.db");
+    let db_path = data_dir.join("zanary-wallet.db");
     std::fs::create_dir_all(data_dir)
         .with_context(|| format!("creating wallet data dir {}", data_dir.display()))?;
     let mut db = WalletDb::for_path(&db_path, regtest_network(), SystemClock, rand::rngs::OsRng)
@@ -394,7 +394,7 @@ pub async fn sync_wallet(
     network: &LocalNetwork,
     db_path: &Path,
 ) -> Result<()> {
-    let timings = env::var("CANARY_TIMINGS").is_ok();
+    let timings = env::var("ZANARY_TIMINGS").is_ok();
     let t0 = std::time::Instant::now();
     let tip = client
         .get_latest_block(ChainSpec {})
@@ -448,7 +448,7 @@ pub async fn sync_wallet(
         let mut stored_count = 0usize;
         for reply in reply_list.address_utxos {
             reply_count += 1;
-            if env::var("CANARY_TIMINGS").is_ok()
+            if env::var("ZANARY_TIMINGS").is_ok()
                 && (reply_count == 1 || reply_count % 25 == 0)
             {
                 println!(
@@ -511,7 +511,7 @@ pub async fn sync_wallet(
                 .context("storing a transparent UTXO")?;
             stored_count += 1;
         }
-        if env::var("CANARY_TIMINGS").is_ok() {
+        if env::var("ZANARY_TIMINGS").is_ok() {
             println!(
                 "  TIMING   utxo acct {account:?}: {reply_count} reply(s), {stored_count} stored, {:?}",
                 t_acct.elapsed()
@@ -827,7 +827,7 @@ async fn annotate_transparent_tx_indices(db_path: &Path) -> Result<()> {
             .commit()
             .context("committing the tx-index annotation")?;
     }
-    if updated > 0 && env::var("CANARY_TIMINGS").is_ok() {
+    if updated > 0 && env::var("ZANARY_TIMINGS").is_ok() {
         println!("  tx indices        : recorded the in-block index for {updated} transaction(s)");
     }
     Ok(())
@@ -858,7 +858,7 @@ pub async fn bootstrap(account: u32) -> Result<Probe> {
 /// the payer's own wallet.
 pub async fn bootstrap_with(profile: WalletProfile) -> Result<Probe> {
     let t0 = std::time::Instant::now();
-    let timings = env::var("CANARY_TIMINGS").is_ok();
+    let timings = env::var("ZANARY_TIMINGS").is_ok();
     let endpoint = endpoint();
     let network = regtest_network();
     let seed = profile.seed()?;

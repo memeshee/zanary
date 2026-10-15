@@ -43,27 +43,27 @@ pub struct PoolTotals {
 }
 
 impl NodeRpc {
-    /// Builds the client from `CANARY_NODE_RPC_URL` (default
-    /// `http://127.0.0.1:18232`), `CANARY_NODE_RPC_USER` and
-    /// `CANARY_NODE_RPC_PASSWORD` (both default `canary`).
+    /// Builds the client from `ZANARY_NODE_RPC_URL` (default
+    /// `http://127.0.0.1:18232`), `ZANARY_NODE_RPC_USER` and
+    /// `ZANARY_NODE_RPC_PASSWORD` (both default `zanary`).
     pub fn from_env() -> Result<Self> {
         let url =
-            std::env::var("CANARY_NODE_RPC_URL").unwrap_or_else(|_| DEFAULT_RPC_URL.to_string());
+            std::env::var("ZANARY_NODE_RPC_URL").unwrap_or_else(|_| DEFAULT_RPC_URL.to_string());
         let rest = url
             .strip_prefix("http://")
-            .ok_or_else(|| anyhow!("CANARY_NODE_RPC_URL must be a plain http:// URL, got `{url}`"))?;
+            .ok_or_else(|| anyhow!("ZANARY_NODE_RPC_URL must be a plain http:// URL, got `{url}`"))?;
         let (host, port) = rest
             .split_once(':')
-            .ok_or_else(|| anyhow!("CANARY_NODE_RPC_URL must include a port, got `{url}`"))?;
+            .ok_or_else(|| anyhow!("ZANARY_NODE_RPC_URL must include a port, got `{url}`"))?;
         let port: u16 = port
             .parse()
-            .with_context(|| format!("invalid port in CANARY_NODE_RPC_URL `{url}`"))?;
+            .with_context(|| format!("invalid port in ZANARY_NODE_RPC_URL `{url}`"))?;
         Ok(Self {
             host: host.to_string(),
             port,
-            user: std::env::var("CANARY_NODE_RPC_USER").unwrap_or_else(|_| "canary".to_string()),
-            password: std::env::var("CANARY_NODE_RPC_PASSWORD")
-                .unwrap_or_else(|_| "canary".to_string()),
+            user: std::env::var("ZANARY_NODE_RPC_USER").unwrap_or_else(|_| "zanary".to_string()),
+            password: std::env::var("ZANARY_NODE_RPC_PASSWORD")
+                .unwrap_or_else(|_| "zanary".to_string()),
         })
     }
 
@@ -71,7 +71,7 @@ impl NodeRpc {
     pub async fn call(&self, method: &str, params: Value) -> Result<Value> {
         let body = json!({
             "jsonrpc": "1.0",
-            "id": "canary-probe",
+            "id": "zanary-probe",
             "method": method,
             "params": params,
         })
@@ -127,7 +127,7 @@ impl NodeRpc {
         if !status_line.contains(" 200 ") {
             bail!(
                 "zcashd RPC `{method}` returned an HTTP error: {status_line}\n  \
-                 (check CANARY_NODE_RPC_USER / CANARY_NODE_RPC_PASSWORD)"
+                 (check ZANARY_NODE_RPC_USER / ZANARY_NODE_RPC_PASSWORD)"
             );
         }
 

@@ -18,7 +18,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, MerchantEvent};
+use zanary_observation::{FlowRun, MerchantEvent};
 
 use super::common::{
     contains_email, has_long_digit_run, height_str, is_transparent_address, mask_ip, redact,

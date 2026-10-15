@@ -10,7 +10,7 @@
 //! Evidence: the two txids and their shared height.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 pub struct SameBlockRoundtrip;
 
@@ -36,7 +36,7 @@ impl Property for SameBlockRoundtrip {
                 "no payments recorded; no spending side to compare heights with",
             );
         }
-        let fundings: Vec<&canary_observation::Funding> =
+        let fundings: Vec<&zanary_observation::Funding> =
             run.funding.iter().filter(|f| f.height.is_some()).collect();
         if fundings.is_empty() {
             return Finding::skip(
@@ -46,7 +46,7 @@ impl Property for SameBlockRoundtrip {
                 "no funding heights recorded; heights cannot be compared",
             );
         }
-        let spends: Vec<&canary_observation::Payment> =
+        let spends: Vec<&zanary_observation::Payment> =
             run.payments.iter().filter(|p| p.height.is_some()).collect();
         if spends.is_empty() {
             return Finding::skip(

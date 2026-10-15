@@ -12,7 +12,7 @@
 //! Evidence: the address, the txid, and the side it appeared on.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, PaymentKind};
+use zanary_observation::{FlowRun, PaymentKind};
 
 use super::common::{height_str, is_transparent_address};
 

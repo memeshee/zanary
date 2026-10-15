@@ -3,7 +3,7 @@
 # The agent run: three invoice → pay → verify cycles with no manual step in between.
 #
 # The merchant issues an invoice (a fresh diversified Orchard receiver + a ZIP-321 URI on disk), the
-# payer pays it through `canary-probe pay --invoice` — the same propose/sign/broadcast path the flow
+# payer pays it through `zanary-probe pay --invoice` — the same propose/sign/broadcast path the flow
 # runner uses — and the merchant's *own* wallet then fetches the transaction and trial-decrypts it
 # with its own UFVK, checking that the memo names the invoice. Nothing is trusted from the payer's
 # side of the conversation.
@@ -15,9 +15,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export CANARY_LWD_URL="${CANARY_LWD_URL:-http://127.0.0.1:9067}"
+export ZANARY_LWD_URL="${ZANARY_LWD_URL:-http://127.0.0.1:9067}"
 POLICY="${POLICY:-AllowRevealedAmounts}"
-BIN=./target/debug/canary-probe
+BIN=./target/debug/zanary-probe
 mkdir -p data/invoices
 
 for n in 1 2 3; do

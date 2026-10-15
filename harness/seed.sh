@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CANARY harness — seed the throwaway chain and produce evidence.
+# ZANARY harness — seed the throwaway chain and produce evidence.
 #
 #   cd harness && docker compose up -d && ./seed.sh
 #
@@ -12,9 +12,9 @@
 # blocks takes about two seconds on regtest.
 set -euo pipefail
 
-ZC="docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary"
+ZC="docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary"
 TARGET_HEIGHT="${TARGET_HEIGHT:-140}"
-MERCHANT_MEMO_TEXT="${MERCHANT_MEMO_TEXT:-canary regtest memo: invoice 4471 / receipt seed 0xdeadbeef}"
+MERCHANT_MEMO_TEXT="${MERCHANT_MEMO_TEXT:-zanary regtest memo: invoice 4471 / receipt seed 0xdeadbeef}"
 OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/data"
 
 say() { printf '\n=== %s ===\n' "$1"; }

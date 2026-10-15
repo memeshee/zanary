@@ -4,7 +4,7 @@
 //! small pattern scanners. No clock, no randomness, no I/O. The checks are deliberately built on
 //! *observations* (address strings, memo bytes, heights) and never on the flow's own labels.
 
-use canary_observation::{Payment, Pool};
+use zanary_observation::{Payment, Pool};
 
 /// Zcash transparent address prefixes: mainnet `t1`/`t3`, testnet `t2`, regtest `tm`.
 const TRANSPARENT_PREFIXES: &[&str] = &["t1", "t2", "t3", "tm"];
@@ -289,7 +289,7 @@ mod tests {
             invoice_id: None,
             pool_in: Pool::Orchard,
             pool_out: Pool::Orchard,
-            kind: canary_observation::PaymentKind::Shielded,
+            kind: zanary_observation::PaymentKind::Shielded,
             policy: None,
             observed: Default::default(),
         };

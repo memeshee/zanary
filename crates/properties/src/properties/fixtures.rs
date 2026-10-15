@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use canary_observation::{
+use zanary_observation::{
     FlowRun, Funding, MerchantEvent, Payment, PaymentKind, Pool, PoolTotals, Receipt,
 };
 
@@ -114,7 +114,7 @@ pub(crate) fn clean_run() -> FlowRun {
             claims: vec!["invoice INV-1001 settled".to_string()],
             discloses: vec![],
             // An unsigned fixture: the signature scheme has its own fixtures in
-            // `canary_report::receipt` (a well-formed receipt verifies, one flipped byte does not).
+            // `zanary_report::receipt` (a well-formed receipt verifies, one flipped byte does not).
             signer: None,
             signature: None,
             attestation: None,

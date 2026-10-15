@@ -1,6 +1,6 @@
 # The claim index — privacy claims that expire
 
-A scan is a moment; a claim is a commitment. The index is the part of CANARY that turns a run into
+A scan is a moment; a claim is a commitment. The index is the part of ZANARY that turns a run into
 something a stranger can rely on *and* falsify later.
 
 ## A claim
@@ -58,13 +58,13 @@ beacon address (CAₙ beacons). That gives three things no ordinary test artifac
 3. **A verifiable boundary for the claim's TTL** — `verified_at_height` is a chain fact, not a server's
    word.
 
-A verifier therefore needs no trust in CANARY's servers to check a claim: the report hash, the
+A verifier therefore needs no trust in ZANARY's servers to check a claim: the report hash, the
 properties, the evidence array, and the anchor memo are all checkable against the chain. The index is
 the *convenience*, not the authority.
 
-**As built** (`docs/ANCHOR-NOTES.md`): `canary-probe anchor --report <report.json>` writes the payload
+**As built** (`docs/ANCHOR-NOTES.md`): `zanary-probe anchor --report <report.json>` writes the payload
 into a shielded memo paid to the beacon (`8f760aa8…`, mined at height 630 for the batched run's report),
-and `canary-report verify-anchor --report <report.json> --beacon-ufvk <the published key> --node <node>`
+and `zanary-report verify-anchor --report <report.json> --beacon-ufvk <the published key> --node <node>`
 finds the **earliest** anchor carrying that root — 640 blocks and 693 transactions scanned in ~3 s, and
 exit 1 for an unanchored report, a flipped root, a `--root` that disagrees with the report, or a report
 whose hash no longer recomputes. Anchoring is permissionless, which cannot forge a timestamp (earliest
@@ -77,7 +77,7 @@ flow         checkout-control-fixed @ 4f2a9c1        verified at height 1,482  (
 privacy      PASS  no transparent fallback · no unshielding · fresh receiver per invoice
 cluster      FAIL  mock: payer cluster reconstructed with 0.31 confidence (threshold 0.70)
 residual     W  fees (5000 zat/action) make sub-dollar invoices uneconomic — not an app defect
-evidence     report hash 9c1f…  ·  anchor memo tx 3d0e…  ·  re-run: canary test ./flow.toml
+evidence     report hash 9c1f…  ·  anchor memo tx 3d0e…  ·  re-run: zanary test ./flow.toml
 ```
 
 ## Where this sits in the submission

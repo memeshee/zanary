@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://canary.example/schemas/canary-receipt-v1.json",
-  "title": "CANARY receipt v1",
-  "description": "A merchant's proof that an invoice was paid. `body` is the machine-readable claim; `claims` states in words exactly what the body carries, and `discloses` must be empty (an artifact that carries more than its claim is the leak the rig's report-leak property looks for). `signer` + `signature` are the merchant's Orchard spend-authorizing public key and a RedPallas signature over the receipt's own fields; `canary-report verify-receipt` checks both offline.",
+  "$id": "https://zanary.example/schemas/zanary-receipt-v1.json",
+  "title": "ZANARY receipt v1",
+  "description": "A merchant's proof that an invoice was paid. `body` is the machine-readable claim; `claims` states in words exactly what the body carries, and `discloses` must be empty (an artifact that carries more than its claim is the leak the rig's report-leak property looks for). `signer` + `signature` are the merchant's Orchard spend-authorizing public key and a RedPallas signature over the receipt's own fields; `zanary-report verify-receipt` checks both offline.",
   "type": "object",
   "required": [
     "label",
@@ -17,7 +17,7 @@
       "description": "Human label for the artifact in a run, e.g. \"receipt 4471\"."
     },
     "format": {
-      "const": "canary-receipt-v1",
+      "const": "zanary-receipt-v1",
       "description": "Format identifier. Bumping it means the body schema changed."
     },
     "body": {
@@ -59,7 +59,7 @@
       "properties": {
         "format": {
           "type": "string",
-          "const": "canary-receipt-attestation-v1",
+          "const": "zanary-receipt-attestation-v1",
           "description": "Attestation format. A verifier refuses a version it does not know."
         },
         "receipt_key": {
@@ -89,7 +89,7 @@
   },
   "$defs": {
     "body_schema": {
-      "title": "CANARY receipt v1 body",
+      "title": "ZANARY receipt v1 body",
       "type": "object",
       "required": [
         "invoice_id",

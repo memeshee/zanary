@@ -15,7 +15,7 @@
 //! Evidence: the call/argument (or the pool legs), and the resulting txid.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::{FlowRun, Pool};
+use zanary_observation::{FlowRun, Pool};
 
 use super::common::{height_str, normalize_alnum, pool_str};
 

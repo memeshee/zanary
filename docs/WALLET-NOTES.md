@@ -1,4 +1,4 @@
-# WALLET-NOTES — `canary-probe wallet` (the D1 gate)
+# WALLET-NOTES — `zanary-probe wallet` (the D1 gate)
 
 **Date:** 2026-10-11 · **Status:** working, verified against the live harness (140-block regtest chain)
 **Scope:** create/open a `zcash_client_sqlite` wallet, import the dev account's UFVK, sync from
@@ -7,17 +7,17 @@
 ## The command (and what it really printed)
 
 ```bash
-cd /home/kiter/hackathon/canary
-CANARY_LWD_URL=http://127.0.0.1:9067 cargo run -q --bin canary-probe -- wallet
+cd /home/kiter/hackathon/zanary
+ZANARY_LWD_URL=http://127.0.0.1:9067 cargo run -q --bin zanary-probe -- wallet
 ```
 
 Real output (fresh wallet DB; the 73 `INFO schemerz: Applying migration …` lines are elided):
 
 ```text
-canary-probe 0.0.1 wallet — CANARY (ZECATHON, Core & Tooling)
+zanary-probe 0.0.1 wallet — ZANARY (ZECATHON, Core & Tooling)
   network           : regtest (throwaway harness chain)
   indexer endpoint  : http://127.0.0.1:9067
-  wallet db         : ./data/wallet/canary-wallet.db
+  wallet db         : ./data/wallet/zanary-wallet.db
   dev seed phrase   : abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
                       ^ BIP-39 English test vector — TEST ONLY, holds no real funds
   dev UFVK          : uviewregtest1td4fxalun47yu3erk09atltkwh84wcxzz067cyual0wrs4vskmwym6fshe0v0l2juv4wuc9uxv4kjyhrshfszzexstaxt58965k8zrru6738vds2skke86wfx5m28sz79cxuxlm3tmn7l35t9d2ckr2wxh6z842d09d72cqqc4hkjvth7tx9njslgsjdn9uxrcdkc3wlkp83ljfn264q9la72tzf3rmqma0n7pqy754g4ank5f6dhx89nhhmz5z30emt246l5kuagm5fxsq6mzu8v4uey2wf85n0lxjd4qk8angn3e47dekxpz0fs3495uwmj6mqc28c2ftcyatr3flqay5m0pdrlk3n35jzsa27fn8g2ujuwxgwlzjmzu5fx4gpthhjeweclygmvuvd4rpx0ezzfp2upuu054w26pyyjra9ruql00cmgsndlmzxpm0fdypszupc32qgemav29wax0esy5thphwr5svt4m8szkemqu4cs2wn
@@ -113,10 +113,10 @@ Checks that matter:
 ## Reproduce
 
 ```bash
-cd /home/kiter/hackathon/canary/harness && docker compose up -d
-docker exec canary-zcashd zcash-cli -regtest -rpcuser=canary -rpcpassword=canary generate 140
-cd .. && CANARY_LWD_URL=http://127.0.0.1:9067 cargo run -q --bin canary-probe -- wallet
+cd /home/kiter/hackathon/zanary/harness && docker compose up -d
+docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary generate 140
+cd .. && ZANARY_LWD_URL=http://127.0.0.1:9067 cargo run -q --bin zanary-probe -- wallet
 ```
 
-Env knobs: `CANARY_LWD_URL` (default `http://127.0.0.1:9067`), `CANARY_DATA_DIR`
-(default `./data/wallet`; the DB is `canary-wallet.db`, git-ignored under `/data`).
+Env knobs: `ZANARY_LWD_URL` (default `http://127.0.0.1:9067`), `ZANARY_DATA_DIR`
+(default `./data/wallet`; the DB is `zanary-wallet.db`, git-ignored under `/data`).

@@ -12,7 +12,7 @@
 //! chain evidence in the report is for.
 
 use anyhow::{anyhow, Context, Result};
-use canary_observation::{Receipt, ReceiptAttestation};
+use zanary_observation::{Receipt, ReceiptAttestation};
 use reddsa::orchard::SpendAuth;
 use serde::Serialize;
 
@@ -125,9 +125,9 @@ pub fn verify_attestation(receipt: &Receipt, wallet_ak_hex: &str) -> Result<()> 
              a dedicated-key receipt proves only which receipt key issued it"
         )
     })?;
-    if attestation.format != "canary-receipt-attestation-v1" {
+    if attestation.format != "zanary-receipt-attestation-v1" {
         return Err(anyhow!(
-            "unknown attestation format `{}` (expected `canary-receipt-attestation-v1`)",
+            "unknown attestation format `{}` (expected `zanary-receipt-attestation-v1`)",
             attestation.format
         ));
     }
@@ -247,20 +247,20 @@ pub fn ak_of_orchard_fvk(fvk: &orchard::keys::FullViewingKey) -> [u8; 32] {
 /// Checks a receipt's `body` against the shape the format promises, and its `claims` against the
 /// body — the machine-readable half of "a stranger can check it".
 ///
-/// The rules are the ones in `schemas/canary-receipt-v1.json` (shipped for third-party tools);
+/// The rules are the ones in `schemas/zanary-receipt-v1.json` (shipped for third-party tools);
 /// this is the same check, implemented where the verifier can run it with no JSON-Schema library.
 /// A claim that contradicts the body is worse than no claim at all, so a receipt whose words and
 /// figures disagree fails here rather than being printed as if it were fine.
 pub fn validate_claim(receipt: &Receipt) -> Result<Vec<String>> {
     let mut notes = Vec::new();
-    if receipt.format != "canary-receipt-v1" {
+    if receipt.format != "zanary-receipt-v1" {
         return Err(anyhow!(
-            "unknown receipt format {:?} — this verifier knows canary-receipt-v1",
+            "unknown receipt format {:?} — this verifier knows zanary-receipt-v1",
             receipt.format
         ));
     }
     let body: serde_json::Value = serde_json::from_str(&receipt.body)
-        .context("the receipt body is not JSON (canary-receipt-v1 bodies are JSON text)")?;
+        .context("the receipt body is not JSON (zanary-receipt-v1 bodies are JSON text)")?;
     let object = body
         .as_object()
         .ok_or_else(|| anyhow!("the receipt body is not a JSON object"))?;
@@ -273,7 +273,7 @@ pub fn validate_claim(receipt: &Receipt) -> Result<Vec<String>> {
     for key in object.keys() {
         if !["invoice_id", "amount_zat", "txid", "memo_sha256"].contains(&key.as_str()) {
             return Err(anyhow!(
-                "the receipt body carries `{key}`, which canary-receipt-v1 does not define \
+                "the receipt body carries `{key}`, which zanary-receipt-v1 does not define \
                  (a body field beyond the format is a disclosure nobody claimed)"
             ));
         }
@@ -297,7 +297,7 @@ pub fn validate_claim(receipt: &Receipt) -> Result<Vec<String>> {
     for (name, value) in [("txid", txid), ("memo_sha256", memo_sha256)] {
         if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(anyhow!(
-                "`{name}` is not 64 hex characters (canary-receipt-v1 says lowercase hex)"
+                "`{name}` is not 64 hex characters (zanary-receipt-v1 says lowercase hex)"
             ));
         }
     }
@@ -325,7 +325,7 @@ pub fn validate_claim(receipt: &Receipt) -> Result<Vec<String>> {
     }
 
     notes.push(format!(
-        "body: canary-receipt-v1, invoice {invoice_id}, {amount_zat} zatoshis, txid {txid}"
+        "body: zanary-receipt-v1, invoice {invoice_id}, {amount_zat} zatoshis, txid {txid}"
     ));
     notes.push("claims: state the body's invoice id, amount and transaction".to_string());
     Ok(notes)
@@ -384,7 +384,7 @@ mod tests {
     fn receipt_signed_by(receipt_key: &SpendingKey, receipt_ak_hex: &str) -> Receipt {
         let mut receipt = Receipt {
             label: "receipt test".to_string(),
-            format: "canary-receipt-v1".to_string(),
+            format: "zanary-receipt-v1".to_string(),
             body: "{\"amount_zat\":1,\"invoice_id\":\"1\",\"memo_sha256\":\"00\",\"txid\":\"11\"}"
                 .to_string(),
             claims: vec!["invoice 1 was paid 1 zatoshi".to_string()],
@@ -405,7 +405,7 @@ mod tests {
         wallet_ak_hex: &str,
     ) -> ReceiptAttestation {
         let mut att = ReceiptAttestation {
-            format: "canary-receipt-attestation-v1".to_string(),
+            format: "zanary-receipt-attestation-v1".to_string(),
             receipt_key: receipt_key_hex.to_string(),
             wallet_ak: wallet_ak_hex.to_string(),
             signature: String::new(),
@@ -506,7 +506,7 @@ mod tests {
         let (receipt_sk, receipt_ak) = keypair(9);
         let mut receipt = receipt_signed_by(&receipt_sk, &receipt_ak);
         let mut att = attestation(&receipt_ak, &wallet_sk, &wallet_ak);
-        att.format = "canary-receipt-attestation-v2".to_string();
+        att.format = "zanary-receipt-attestation-v2".to_string();
         receipt.attestation = Some(att);
 
         let err = verify_attestation(&receipt, &wallet_ak).expect_err("unknown format");

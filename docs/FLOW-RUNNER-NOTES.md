@@ -1,15 +1,15 @@
-# FLOW-RUNNER-NOTES — `canary-probe flow` (the rig's one command)
+# FLOW-RUNNER-NOTES — `zanary-probe flow` (the rig's one command)
 
-What this documents: the piece that turns CANARY from "a wallet that can pay" into "a flow whose
+What this documents: the piece that turns ZANARY from "a wallet that can pay" into "a flow whose
 privacy claims can be checked" — one command that executes a payment flow on the throwaway chain
 and writes the evidence: `run.json` (the observation record), `findings.json` (the property
 verdicts), `report.json` (the claim, hashed, with an expiry clock).
 
 ```
-canary-probe flow --definition flows/checkout-private.json [--out data/runs/<name>]
-  → run.json      canary_observation::FlowRun — funding, payments, merchant events, receipts, pool totals
-  → findings.json canary_properties::evaluate(&run)
-  → report.json   canary_report::build_with_claim(&run, findings, verified_at, ttl)
+zanary-probe flow --definition flows/checkout-private.json [--out data/runs/<name>]
+  → run.json      zanary_observation::FlowRun — funding, payments, merchant events, receipts, pool totals
+  → findings.json zanary_properties::evaluate(&run)
+  → report.json   zanary_report::build_with_claim(&run, findings, verified_at, ttl)
   → exit 0 when every property passes, 1 when any FAILs (a control run is a failing run by design)
 ```
 
@@ -19,7 +19,7 @@ canary-probe flow --definition flows/checkout-private.json [--out data/runs/<nam
    merchant wallet (`get_next_available_address(account, UnifiedAddressRequest::ORCHARD)`), plus a
    ZIP-302 memo rendered from the definition's template.
 2. **The payer pays it** — `ops::propose_shielded_payment` + `ops::build_sign_broadcast`, i.e. the
-   same code path `canary-probe pay` uses (extracted, not duplicated): Orchard inputs only, ZIP-317
+   same code path `zanary-probe pay` uses (extracted, not duplicated): Orchard inputs only, ZIP-317
    fees, Orchard change, our own proving and signing, broadcast through the harness indexer.
 3. **The merchant verifies it independently** — the merchant wallet fetches the transaction from the
    indexer, parses it, and trial-decrypts it with *its own* UFVK. Different seed, different database,
@@ -30,8 +30,8 @@ canary-probe flow --definition flows/checkout-private.json [--out data/runs/<nam
    a `Receipt` (whose claims state exactly what its body carries), and pool totals before/after.
 
 The **merchant is the BIP-39 test vector 2 seed** (`core::MERCHANT_MNEMONIC`) in
-`data/wallet-merchant/canary-merchant.db` — a genuinely separate party, not a second account of the
-payer's wallet. `CANARY_MERCHANT_DATA_DIR` moves it.
+`data/wallet-merchant/zanary-merchant.db` — a genuinely separate party, not a second account of the
+payer's wallet. `ZANARY_MERCHANT_DATA_DIR` moves it.
 
 ## Definitions
 
@@ -44,7 +44,7 @@ payer's wallet. `CANARY_MERCHANT_DATA_DIR` moves it.
 
 ```json
 {
-  "flow_id": "canary-checkout",
+  "flow_id": "zanary-checkout",
   "receiver_strategy": "fresh",          // "fresh" | "reused" (control)
   "memo": true,                          // false = control
   "policy": "FullPrivacy",               // recorded verbatim, enforced by our own code
@@ -53,7 +53,7 @@ payer's wallet. `CANARY_MERCHANT_DATA_DIR` moves it.
   "settlement": "per_invoice",           // "batch" = one transaction carries every invoice
   "batch_seed": 20261012,                // seeds the batch's output order; omit for a random draw
   "invoices": [
-    { "invoice_id": "4471", "amount_zat": 1234567, "memo_template": "canary: invoice {invoice_id}" }
+    { "invoice_id": "4471", "amount_zat": 1234567, "memo_template": "zanary: invoice {invoice_id}" }
   ]
 }
 ```
@@ -171,7 +171,7 @@ old `flow_commit` — verified: `checkout-private.json` still commits to
 run that predates the change.
 
 **The trap that hid this:** the first jittered run reported uniform +3 deltas because the command
-that launched it was `cargo build … | grep -E "…" && … && canary-probe flow …`. `grep` exits 0 even
+that launched it was `cargo build … | grep -E "…" && … && zanary-probe flow …`. `grep` exits 0 even
 when the build fails, so the run executed the **previous binary** — which mines a fixed three
 blocks and has no idea jitter exists. The real compile error underneath was `Jitter::next()`
 returning `u32` where `mine_and_resync` takes `u64`. Rule: never gate a run on a *piped* build; use
@@ -192,11 +192,11 @@ transaction with the merchant's own wallet and keys.
   batch fee         : 0.00030000 ZEC for all 5 payments (one ZIP-317 fee, not 5)
   batch txid        : 2b35669d869880bd666d0aa57ecea90fe9284ae9a678a9fb448fd29fd1826fe9
   merchant read     : 5 output(s) of tx 2b35669d… decrypted with the merchant's own keys
-    7731 · 0.01234567 ZEC · orchard output 2 · memo "canary: invoice 7731"
-    7732 · 0.02345678 ZEC · orchard output 0 · memo "canary: invoice 7732"
-    7733 · 0.03456789 ZEC · orchard output 3 · memo "canary: invoice 7733"
-    7734 · 0.04567890 ZEC · orchard output 5 · memo "canary: invoice 7734"
-    7735 · 0.05678901 ZEC · orchard output 4 · memo "canary: invoice 7735"
+    7731 · 0.01234567 ZEC · orchard output 2 · memo "zanary: invoice 7731"
+    7732 · 0.02345678 ZEC · orchard output 0 · memo "zanary: invoice 7732"
+    7733 · 0.03456789 ZEC · orchard output 3 · memo "zanary: invoice 7733"
+    7734 · 0.04567890 ZEC · orchard output 5 · memo "zanary: invoice 7734"
+    7735 · 0.05678901 ZEC · orchard output 4 · memo "zanary: invoice 7735"
   batch settled     : 5 invoice(s) in one transaction (2b35669d… @ height 616)
 ```
 
@@ -241,7 +241,7 @@ between the invoice list and the chain — and both orders are recorded, so a re
 neither the definition's order nor the drawn order is the on-chain order.
 
 **The batch claim is checkable from the chain, without keys.** The report's transaction evidence
-carries `batch_size`, and `canary-report verify` counts the transaction's Orchard actions against it:
+carries `batch_size`, and `zanary-report verify` counts the transaction's Orchard actions against it:
 
 ```
   tx 2b35669d869880bd666d0aa57ecea90fe9284ae9a678a9fb448fd29fd1826fe9@616 PASS
@@ -261,9 +261,9 @@ chain facts because the merchant side is simulated.
 issues an invoice, the payer pays it, the merchant's own wallet reads it back.
 
 ```
-canary-probe invoice --out data/invoices/invoice-8101.json --id 8101 --amount-zec 0.11234567
-canary-probe pay --invoice data/invoices/invoice-8101.json --policy AllowRevealedAmounts
-canary-probe verify-invoice --invoice data/invoices/invoice-8101.json --txid <txid>
+zanary-probe invoice --out data/invoices/invoice-8101.json --id 8101 --amount-zec 0.11234567
+zanary-probe pay --invoice data/invoices/invoice-8101.json --policy AllowRevealedAmounts
+zanary-probe verify-invoice --invoice data/invoices/invoice-8101.json --txid <txid>
 ```
 
 `invoice` issues a *fresh diversified Orchard receiver* from the merchant wallet, renders the ZIP-302
@@ -284,9 +284,9 @@ indexer, trial-decrypts it with its own UFVK, and fails unless the memo names th
 
 | invoice | amount | payer-side decrypt | merchant read-back |
 |---|---|---|---|
-| 8101 | 0.11234567 ZEC | `Outgoing · 0.11234567 ZEC · memo: "canary: invoice 8101"` | `amount 0.11234567 ZEC`, `memo: canary: invoice 8101`, **binds invoice id: yes** |
-| 8102 | 0.12234567 ZEC | `Outgoing · 0.12234567 ZEC · memo: "canary: invoice 8102"` | `amount 0.12234567 ZEC`, `memo: canary: invoice 8102`, **binds invoice id: yes** |
-| 8103 | 0.13234567 ZEC | `Outgoing · 0.13234567 ZEC · memo: "canary: invoice 8103"` | `amount 0.13234567 ZEC`, `memo: canary: invoice 8103`, **binds invoice id: yes** |
+| 8101 | 0.11234567 ZEC | `Outgoing · 0.11234567 ZEC · memo: "zanary: invoice 8101"` | `amount 0.11234567 ZEC`, `memo: zanary: invoice 8101`, **binds invoice id: yes** |
+| 8102 | 0.12234567 ZEC | `Outgoing · 0.12234567 ZEC · memo: "zanary: invoice 8102"` | `amount 0.12234567 ZEC`, `memo: zanary: invoice 8102`, **binds invoice id: yes** |
+| 8103 | 0.13234567 ZEC | `Outgoing · 0.13234567 ZEC · memo: "zanary: invoice 8103"` | `amount 0.13234567 ZEC`, `memo: zanary: invoice 8103`, **binds invoice id: yes** |
 
 Two parties, two seeds, two databases, no shared state: the payer's wallet never reads the
 merchant's, and the merchant's verification trusts nothing but the chain and its own keys.
@@ -305,7 +305,7 @@ Error: GetTransaction from the indexer
 That hex is the same bytes reversed: `TxId::from_bytes` takes the *internal* order, while the RPC,
 the explorer and every log line print the display order. `verify-invoice` now reverses before
 building the `TxId`. The proof it was only that: the same command against the payment that already
-existed then returned `amount read 0.11234567 ZEC`, `memo read: canary: invoice 8101`,
+existed then returned `amount read 0.11234567 ZEC`, `memo read: zanary: invoice 8101`,
 `binds invoice id: yes`.
 
 **Trap: sub-zatoshi amounts are refused, and that is the correct behaviour.** The loop's first
@@ -314,7 +314,7 @@ version used `0.011234567` — nine decimal places — and stopped on cycle 1 wi
 silently rounds is a bug generator; this one refuses.
 
 **Rule (hit twice in this work): never read success off a pipeline's last stage.** A run launched as
-`cargo build … | grep … && canary-probe flow …` used a stale binary for a whole 20-minute run
+`cargo build … | grep … && zanary-probe flow …` used a stale binary for a whole 20-minute run
 because `grep` exits 0 when the build fails, and the loop's own wrapper reported exit 0 while the
 script had failed, for the same reason. Gate on the compiler's or the script's own status
 (`cargo build … && …`, `script; echo $?`), never on a filter downstream of it.
@@ -332,8 +332,8 @@ receipt published *without* the attestation is bound to no wallet at all — pub
 must not publish a linkable identity for the wallet behind it.
 
 ```
-canary-probe flow --definition flows/checkout-private.json  # receipts: signer + signature + attestation
-canary-report verify-receipt data/receipts/invoice-4471.json [--network regtest|test|main]
+zanary-probe flow --definition flows/checkout-private.json  # receipts: signer + signature + attestation
+zanary-report verify-receipt data/receipts/invoice-4471.json [--network regtest|test|main]
                              [--fvk <the merchant's ufvk>] [--signer <expected hex>]
 ```
 
@@ -348,11 +348,11 @@ What was actually run, on the receipts of the private flow that followed this ch
 | attestation stripped, `--fvk` merchant | `… --fvk <merchant.ufvk>` | `FAIL — nothing binds this receipt to that wallet: … carries no attestation`, **exit 1** |
 | tampered body (amount +1) | `verify-receipt …-tampered.json --fvk …` | `signature : INVALID — … Invalid signature.`, **exit 1** |
 | body missing `txid` | `verify-receipt bad-no-txid.json` | `signature : INVALID` **and** `claim : INVALID — the receipt body has no \`txid\``, **exit 1** |
-| body field the format does not define | `verify-receipt bad-extra-field.json` | `claim : INVALID — the receipt body carries 'payer_note', which canary-receipt-v1 does not define`, **exit 1** |
+| body field the format does not define | `verify-receipt bad-extra-field.json` | `claim : INVALID — the receipt body carries 'payer_note', which zanary-receipt-v1 does not define`, **exit 1** |
 | claims disagree with the body | `verify-receipt bad-claim-mismatch.json` | `claim : INVALID — the claims never state the amount in zatoshis (999) that its body carries`, **exit 1** |
 | wrong wallet's key | `verify-receipt … --fvk <payer.ufvk>` | **exit 1** |
 | wrong expected signer | `verify-receipt … --signer 0000…` | `MISMATCH`, **exit 1** |
-| **node and indexer dead** | `CANARY_NODE_URL=http://127.0.0.1:1 CANARY_LWD_URL=http://127.0.0.1:1 verify-receipt … --fvk <merchant.ufvk>` | `VALID` … `binding verified`, **exit 0** |
+| **node and indexer dead** | `ZANARY_NODE_URL=http://127.0.0.1:1 ZANARY_LWD_URL=http://127.0.0.1:1 verify-receipt … --fvk <merchant.ufvk>` | `VALID` … `binding verified`, **exit 0** |
 
 The scheme itself is proven both ways by unit tests (`crates/report/src/receipt.rs`): an attestation
 binds the receipt key to the wallet; a receipt with no attestation is unbound; an attestation that
@@ -364,7 +364,7 @@ The verifier reports **every** failure it finds rather than stopping at the firs
 names both the broken signature and the claim that no longer matches the body, which are two
 independent reasons to reject the same artifact.
 
-The **format** is `schemas/canary-receipt-v1.json` (JSON Schema 2020-12), shipped so a third-party
+The **format** is `schemas/zanary-receipt-v1.json` (JSON Schema 2020-12), shipped so a third-party
 tool can validate a receipt without this code: the body is a closed object (`invoice_id`,
 `amount_zat` as an integer, `txid` and `memo_sha256` as lowercase 64-hex, no extra fields), `claims`
 must state the body's figures in words, `discloses` must be empty, `signer`/`signature` are the
@@ -402,12 +402,12 @@ Four API dead ends worth not re-discovering (all resolved by reading the vendore
 4. **There is no `Network::Regtest`.** `zcash_protocol::consensus::Network` has only mainnet and
    testnet, and a regtest UFVK (`uviewregtest1…`) is rejected as "for network Regtest but we
    expected Test" — testnet and regtest do *not* share the unified-key HRP. Regtest keys decode with
-   `zcash_protocol::local_consensus::LocalNetwork`, which `canary_report::receipt::regtest_params()`
+   `zcash_protocol::local_consensus::LocalNetwork`, which `zanary_report::receipt::regtest_params()`
    supplies with the harness's activation heights.
 
 ### The standalone verifier is what caught the runner's own bug
 
-`canary-report verify` re-derives every claim from the chain (no wallet, no rig trust). Run against
+`zanary-report verify` re-derives every claim from the chain (no wallet, no rig trust). Run against
 the first private run's report it failed 5 checks, all the same bug in *my* runner:
 
 ```
@@ -436,7 +436,7 @@ The first private run scored `9 pass · 3 fail`. All three findings were about t
 - **`unshielding` (D) FAIL** — "shielded value left the pool between these snapshots": 50,000
   zatoshis, which is exactly the five ZIP-317 fees (5 × 10,000) of the five payments. A shielded
   payment pays its fee out of the shielded pool and the fee lands in the miner's coinbase, so *every*
-  Zcash flow shows this movement. Fixed in `canary-properties`: a decrease the run's own recorded
+  Zcash flow shows this movement. Fixed in `zanary-properties`: a decrease the run's own recorded
   fees explain (`observed.fee_zat`, which the runner records) is no longer a finding; an unexplained
   decrease still is.
 - **`report-leak` (N) FAIL** — "any non-empty `discloses` list is excess by construction": my receipt
@@ -470,26 +470,26 @@ report is deterministic given the chain; the wall clock is not.
 ## Reproduce
 
 ```sh
-cd /home/kiter/hackathon/canary
-cargo build --bin canary-probe
-export CANARY_LWD_URL=http://127.0.0.1:9067
+cd /home/kiter/hackathon/zanary
+cargo build --bin zanary-probe
+export ZANARY_LWD_URL=http://127.0.0.1:9067
 
-./target/debug/canary-probe flow --definition flows/checkout-private.json
-./target/debug/canary-probe flow --definition flows/checkout-control.json   # the insecure contrast
-./target/debug/canary-probe flow --definition flows/checkout-private-batch.json  # one tx for all five
+./target/debug/zanary-probe flow --definition flows/checkout-private.json
+./target/debug/zanary-probe flow --definition flows/checkout-control.json   # the insecure contrast
+./target/debug/zanary-probe flow --definition flows/checkout-private-batch.json  # one tx for all five
 
-./target/debug/canary-report verify data/runs/checkout-private/report.json --node http://127.0.0.1:18232
-./target/debug/canary-report verify data/runs/checkout-private-batch/report.json --node http://127.0.0.1:18232
-./target/debug/canary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md
+./target/debug/zanary-report verify data/runs/checkout-private/report.json --node http://127.0.0.1:18232
+./target/debug/zanary-report verify data/runs/checkout-private-batch/report.json --node http://127.0.0.1:18232
+./target/debug/zanary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md
 
 # anchoring: a report becomes a claim with a chain timestamp (docs/ANCHOR-NOTES.md)
-./target/debug/canary-probe anchor --report data/runs/checkout-private-batch/report.json
+./target/debug/zanary-probe anchor --report data/runs/checkout-private-batch/report.json
 UFVK=$(python3 -c "import json;print(json.load(open('data/runs/checkout-private-batch/anchor.json'))['beacon_ufvk'])")
-./target/debug/canary-report verify-anchor --report data/runs/checkout-private-batch/report.json \
+./target/debug/zanary-report verify-anchor --report data/runs/checkout-private-batch/report.json \
     --beacon-ufvk "$UFVK" --node http://127.0.0.1:18232
-./target/debug/canary-report verify-receipt data/receipts/invoice-4471.json \
+./target/debug/zanary-report verify-receipt data/receipts/invoice-4471.json \
     --fvk "$(cat data/receipts/merchant.ufvk)"      # offline: no node, no indexer, no rig
-./target/debug/canary-report index --reports data/runs --out data/runs/index.html --now 2026-10-25T00:00:00Z
+./target/debug/zanary-report index --reports data/runs --out data/runs/index.html --now 2026-10-25T00:00:00Z
 ```
 
 Receipts are extracted from a run (`run.json` → `receipts[i]`) into `data/receipts/`; the merchant

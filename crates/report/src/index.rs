@@ -13,7 +13,7 @@
 //! one explicit `--now`, no ambient clock reads.
 
 use anyhow::Result;
-use canary_properties::{Severity, Verdict};
+use zanary_properties::{Severity, Verdict};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{claim_status, claim_ttl_seconds, expires_at, hash_report, ClaimStatus, Report};
@@ -209,7 +209,7 @@ pub fn render_index_with_anchors(
     let mut html = String::new();
     html.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
     html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    html.push_str("<title>CANARY — privacy claims that expire</title>\n");
+    html.push_str("<title>ZANARY — privacy claims that expire</title>\n");
     html.push_str("<style>\n");
     html.push_str(
         ":root { color-scheme: dark; }\n\
@@ -242,11 +242,11 @@ pub fn render_index_with_anchors(
          a { color: #7fb3ff; }\n",
     );
     html.push_str("</style>\n</head>\n<body>\n");
-    html.push_str("<h1>CANARY — privacy claims that expire</h1>\n");
+    html.push_str("<h1>ZANARY — privacy claims that expire</h1>\n");
     html.push_str(
         "<p class=\"sub\">Every claim is “this exact revision of this flow passed these \
          properties at this height, and here is the evidence”. Evidence, not scores: re-run \
-         <code>canary-report verify &lt;report.json&gt;</code> to falsify any row.</p>\n",
+         <code>zanary-report verify &lt;report.json&gt;</code> to falsify any row.</p>\n",
     );
     html.push_str(&format!(
         "<p class=\"sub summary\">generated {} · <span class=\"badge live\">{live} live</span> \

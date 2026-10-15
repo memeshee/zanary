@@ -1,5 +1,5 @@
 {
-  "flow_id": "canary-checkout-control",
+  "flow_id": "zanary-checkout-control",
   "receiver_strategy": "reused",
   "memo": false,
   "policy": "AllowRevealedAmounts",

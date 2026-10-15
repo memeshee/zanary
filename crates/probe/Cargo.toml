@@ -1,11 +1,15 @@
 [package]
-name = "canary-probe"
+name = "zanary-probe"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Two binaries live in this package (`zanary-probe`, `zanary-seed`), so plain
+# `cargo run -p zanary-probe` needs the default spelled out — every command in the
+# docs is written that way.
+default-run = "zanary-probe"
 
 [[bin]]
-name = "canary-probe"
+name = "zanary-probe"
 path = "src/main.rs"
 
 [dependencies]
@@ -13,11 +17,11 @@ anyhow.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# The flow runner (`canary-probe flow`) records a real run into the shared observation
+# The flow runner (`zanary-probe flow`) records a real run into the shared observation
 # model and produces findings + a report in the same command.
-canary-observation = { path = "../observation" }
-canary-properties = { path = "../properties" }
-canary-report = { path = "../report" }
+zanary-observation = { path = "../observation" }
+zanary-properties = { path = "../properties" }
+zanary-report = { path = "../report" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 zcash_client_backend.workspace = true
@@ -39,7 +43,7 @@ zcash_transparent.workspace = true
 orchard.workspace = true
 pasta_curves.workspace = true
 zcash_script.workspace = true
-# `canary-seed` (src/bin/canary-seed.rs): Orchard-only shielding needs the Sapling prover
+# `zanary-seed` (src/bin/zanary-seed.rs): Orchard-only shielding needs the Sapling prover
 # traits to satisfy the wallet API (its Orchard proving key is built internally by
 # zcash_primitives), and address parsing. All already in the dependency graph.
 zcash_address = "0.13"

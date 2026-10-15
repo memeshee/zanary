@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::{all_properties, evaluate, passes, Severity, Verdict};
-use canary_observation::{FlowRun, Payment, PaymentKind, Pool};
+use zanary_observation::{FlowRun, Payment, PaymentKind, Pool};
 
 use super::common::hex_of;
 use super::fixtures;
@@ -196,13 +196,13 @@ fn flip_transparent_fallback_recipient() {
 #[test]
 fn flip_unshielding_pool_totals_delta() {
     let mut run = fixtures::clean_run();
-    run.pool_totals.push(canary_observation::PoolTotals {
+    run.pool_totals.push(zanary_observation::PoolTotals {
         height: 117,
         transparent_zat: 0,
         sapling_zat: 0,
         orchard_zat: 500_000_000,
     });
-    run.pool_totals.push(canary_observation::PoolTotals {
+    run.pool_totals.push(zanary_observation::PoolTotals {
         height: 118,
         transparent_zat: 5_000_000,
         sapling_zat: 0,

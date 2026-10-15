@@ -15,7 +15,7 @@
 //! Evidence: the txid, the memo hex, the flagged span, and the flag kind.
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 use super::common::{contains_email, contains_phone_or_id, has_long_digit_run, memo_plaintext};
 

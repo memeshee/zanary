@@ -8,12 +8,12 @@
 //!   * the claim index renders byte-identical HTML for the same inputs and clock.
 //!
 //! Regenerate the golden HTML with:
-//!   cargo run -p canary-report -- index --reports crates/report/fixtures/reports \
+//!   cargo run -p zanary-report -- index --reports crates/report/fixtures/reports \
 //!     --out crates/report/fixtures/index.golden.html --now 2026-11-01T00:00:00Z
 
-use canary_observation::FlowRun;
-use canary_properties::Finding;
-use canary_report::{build_with_claim, hash_report, index::render_index, Report};
+use zanary_observation::FlowRun;
+use zanary_properties::Finding;
+use zanary_report::{build_with_claim, hash_report, index::render_index, Report};
 use std::path::PathBuf;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
@@ -90,7 +90,7 @@ fn index_matches_golden_html() {
         .unwrap_or_else(|e| panic!("reading {}: {e}", golden_path.display()));
     assert_eq!(
         html, golden,
-        "index output drifted from {}; regenerate it with `canary-report index --reports \
+        "index output drifted from {}; regenerate it with `zanary-report index --reports \
          crates/report/fixtures/reports --out crates/report/fixtures/index.golden.html \
          --now 2026-10-25T00:00:00Z`",
         golden_path.display()
@@ -102,7 +102,7 @@ fn index_matches_golden_html() {
 fn fixture_claims_expire_on_schedule() {
     let reports = load_reports();
     let now = OffsetDateTime::parse("2026-10-25T00:00:00Z", &Rfc3339).expect("clock parses");
-    let (claims, regressions) = canary_report::index::index_claims(&reports, now);
+    let (claims, regressions) = zanary_report::index::index_claims(&reports, now);
     let statuses: Vec<(&str, &str)> = claims
         .iter()
         .map(|c| {

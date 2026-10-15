@@ -1,4 +1,4 @@
-//! CANARY shared observation model.
+//! ZANARY shared observation model.
 //!
 //! A *flow run* is what the rig watches while it executes a payment flow on the throwaway chain:
 //! every payment the flow made, every funding event, everything the merchant side received, and
@@ -110,7 +110,7 @@ pub struct Receipt {
     #[serde(default)]
     pub discloses: Vec<String>,
     /// The public key that signed this receipt, hex (Orchard spend-authorizing key, RedPallas) —
-    /// present when the flow signed it. See `canary_report::receipt` for the scheme.
+    /// present when the flow signed it. See `zanary_report::receipt` for the scheme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signer: Option<String>,
     /// The signature over the receipt's signing payload, hex.
@@ -130,7 +130,7 @@ pub struct Receipt {
 /// optional to publish, which is the point: a receipt on its own reveals neither.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiptAttestation {
-    /// The attestation format, e.g. `canary-receipt-attestation-v1`.
+    /// The attestation format, e.g. `zanary-receipt-attestation-v1`.
     pub format: String,
     /// The receipt key being attested, hex — the same key as the receipt's `signer`.
     pub receipt_key: String,

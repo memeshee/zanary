@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 use super::common::{contains_email, looks_like_address};
 

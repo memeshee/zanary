@@ -1,19 +1,19 @@
-//! CANARY report — turning a run into evidence someone else can check, and a claim that expires.
+//! ZANARY report — turning a run into evidence someone else can check, and a claim that expires.
 //!
 //! A report is:
-//!   * the findings from [`canary_properties`] for one flow revision,
+//!   * the findings from [`zanary_properties`] for one flow revision,
 //!   * plus an evidence array (txids, receivers, memo bytes, heights) that a verifier re-checks
 //!     against the chain without trusting whoever produced the report,
 //!   * plus a canonical hash so the run can be anchored in a shielded memo and referenced later,
 //!   * plus the wall-clock `verified_at` and `ttl_seconds` that turn it into an *expiring claim*.
 //!
 //! Nothing here may depend on the reporter's honesty: the verifier's job is to re-derive the
-//! facts (`canary-report verify`), and the index's job is to show which claims are still current
-//! (`canary-report index`).
+//! facts (`zanary-report verify`), and the index's job is to show which claims are still current
+//! (`zanary-report index`).
 
 use anyhow::Result;
-use canary_observation::FlowRun;
-use canary_properties::Finding;
+use zanary_observation::FlowRun;
+use zanary_properties::Finding;
 use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
@@ -181,7 +181,7 @@ pub fn evidence_root(evidence: &[Evidence]) -> Result<String> {
         .collect();
 
     if leaves.is_empty() {
-        return Ok(sha256_hex(b"canary:empty-evidence"));
+        return Ok(sha256_hex(b"zanary:empty-evidence"));
     }
     while leaves.len() > 1 {
         if leaves.len() % 2 == 1 {

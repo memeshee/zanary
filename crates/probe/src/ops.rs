@@ -1,4 +1,4 @@
-//! `canary-probe address | fund | shield | pay` — move real value on the harness
+//! `zanary-probe address | fund | shield | pay` — move real value on the harness
 //! chain with the probe's own librustzcash wallet.
 //!
 //! * `address` — derive the wallet's transparent / Orchard receivers from the
@@ -285,7 +285,7 @@ pub(crate) fn describe_address(recipient: &Address) -> String {
 
 fn print_header(command: &str) {
     println!(
-        "canary-probe {} {command} — CANARY (ZECATHON, Core & Tooling)",
+        "zanary-probe {} {command} — ZANARY (ZECATHON, Core & Tooling)",
         env!("CARGO_PKG_VERSION")
     );
     println!("  network           : regtest (throwaway harness chain)");
@@ -453,7 +453,7 @@ pub(crate) fn memo_text(bytes: &[u8]) -> String {
 // anchor
 // ---------------------------------------------------------------------------
 
-/// `canary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N] [--account N]`
+/// `zanary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N] [--account N]`
 ///
 /// Turns a report into a claim with a public timestamp: the report's `evidence_root` and
 /// `report_hash` go into a **shielded memo** paid to the anchor beacon's next fresh receiver, and
@@ -461,13 +461,13 @@ pub(crate) fn memo_text(bytes: &[u8]) -> String {
 ///
 /// The beacon is a third wallet (its own seed, its own database), its viewing key is published, and
 /// the anchor carries no identity beyond the hashes — the design and its disclosures are in
-/// `canary_report::anchor` and `docs/CLAIMS.md`.
+/// `zanary_report::anchor` and `docs/CLAIMS.md`.
 ///
 /// Nothing here trusts the report file: the hash and the root are recomputed from the report's own
 /// fields, and the run is refused if the file does not hash to itself. Anchoring a report that has
 /// been edited by hand would publish a claim about a run nobody made.
 pub async fn anchor(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe anchor --report <report.json> [--out <anchor.json>] \
+    const USAGE: &str = "zanary-probe anchor --report <report.json> [--out <anchor.json>] \
                          [--amount-zat N] [--account N]";
     let mut args = Args::parse(raw, USAGE)?;
     let report_path = args.require("--report")?;
@@ -475,11 +475,11 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
     let amount_zat = args
         .optional_u32("--amount-zat")?
         .map(u64::from)
-        .unwrap_or(canary_report::anchor::ANCHOR_AMOUNT_ZAT);
+        .unwrap_or(zanary_report::anchor::ANCHOR_AMOUNT_ZAT);
     let account_no = args.optional_u32("--account")?.unwrap_or(0);
     args.finish()?;
 
-    let report: canary_report::Report = serde_json::from_str(
+    let report: zanary_report::Report = serde_json::from_str(
         &std::fs::read_to_string(&report_path)
             .with_context(|| format!("reading the report {report_path}"))?,
     )
@@ -487,7 +487,7 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
 
     // Recompute, never trust: the file's `report_hash` must be the hash of its own canonical JSON,
     // and the root must be the Merkle root of its own evidence.
-    let report_hash = canary_report::hash_report(&report)?;
+    let report_hash = zanary_report::hash_report(&report)?;
     if report.report_hash != report_hash {
         bail!(
             "the report's stored hash is {} but its canonical JSON hashes to {report_hash} — \
@@ -495,10 +495,10 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
             report.report_hash
         );
     }
-    let evidence_root = canary_report::evidence_root(&report.evidence)?;
+    let evidence_root = zanary_report::evidence_root(&report.evidence)?;
 
-    let anchor = canary_report::anchor::Anchor {
-        v: canary_report::anchor::ANCHOR_VERSION,
+    let anchor = zanary_report::anchor::Anchor {
+        v: zanary_report::anchor::ANCHOR_VERSION,
         chain: report.chain.clone(),
         flow_commit: report.flow_commit.clone(),
         report_hash: report_hash.clone(),
@@ -562,7 +562,7 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
     }
     let height = height as u32;
 
-    let record = canary_report::anchor::AnchorRecord {
+    let record = zanary_report::anchor::AnchorRecord {
         anchor,
         memo: memo_text.clone(),
         txid: txid.to_string(),
@@ -571,7 +571,7 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
         beacon_receiver_index: format!("{beacon_index:?}"),
         beacon_ufvk: beacon.ufvk.encode(&beacon.network),
         chain: report.chain.clone(),
-        payer_label: "canary-probe dev wallet (regtest harness)".to_string(),
+        payer_label: "zanary-probe dev wallet (regtest harness)".to_string(),
     };
     let out_path = match &out {
         Some(path) => PathBuf::from(path),
@@ -584,7 +584,7 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
     println!();
     println!("  A stranger can now check this with no trust in this rig:");
     println!(
-        "    canary-report verify-anchor --report {report_path} \\\n     \
+        "    zanary-report verify-anchor --report {report_path} \\\n     \
          --beacon-ufvk {} --node http://127.0.0.1:18232",
         record.beacon_ufvk
     );
@@ -606,7 +606,7 @@ fn anchor_path_for(report_path: &str) -> PathBuf {
 
 pub async fn address(raw: &[String]) -> Result<()> {
     const USAGE: &str =
-        "canary-probe address [--transparent | --orchard] [--index N] [--account N]";
+        "zanary-probe address [--transparent | --orchard] [--index N] [--account N]";
     let mut args = Args::parse(raw, USAGE)?;
     let want_transparent = args.flag("--transparent");
     let want_orchard = args.flag("--orchard");
@@ -650,7 +650,7 @@ pub async fn address(raw: &[String]) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 pub async fn fund(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe fund --zec <amount>";
+    const USAGE: &str = "zanary-probe fund --zec <amount>";
     let mut args = Args::parse(raw, USAGE)?;
     let amount = args.require("--zec")?;
     args.finish()?;
@@ -716,7 +716,7 @@ pub async fn fund(raw: &[String]) -> Result<()> {
         core::format_zats_signed(snapshot.total)
     );
     println!();
-    println!("  next: canary-probe shield");
+    println!("  next: zanary-probe shield");
     Ok(())
 }
 
@@ -725,7 +725,7 @@ pub async fn fund(raw: &[String]) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 pub async fn shield(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe shield [--account N] [--policy <privacyPolicy>]";
+    const USAGE: &str = "zanary-probe shield [--account N] [--policy <privacyPolicy>]";
     let mut args = Args::parse(raw, USAGE)?;
     let account_no = args.optional_u32("--account")?.unwrap_or(0);
     let policy = match args.value("--policy") {
@@ -765,7 +765,7 @@ pub async fn shield(raw: &[String]) -> Result<()> {
     if before.transparent == 0 {
         bail!(
             "no transparent funds in account `{}` — fund the wallet first:\n  \
-             canary-probe fund --zec <amount>   (then the funds need 10 confirmations)",
+             zanary-probe fund --zec <amount>   (then the funds need 10 confirmations)",
             core::account_name(account_no)
         );
     }
@@ -829,7 +829,7 @@ pub async fn shield(raw: &[String]) -> Result<()> {
     );
     core::print_delta(&before.delta(&after));
     println!();
-    println!("  next: canary-probe pay --to <address> --zec <amount> --memo <text>");
+    println!("  next: zanary-probe pay --to <address> --zec <amount> --memo <text>");
     Ok(())
 }
 
@@ -841,7 +841,7 @@ pub async fn shield(raw: &[String]) -> Result<()> {
 /// own spend policy: inputs come only from the account's Orchard pool (never transparent
 /// or Sapling), ZIP-317 fees, Orchard change.
 ///
-/// Shared by `canary-probe pay` and the flow runner, so a flow pays through exactly the
+/// Shared by `zanary-probe pay` and the flow runner, so a flow pays through exactly the
 /// path the CLI documents — one implementation, one policy.
 pub(crate) fn propose_shielded_payment(
     probe: &mut Probe,
@@ -920,16 +920,16 @@ pub(crate) fn propose_shielded_payments(
     .map_err(|e| {
         anyhow!(
             "could not propose the payment: {e}\n  \
-             (InsufficientFunds? shield first with `canary-probe shield`; freshly shielded \
+             (InsufficientFunds? shield first with `zanary-probe shield`; freshly shielded \
              funds need 10 confirmations before they are spendable)"
         )
     })
 }
 
 pub async fn pay(raw: &[String]) -> Result<()> {
-    const USAGE: &str = "canary-probe pay --to <address> --zec <amount> --memo <text> \
+    const USAGE: &str = "zanary-probe pay --to <address> --zec <amount> --memo <text> \
                          [--policy <privacyPolicy>] [--account N]\n  \
-                         canary-probe pay --invoice <file.json> [--policy <privacyPolicy>] \
+                         zanary-probe pay --invoice <file.json> [--policy <privacyPolicy>] \
                          [--account N]";
     let mut args = Args::parse(raw, USAGE)?;
     // `--invoice <file>`: pay a merchant's invoice. The ZIP-321 URI inside it decides the

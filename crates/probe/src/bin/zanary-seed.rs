@@ -1,4 +1,4 @@
-//! `canary-seed` — seed the throwaway chain **to our own wallet** and make a real
+//! `zanary-seed` — seed the throwaway chain **to our own wallet** and make a real
 //! shielded payment carrying a memo, without ever touching the node wallet.
 //!
 //! The harness node (zcashd) is the chain and the miner, nothing else: `seed.sh`'s
@@ -17,8 +17,8 @@
 //!                 then broadcast the signed transaction through the indexer.
 //!   4. `tx`     — print what the indexer knows about a txid (height + raw bytes).
 //!
-//! The wallet database is separate from `canary-probe wallet`'s
-//! (`$CANARY_SEED_DB`, default `./data/wallet-seed/canary-seed.db`) so this tool never
+//! The wallet database is separate from `zanary-probe wallet`'s
+//! (`$ZANARY_SEED_DB`, default `./data/wallet-seed/zanary-seed.db`) so this tool never
 //! rewrites state another process depends on. It derives the same dev account from the
 //! same public BIP-39 test-vector mnemonic.
 //!
@@ -80,7 +80,7 @@ use zip32::{fingerprint::SeedFingerprint, AccountId, DiversifierIndex};
 const DEV_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-const DEV_ACCOUNT_NAME: &str = "canary-dev";
+const DEV_ACCOUNT_NAME: &str = "zanary-dev";
 
 type SeedDb = WalletDb<rusqlite::Connection, LocalNetwork, SystemClock, rand::rngs::OsRng>;
 
@@ -110,11 +110,11 @@ async fn main() -> Result<()> {
         Some("shield") => shield().await,
         Some("tx") => tx_info().await,
         Some(other) => bail!(
-            "unknown subcommand `{other}` — usage: canary-seed addr | sync | learn-coinbase \
+            "unknown subcommand `{other}` — usage: zanary-seed addr | sync | learn-coinbase \
              --from <h> --to <h> | shield --memo <text> [--to <addr>] [--limit <n>] | \
              tx --txid <txid>"
         ),
-        None => bail!("usage: canary-seed addr | sync | learn-coinbase | shield | tx"),
+        None => bail!("usage: zanary-seed addr | sync | learn-coinbase | shield | tx"),
     }
 }
 
@@ -126,12 +126,12 @@ fn arg_value(flag: &str) -> Option<String> {
 }
 
 fn indexer_endpoint() -> String {
-    env::var("CANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
+    env::var("ZANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
 }
 
 fn seed_db_path() -> PathBuf {
     PathBuf::from(
-        env::var("CANARY_SEED_DB").unwrap_or_else(|_| "./data/wallet-seed/canary-seed.db".into()),
+        env::var("ZANARY_SEED_DB").unwrap_or_else(|_| "./data/wallet-seed/zanary-seed.db".into()),
     )
 }
 
@@ -199,7 +199,7 @@ async fn open_wallet(network: &LocalNetwork) -> Result<(SeedDb, UnifiedSpendingK
             AccountPurpose::Spending {
                 derivation: Some(derivation),
             },
-            Some("canary dev seed (BIP-39 test vector)"),
+            Some("zanary dev seed (BIP-39 test vector)"),
         )
         .context("importing the dev UFVK")?;
     }
@@ -365,13 +365,13 @@ async fn sync_wallet(
 /// getrawtransaction only — the node is the chain and the miner, never a wallet here).
 fn node_rpc(method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
     use std::io::{Read, Write};
-    let url = env::var("CANARY_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:18232".into());
-    let user = env::var("CANARY_NODE_USER").unwrap_or_else(|_| "canary".into());
-    let pass = env::var("CANARY_NODE_PASS").unwrap_or_else(|_| "canary".into());
+    let url = env::var("ZANARY_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:18232".into());
+    let user = env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into());
+    let pass = env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into());
     let hostport = url.strip_prefix("http://").unwrap_or(&url).trim_end_matches('/');
     let body = serde_json::json!({
         "jsonrpc": "1.0",
-        "id": "canary-seed",
+        "id": "zanary-seed",
         "method": method,
         "params": params,
     })
@@ -737,7 +737,7 @@ impl SpendProver for NoSaplingProver {
         _anchor: bls12_381::Scalar,
         _merkle_path: MerklePath,
     ) -> Option<circuit::Spend> {
-        panic!("canary-seed: a Sapling spend appeared in an Orchard-only shielding flow")
+        panic!("zanary-seed: a Sapling spend appeared in an Orchard-only shielding flow")
     }
 
     fn create_proof<R: rand_core::RngCore>(
@@ -745,7 +745,7 @@ impl SpendProver for NoSaplingProver {
         _circuit: circuit::Spend,
         _rng: &mut R,
     ) -> Self::Proof {
-        panic!("canary-seed: a Sapling spend proof was requested in an Orchard-only flow")
+        panic!("zanary-seed: a Sapling spend proof was requested in an Orchard-only flow")
     }
 
     fn encode_proof(proof: Self::Proof) -> GrothProofBytes {
@@ -763,7 +763,7 @@ impl OutputProver for NoSaplingProver {
         _value: NoteValue,
         _rcv: ValueCommitTrapdoor,
     ) -> circuit::Output {
-        panic!("canary-seed: a Sapling output appeared in an Orchard-only shielding flow")
+        panic!("zanary-seed: a Sapling output appeared in an Orchard-only shielding flow")
     }
 
     fn create_proof<R: rand_core::RngCore>(
@@ -771,7 +771,7 @@ impl OutputProver for NoSaplingProver {
         _circuit: circuit::Output,
         _rng: &mut R,
     ) -> Self::Proof {
-        panic!("canary-seed: a Sapling output proof was requested in an Orchard-only flow")
+        panic!("zanary-seed: a Sapling output proof was requested in an Orchard-only flow")
     }
 
     fn encode_proof(proof: Self::Proof) -> GrothProofBytes {

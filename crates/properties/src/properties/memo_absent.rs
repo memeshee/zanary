@@ -12,7 +12,7 @@
 //! Evidence: txid, invoice id, and the memo bytes (or their absence).
 
 use crate::{Finding, Property, Severity};
-use canary_observation::FlowRun;
+use zanary_observation::FlowRun;
 
 use super::common::{memo_plaintext, normalize_alnum};
 
@@ -32,7 +32,7 @@ impl Property for MemoAbsent {
     }
 
     fn check(&self, run: &FlowRun) -> Finding {
-        let reconciliation: Vec<&canary_observation::Payment> = run
+        let reconciliation: Vec<&zanary_observation::Payment> = run
             .payments
             .iter()
             .filter(|p| {

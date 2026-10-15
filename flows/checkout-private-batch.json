@@ -1,5 +1,5 @@
 {
-  "flow_id": "canary-checkout-batch",
+  "flow_id": "zanary-checkout-batch",
   "receiver_strategy": "fresh",
   "memo": true,
   "policy": "FullPrivacy",
@@ -7,10 +7,10 @@
   "settlement": "batch",
   "batch_seed": 20261012,
   "invoices": [
-    { "invoice_id": "7731", "amount_zat": 1234567, "memo_template": "canary: invoice {invoice_id}" },
-    { "invoice_id": "7732", "amount_zat": 2345678, "memo_template": "canary: invoice {invoice_id}" },
-    { "invoice_id": "7733", "amount_zat": 3456789, "memo_template": "canary: invoice {invoice_id}" },
-    { "invoice_id": "7734", "amount_zat": 4567890, "memo_template": "canary: invoice {invoice_id}" },
-    { "invoice_id": "7735", "amount_zat": 5678901, "memo_template": "canary: invoice {invoice_id}" }
+    { "invoice_id": "7731", "amount_zat": 1234567, "memo_template": "zanary: invoice {invoice_id}" },
+    { "invoice_id": "7732", "amount_zat": 2345678, "memo_template": "zanary: invoice {invoice_id}" },
+    { "invoice_id": "7733", "amount_zat": 3456789, "memo_template": "zanary: invoice {invoice_id}" },
+    { "invoice_id": "7734", "amount_zat": 4567890, "memo_template": "zanary: invoice {invoice_id}" },
+    { "invoice_id": "7735", "amount_zat": 5678901, "memo_template": "zanary: invoice {invoice_id}" }
   ]
 }
