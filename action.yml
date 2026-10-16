@@ -138,6 +138,29 @@ runs:
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
 
+    - name: rig diagnostics (only when the gate did not pass)
+      if: always() && steps.gate.outputs.exit_code != '0'
+      shell: bash
+      run: |
+        OUT="${{ steps.gate.outputs.out }}"
+        {
+          echo "### rig state at failure"
+          echo '```'
+          docker ps -a --format '{{.Names}}	{{.Status}}	{{.Image}}' || true
+          echo '--- zcashd (tail) ---'
+          docker logs --tail 30 zanary-zcashd 2>&1 || true
+          echo '--- lightwalletd (tail) ---'
+          docker logs --tail 40 zanary-lwd 2>&1 || true
+          echo '--- node height / indexer tip ---'
+          docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary getblockcount 2>&1 || true
+          echo '--- gate log (tail) ---'
+          tail -60 "$OUT/gate.log" 2>/dev/null || echo "(no gate log)"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY" 2>&1
+        # Also to stdout: the job summary is one click away, the step log is where people look first.
+        docker ps -a --format '{{.Names}}	{{.Status}}' || true
+        docker logs --tail 30 zanary-lwd 2>&1 || true
+
     - name: verdict
       shell: bash
       run: |

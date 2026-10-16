@@ -110,27 +110,38 @@ pub fn endpoint() -> String {
 /// first block waits here instead of racing it.
 pub async fn wait_for_indexer_height(endpoint: &str, min_height: u32) -> Result<u32> {
     const ATTEMPTS: u32 = 60;
-    let mut client = CompactTxStreamerClient::connect(endpoint.to_string())
-        .await
-        .with_context(|| format!("connecting to the indexer at {endpoint}"))?;
     let mut tip = 0u32;
+    let mut last_error: Option<String> = None;
     for attempt in 0..ATTEMPTS {
-        tip = client
-            .get_latest_block(ChainSpec {})
-            .await
-            .context("GetLatestBlock while waiting for the indexer")?
-            .into_inner()
-            .height as u32;
-        if tip >= min_height {
-            return Ok(tip);
+        // A transport failure here is not a verdict: the indexer exits and is restarted when the
+        // node's RPC is not serving yet, and a client that connects during that window sees a
+        // broken pipe (the failure mode the first CI run of the gate hit). Waiting is the whole
+        // job of this function, so a failed attempt is another attempt — only the budget runs out.
+        match CompactTxStreamerClient::connect(endpoint.to_string()).await {
+            Ok(mut client) => match client.get_latest_block(ChainSpec {}).await {
+                Ok(reply) => {
+                    tip = reply.into_inner().height as u32;
+                    if tip >= min_height {
+                        return Ok(tip);
+                    }
+                    last_error = None;
+                }
+                Err(e) => last_error = Some(format!("GetLatestBlock: {e}")),
+            },
+            Err(e) => last_error = Some(format!("connect: {e}")),
         }
         if attempt + 1 < ATTEMPTS {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     }
+    let because = match &last_error {
+        Some(error) => format!(" — the last attempt said: {error}"),
+        None => String::new(),
+    };
     anyhow::bail!(
-        "the indexer at {endpoint} still reports tip {tip} after {}s, below the {min_height} this \
-         run needs — the indexer is not following the node (see `harness/up.sh` and its logs)",
+        "the indexer at {endpoint} still reports tip {tip} (or did not answer) after {}s, below the \
+         {min_height} this run needs{because} — the indexer is not following the node (see \
+         `harness/up.sh`, `docker logs zanary-lwd`)",
         ATTEMPTS / 2
     )
 }

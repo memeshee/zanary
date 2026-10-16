@@ -74,10 +74,17 @@ echo "node ready at height ${HEIGHT}"
 
 say "waiting for the indexer (up to ${WAIT_INDEXER_SECONDS}s)"
 deadline=$((SECONDS + WAIT_INDEXER_SECONDS))
+# One successful handshake is not readiness: the indexer starts before the node's RPC is serving,
+# can exit on that first failed fetch and be restarted by compose a moment later. So: answer, still
+# alive, answer again — and agree with the node about the tip.
 indexer_ready=0
+streak=0
+PROBE="$(probe_bin 2>/dev/null || true)"
+[ -n "$PROBE" ] || echo "note: no zanary-probe binary yet — falling back to a port check for the indexer"
 while [ "$indexer_ready" -eq 0 ]; do
-  if [ -x "$(probe_bin 2>/dev/null || true)" ] && ZANARY_LWD_URL="$LWD_URL" "$(probe_bin)" >/dev/null 2>&1; then
-    indexer_ready=1
+  probe_ok=0
+  if [ -n "$PROBE" ] && ZANARY_LWD_URL="$LWD_URL" "$PROBE" >/dev/null 2>&1; then
+    probe_ok=1
   elif python3 - "$LWD_URL" <<'PY'
 import socket, sys, urllib.parse
 url = urllib.parse.urlparse(sys.argv[1])
@@ -95,8 +102,24 @@ PY
   then
     # A listening socket and a *caught-up* indexer are different things: lightwalletd replays
     # blocks from the node after a restart, which is why the probe handshake above is preferred.
+    probe_ok=1
+  fi
+
+  # Readiness is a streak, not a moment: the second answer is the one that says the indexer is
+  # still up (see the note above the loop). The port check alone never counts as a second answer —
+  # a restarted container takes its port up before it is serving.
+  if [ "$probe_ok" -eq 1 ] && [ -n "$PROBE" ]; then
+    alive="$(docker inspect -f '{{.State.Running}}' zanary-lwd 2>/dev/null || echo false)"
+    if [ "$alive" = "true" ] && ZANARY_LWD_URL="$LWD_URL" "$PROBE" >/dev/null 2>&1; then
+      streak=$((streak + 1))
+    else
+      streak=0
+    fi
+  fi
+  if [ "${streak:-0}" -ge 2 ]; then
     indexer_ready=1
   fi
+
   if [ "$indexer_ready" -eq 0 ]; then
     if [ "$SECONDS" -ge "$deadline" ]; then
       echo "the indexer was not serving at ${LWD_URL} within ${WAIT_INDEXER_SECONDS}s — recent logs:" >&2
@@ -106,7 +129,7 @@ PY
     sleep 2
   fi
 done
-echo "indexer ready at ${LWD_URL}"
+echo "indexer ready at ${LWD_URL} (answered twice, container running)"
 
 say "the rig"
 echo "chain      : regtest (throwaway) · height ${HEIGHT}"

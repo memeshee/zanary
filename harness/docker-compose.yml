@@ -34,6 +34,11 @@ services:
     image: electriccoinco/lightwalletd:latest
     container_name: zanary-lwd
     entrypoint: ["lightwalletd"]
+    # The indexer exits when the node's RPC is not answering yet (it starts before zcashd is
+    # serving, `depends_on` only waits for the container to be *created*), and a dead indexer on a
+    # CI runner looks exactly like "the flow's first GetLatestBlock got a broken pipe" — which is
+    # what the first CI run of the gate reported. Self-heal, and let `up.sh` insist on a stable reply.
+    restart: unless-stopped
     depends_on:
       zcashd:
         condition: service_started

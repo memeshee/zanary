@@ -379,15 +379,17 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
         // state below its scan range and lightwalletd refuses a height that does not exist yet
         // ("Block height out of range"), so the wallet — and therefore the flow — cannot start.
         // Mining block 1 is part of running a flow on a brand-new chain, and doing it here is what
-        // makes `harness/up.sh` + one command sufficient on a fresh checkout (docs/CI.md).
+        // makes `harness/up.sh` plus one command sufficient on a fresh checkout (docs/CI.md).
         node.generate(1).await?;
-        let tip = core::wait_for_indexer_height(&core::endpoint(), 1).await?;
         started_at_height = node.block_count().await? as u32;
-        println!(
-            "  chain             : mined block 1 (an empty chain has nothing to sync from) · \
-             indexer tip {tip} · node height {started_at_height}"
-        );
+        println!("  chain             : mined block 1 (an empty chain has nothing to sync from)");
     }
+    // Every wallet this run opens syncs against the indexer, so the indexer has to hold every block
+    // the node does — including block 1 just mined, and including whatever the node mined while the
+    // indexer was restarting. Waiting for that here is cheaper than debugging a wallet that "cannot
+    // see" a payment the chain already has.
+    let indexer_tip = core::wait_for_indexer_height(&core::endpoint(), started_at_height).await?;
+    println!("  indexer tip       : {indexer_tip} (node height {started_at_height})");
     println!("  start height      : {started_at_height}");
 
     // The payer: the probe's own wallet. The merchant: its own seed and database.
