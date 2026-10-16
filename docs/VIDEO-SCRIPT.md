@@ -1,140 +1,131 @@
-# The demo video — beats, timings, and what is on screen
+# The demo video — a ≤2-minute cut
 
-Seven minutes, one take, driven by one command. The recording is not a tour of the repository: it is
-four stages that produce artifacts, each one allowed to fail.
+The submission form asks for a **≤2-minute video URL**, and the plan's note is that *profiler-vs-control is
+the closing shot*. So this is a 120-second cut of one real run, not a tour — and the run is longer than
+the video: **6m 04s** of execution (140s private flow · 145s control flow · 77s payer · instant index).
 
-```sh
-harness/up.sh && scripts/demo-run.sh        # the single take
+The edit compresses the waiting and **says so on screen** (`6 min of run → 2 min`) instead of pretending
+the rig is that fast. Nothing is staged: every line below is verbatim from
+`~/hackathon/zanary-rehearsal.log`, a real take that exited 0.
+
+## Narration, word-counted to the second
+
+~2.2 words/second with room to breathe — **275 words**, landing at about 1:58. The numbers are the only
+part that must not be rushed.
+
+### 0:00–0:15 · the gap (38 words)
+
+> "Zcash already has tills — gateways that take shielded payments for a merchant. What nobody hands you
+> is the *payer's* side: an agent with a budget instead of a key, repeat payments that don't cluster, and
+> receipts that verify without trusting the tool that made them. This is ZANARY."
+
+**On screen:** title card only — `ZANARY — privacy claims that expire`, `github.com/memeshee/zanary`,
+`ZECATHON · Core & Tooling`. No architecture, no repository tour.
+
+### 0:15–0:50 · the run, and the claim (80 words)
+
+> "One command runs the whole story on a throwaway chain: `harness/up.sh`, then `scripts/demo-run.sh`.
+> Two invoices, a fresh diversified receiver for each, one ZIP-302 memo per payment, full privacy. While
+> it runs, the rig watches the chain — not the app's logs. All thirteen leak properties hold. Then the
+> evidence — txids, receivers, memos, pool totals — is re-derived from the chain by a second
+> implementation, and its root goes into a shielded memo, so the claim carries a timestamp nobody has to
+> be trusted for."
+
+**On screen, cut on the phrases:** the command being typed, then ~10 seconds real-time of the run (the
+`6 min of run → 2 min` label appears here and stays up) → payment lines with txids and heights → the
+property table → `verification summary PASS 12 pass · 0 fail · 6 skip` → the claim block:
+
+```
+  --- claim ---
+  flow              : zanary-ci-checkout @ 4d8279bb
+  verified at       : height … · 2026-10-16T…Z
+  properties        : 12 pass · 0 fail · 1 skip
+  report hash       : 17742795dc9c — recomputed over the report's own bytes
+  anchor            : the evidence root in a shielded memo to the public beacon
+  expires           : … — re-probe to re-issue the claim, or it goes stale then dead
 ```
 
-Recording notes (kept out of the repository on purpose — no recorders, renderers or fonts ship here):
+### 0:50–1:15 · the subject: a budget instead of a key (55 words)
 
-* terminal at 14–16pt, dark background, `data/` and the terminal *not* cleared between stages; the
-  scrolling output is the point;
-* the run is unattended after `up.sh`, so the operator's job in the video is to talk, not to type;
-* every number spoken below appears in the artifact on screen. If a stage fails, say so and keep going —
-  `demo-run.sh` reports each stage and exits non-zero instead of hiding it.
+> "The subject that has to pass is a bounded payer — a budget, a per-payment cap, a receiver allowlist,
+> an expiry, a kill switch. Four invoices: one fits the grant, one would pass the budget, one is over the
+> cap, one is a stranger. One paid, three refused, each naming the rule that refused it. Throw the switch
+> and nothing is paid at all."
 
----
+**On screen:**
+```
+  ALLOW    8301 — paid: within the cap (10000000 zat) and the budget (9876540 of 12000000 zat spent)
+  REFUSE   8302 — refused: paying 4321090 zat would take this run to 14197630 of a 12000000 zat budget
+  REFUSE   8303 — refused: invoice 8303 asks 50000000 zat, above the per-payment cap of 10000000
+  REFUSE   8304 — refused: uregtest13dam4gdg… is not on the allowlist (3 entries)
+  --- ledger ---
+  1 paid (9876540 zat spent) · 3 refused [allowlist, budget, cap]
+```
+then a hard cut to the same four invoices with the switch thrown:
+```
+  kill switch       : TRIPPED — every invoice will be refused
+  REFUSE 8301 · REFUSE 8302 · REFUSE 8303 · REFUSE 8304 — the grant was revoked (kill switch)
+```
 
-## 0:00 — the opener (before anything is run)
+### 1:15–1:35 · the contrast — the closing shot (45 words)
 
-**On screen:** the README's component list, scrolled once, then the empty terminal.
+> "Now the same rig, pointed at a careless checkout: one receiver reused, no memos, the wallet told it may
+> reveal amounts, round amounts. *Caught* — four properties, by name. That contrast is the product: a
+> clean run passes, a leaky run fails, and a detector that goes quiet fails the build too."
 
-> "Zcash already has a till: gateways and facilitators that accept shielded payments on behalf of a
-> merchant. What nobody hands you is the *payer's* side — an agent with a budget instead of a key:
-> bounded authority, repeat payments that don't cluster, and a receipt that verifies without trusting
-> the tool that made it.
->
-> ZANARY is the rig that proves that property, on a throwaway chain, as a test result that can fail."
+**On screen:** a two-up frame held for a full beat — the control's
+```
+  caught            : policy-downgrade, receiver-reuse, amount-fingerprint, memo-absent
+  verdict           : CAUGHT — the property library found the leaks this flow plants
+```
+beside the private flow's `12 pass · 0 fail`. This is the money shot the plan named, so it gets the
+longest hold in the cut.
 
-**Do not** open with architecture. This is the whole first 20 seconds: the payer's side, bounded
-authority, unlinkable repeats, verifiable receipts.
+### 1:35–1:50 · the clock (35 words)
 
-## 0:20 — the problem, in one operator's terms
+> "Every claim is published next to the file it came from, with a clock: live, then stale, then dead,
+> unless CI re-proves it. Four jobs: the private flow must pass, the control must be caught, the payer's
+> ledger must show its refusals, and the index is republished."
 
-**On screen:** the grant file, opened once (`data/payer-demo/grants/allowed.json`).
+**On screen:** the live page — claim rows and their countdowns, the one `regression` row — then the
+Actions page with the four green jobs.
 
-> "An operator who wants an agent to pay for things has two options today: no budget, or a public rail
-> that publishes everything the agent buys. Here is the third: a grant — a budget, a per-payment cap,
-> a list of receivers, an expiry, and a kill switch. Authority, not a key: there is nothing in this
-> file that can move money on its own."
+### 1:50–2:00 · the honest close (22 words)
 
-## 1:00 — stage 1: a flow that does it right
+> "Regtest, local, our own flow — and the claim expires unless someone re-proves it. A privacy claim is
+> not a fact; it's a subscription."
 
-**On screen:** `scripts/demo-run.sh` starts; stage 1 prints the flow definition, then the payments.
+**On screen:** `github.com/memeshee/zanary` · `memeshee.github.io/zanary`, above one line:
+`regtest · merchant side simulated · driving your own implementation needs a driver`.
 
-> "Two invoices, a fresh diversified receiver for each, one ZIP-302 memo per payment, the wallet asked
-> for full privacy. The rig watches the chain while it happens — not the app's logs."
+## Recording checklist
 
-**On screen:** the property table prints, then the anchor, then the claim block.
+```sh
+harness/up.sh                                    # the rig (once)
+ZANARY_DEMO_RUNS=data/runs/demo \
+ZANARY_PAYER_DEMO_DIR=data/demo-payer scripts/demo-run.sh    # the take
+```
 
-> "Every property passes, and the evidence is re-derived from the chain afterwards — the verification
-> lines you can see. Then the evidence root goes into a shielded memo, which gives the claim a
-> timestamp nobody has to be trusted for. That is what *verified at height H* means: H is the height
-> the chain had reached when this revision of this flow passed these properties — read it off the
-> screen, never round it."
->
-> (In CI the same claim lands around height 135, because a runner starts the chain from empty. Read
-> whatever the take prints.)
+* terminal at 14–16pt, dark, nothing cleared between stages — the scrolling output is the point;
+* the demo scripts already export `RUST_LOG=warn`, so there is no wallet-migration noise to cut;
+* the `6 min of run → 2 min` label stays up from 0:15. State the compression; never hide it;
+* **if a stage fails on the take:** say so and keep it. The summary names the stage and the script exits
+  non-zero — a rig that reports its own failure *is* the claim, and cutting it would contradict the whole
+  submission;
+* if the video must be fully real-time (no compression label), the lever is smaller flows: one invoice per
+  flow and three payer invoices bring the run to about three minutes, at the cost of the control's
+  `receiver-reuse` (which needs two payments to compare). Decide before recording, not in the edit.
 
-## 2:15 — stage 2: the same rig, on a flow that leaks
+## Voice notes
 
-**On screen:** stage 2 runs the control flow; four `FAIL` lines print.
+* Three sentences have to land: *a budget instead of a key* · *a privacy claim is a subscription* · the
+  contrast (*clean passes, leaky is caught*).
+* Never say "we built an AI agent" — the agent is the *subject*; the rig is what this build ships.
+* No number in the voiceover that is not on screen, including heights and hashes. Read H off the screen.
+* Do not narrate the making-of (no "we first tried…", no recorder/renderer talk).
 
-> "Same rig, same property library, a checkout that is deliberately careless: one receiver reused for
-> every invoice, no memos, the wallet told it may reveal amounts, round amounts. Four properties bite,
-> and the gate says *caught* — because a test suite that only ever passes is decoration. This is the
-> hardest thing to fake in a demo: the property library has to demonstrably still bite."
+## A longer walkthrough, if a judge asks
 
-## 3:15 — stage 3: the bounded payer
-
-**On screen:** stage 3 — four invoices issued, the grant, then the payer's decisions.
-
-> "Now the subject. Four invoices: one fits the grant, one would pass the budget, one is over the cap,
-> one comes from a receiver the grant never named. The payer decides *all four before it pays
-> anything* — so a refusal can't be an artifact of a payment that went wrong earlier."
-
-**On screen:** `ALLOW 8301`, `REFUSE 8302 … budget`, `REFUSE 8303 … per-payment cap`, `REFUSE 8304 …
-allowlist`, then the ledger.
-
-> "One payment. Three refusals, each naming the rule that refused it, all of it in the ledger — which is
-> the evidence, not the payer's console. The rig then checks that ledger against the grant:
-> `payer-policy` reads the amount, the receiver and the reason, and fails if a payment went past the cap,
-> past the budget, to a stranger, or through after the switch was thrown."
-
-**On screen:** the kill-switch run — four `REFUSE … kill switch`.
-
-> "And the kill switch: the same four invoices, authority withdrawn. Nothing is paid, and the refusal
-> says why. `--expect-refused` makes that a test, not a screenshot."
-
-## 5:00 — stage 4: the claims are public, and they expire
-
-**On screen:** stage 4 renders the index, then the browser opens the live page.
-
-> "Every one of those claims is a file with a hash, and the page is a rendering of them — you can
-> download the claim itself and re-verify it against the node. Each row has a clock: *live*, then
-> *stale*, then *dead*, and a weekly CI run is what re-issues it. A privacy claim is not a fact, it is a
-> subscription."
-
-**On screen:** the GitHub Actions page — the four jobs green, the artifacts, the badge.
-
-> "The same four stages run on every push, from a clean checkout on a fresh chain: the private flow must
-> pass, the control flow must be caught, the payer's ledger must show the refusals, and the index gets
-> republished."
-
-## 6:00 — what this does not prove (say it before a judge finds it)
-
-> "Three honest limits. The chain is regtest and local — the rig tests property classes, not a mainnet
-> anonymity set. The merchant side is the rig's own simulation, and the report says so on the line where
-> a verifier skips it. And the flow you watch passing is a flow in this repository: testing *your*
-> implementation directly needs a driver for your endpoint — that is the next thing, and the control
-> app is the reference for what such a driver has to record."
-
-## 6:30 — close
-
-> "So: the payer gets bounded authority, the receipts verify without trusting the tool, the profiler
-> tries to cluster repeat payments and finds nothing, and the claim expires unless it is re-proved.
-> Everything here is one command away — `harness/up.sh && scripts/demo-run.sh`, and the docs next to it
-> say exactly what each stage proves and what it does not."
-
----
-
-## The exact commands on screen (for the recording checklist)
-
-| time | command | artifact to point at |
-|---|---|---|
-| 1:00 | `scripts/demo-run.sh` (stage 1) | `data/runs/demo/demo-private/report.json` (PASS, anchored) |
-| 2:15 | stage 2 | `…/demo-control/report.json` (4 FAILs, caught) |
-| 3:15 | stage 3 (`scripts/bounded-payer-demo.sh`) | `data/demo-payer/runs/allowed/ledger.jsonl` |
-| 4:40 | stage 3, second run | `data/demo-payer/runs/killed/ledger.jsonl` |
-| 5:00 | stage 4 (`zanary-report index`) | <https://memeshee.github.io/zanary/> |
-| 5:40 | browser → Actions | the four green jobs, `zanary-*-evidence` artifacts |
-
-## Voice notes for the narration
-
-* The three sentences that must land: *a budget instead of a key* · *a privacy claim is a subscription* ·
-  *the confessions are first-class* (do not say "we couldn't do X": say what is out of scope and why).
-* Never say "we built an AI agent" — the agent is the *subject*, the rig is the product of this build.
-* Numbers are spoken the way the artifact prints them (`verified at height 135`, `9 pass · 0 fail`).
-  No rounded-up numbers, no counts that are not on screen.
+The two-minute cut is the submission. For a live walkthrough where there is no time limit, the honest
+answer is one command and a scroll: `harness/up.sh && scripts/demo-run.sh` prints all four stages with
+their artifacts, and each stage's failure mode is reported rather than hidden.

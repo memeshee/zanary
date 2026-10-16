@@ -16,7 +16,30 @@ publishes claims that expire unless someone re-proves them.
 
 **Track:** Core & Tooling (one submission, one track)
 
-## Description
+## Description (the form's field is ≤2000 characters)
+
+**Paste this — 1997 characters, including the markdown:**
+
+```
+**The problem.** "We don't leak your identity" is un-falsifiable prose, tested by the code that makes the claim. The failure is never the UI; it's the bytes — a receiver reused, a memo left out, round amounts that fingerprint a deposit.
+
+**What ZANARY is.** A rig that runs a Zcash payment flow on a throwaway regtest chain with real shielded transactions, observes what the chain, the merchant and an observer can see, scores it against 13 named leak classes, hashes the evidence — and lets the claim expire.
+
+Four things make it more than a test suite:
+· The evidence is re-derived, not reported: a second implementation re-checks every line against the chain (tx exists, receiver decrypts, memo decrypts, pool totals match getblock). Flip a byte and it exits 1.
+· Claims have a clock: flow × commit × height with a TTL — live, stale, then dead unless CI re-proves it weekly. A privacy claim is not a fact, it is a subscription.
+· The gate fails builds, including on itself: one flow must pass, a deliberately leaky control must be CAUGHT, so a library that goes quiet fails the build too. Exit 2 means "could not check" — never a privacy verdict.
+· Timestamps nobody is trusted for: the evidence root goes into a shielded memo to a public beacon; verify-anchor finds the earliest anchor with a node and the beacon's key.
+
+**The subject that passes.** A bounded payer — an agent given a budget instead of a key: budget, per-payment cap, receiver allowlist, expiry, kill switch. It decides every invoice before paying any, writes one ledger line per decision with the rule that decided it, and the rig checks that ledger against the grant. Recorded: 4 invoices → 1 paid, 3 refused by three rules; the same four with the switch thrown → all refused, nothing spent.
+
+**One command:** `harness/up.sh && scripts/demo-run.sh`.
+
+**Scope:** regtest, local; the merchant side is the rig's simulation (the verifier skips those fields rather than pretending); the flows tested are flows in this repository.
+```
+
+<details>
+<summary>The long form, for the README or a judge who wants the full argument (do not paste: 3,178 characters)</summary>
 
 **The problem.** Privacy claims about Zcash payment flows are un-falsifiable prose. "We don't leak your
 identity" is either untested or tested by the same code that makes the claim. Anyone building a checkout
@@ -63,6 +86,20 @@ rig's own simulation and the verifier *skips* those fields rather than pretendin
 flows in this repository — driving a third party's implementation directly needs an endpoint driver, for
 which the control app is the reference.
 
+</details>
+
+## The form's other constraints, checked
+
+| field | constraint | state |
+|---|---|---|
+| track | exactly one | Core & Tooling |
+| description | **≤2000 characters** | the version above, **1997** — the long form is folded away and must not be pasted into the field |
+| repo URL | public by the deadline | <https://github.com/memeshee/zanary>, public |
+| working demo URL | a live URL a judge can open | <https://memeshee.github.io/zanary/> — the published claim index (this product is a CLI rig; the index is its live surface, with the raw claims served beside it) |
+| video URL | **≤2 minutes**, closing shot = profiler-vs-control | not recorded yet; the ≤2-minute cut sheet is `docs/VIDEO-SCRIPT.md` (narration word-counted to 1:58), the take is `scripts/demo-run.sh`, and the contrast is the closing substantive shot |
+| attestation | repo will be public | true, and it already is |
+| profile | Telegram handle required | operator step |
+
 ## The ship checklist (memo §5, D17)
 
 | artifact | state |
@@ -71,7 +108,7 @@ which the control app is the reference.
 | architecture diagram | ✅ `docs/rig.svg`, referenced from the README |
 | mark | ✅ `docs/zanary-mark.svg` |
 | description | ✅ this file |
-| video | ⏳ script + single-take driver ready (`docs/VIDEO-SCRIPT.md`, `scripts/demo-run.sh`) |
+| video (≤2 min) | ⏳ cut sheet word-counted to 1:58 + the single-take driver (`docs/VIDEO-SCRIPT.md`, `scripts/demo-run.sh`); recording is an operator step |
 | repo public by the deadline | ✅ public since the first commit |
 | CI green on `main` | ✅ four jobs: private, control, bounded payer, publish |
 | claims published | ✅ <https://memeshee.github.io/zanary/> |
