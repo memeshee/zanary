@@ -69,6 +69,23 @@ cargo build --release --bin zanary-probe --bin zanary-report
     --anchor --ttl-days 30 --summary data/runs/ci/test.json
 ```
 
+## Waits are bounded, and readiness is a streak
+
+Two failures from the first real CI runs shaped this, and both are worth knowing before debugging a
+red job:
+
+- **A gRPC call with no reply does not fail, it hangs.** The second CI run sat in the harness's
+  indexer wait for twelve minutes printing nothing, because the readiness probe itself had no
+  timeout. Every wait in `harness/up.sh` is now bounded (`ZANARY_PROBE_TIMEOUT_SECONDS`, default 20),
+  the gate itself runs under `timeout` (`ZANARY_GATE_TIMEOUT_SECONDS`, default 45 min) and reports a
+  timeout as a rig failure — exit `2`, never a verdict about the flow.
+- **The indexer exits on startup and is restarted.** lightwalletd starts before zcashd's RPC answers,
+  dies on its first failed block fetch, and a client connecting in that window sees the connection
+  close. So the indexer container is `restart: unless-stopped`, readiness is *two consecutive probe
+  answers with the container still running* (never a bare port check: a restarting container takes
+  its port up before it is serving), and the flow runner waits for the indexer to hold every block
+  the node does before a wallet syncs against it. Every wait prints what state it saw.
+
 ## Re-checking a CI run without trusting the job
 
 Every claim the gate prints is checkable by someone who has the node and nothing from ZANARY:

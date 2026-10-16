@@ -28,6 +28,13 @@ fails in a way that reads like a code bug:
 4. **waiting for the indexer**, through the probe's own `GetLightdInfo` handshake when a binary
    exists — a listening port is not the same thing as a caught-up indexer.
 
+Every one of those waits is *bounded*, and the probe on step 4 must answer **twice in a row with the
+container still running** before the rig is declared usable. Both rules come from a CI runner rather
+than from this machine: lightwalletd starts before zcashd's RPC answers, exits on its first failed
+block fetch and is restarted by compose — and a gRPC call with no reply hangs instead of failing, so
+an unbounded readiness probe can sit silently until a job's timeout. `ZANARY_PROBE_TIMEOUT_SECONDS`
+(default 20) bounds each attempt, and each attempt prints the state it saw.
+
 Block production is manual and instant: the rig decides when a block exists, so tests never race a
 network. `generate N` mines N blocks in about two seconds, and a flow mines what it needs itself
 (coinbase into the flow's own receiver — see *the node wallet is not part of the rig* below).
