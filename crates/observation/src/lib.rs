@@ -171,7 +171,75 @@ pub struct FlowRun {
     /// True when the rig itself simulated the merchant side (stated, never implied).
     #[serde(default)]
     pub merchant_is_simulated: bool,
+    /// Present when a *bounded payer* made the payments: the grant it held and what it did with each
+    /// invoice. Skipped when absent, so runs without a payer keep the bytes (and hashes) they had.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payer: Option<PayerRun>,
 }
+/// The authority a bounded payer was given for one run, as the rig saw it.
+///
+/// This is the *grant* — budget, per-payment cap, allowlist, expiry, kill switch — recorded as data
+/// so a property can check what the payer did against what it was allowed to do, instead of trusting
+/// the payer's own summary. It carries no key material: a grant is authority, not a key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayerGrant {
+    /// Total the payer may spend across the run, in zatoshis.
+    pub budget_zat: u64,
+    /// Ceiling for any single payment, in zatoshis.
+    pub per_payment_cap_zat: u64,
+    /// Receivers the payer is allowed to pay. A receiver not listed here is a stranger.
+    #[serde(default)]
+    pub allowlist: Vec<String>,
+    /// RFC3339 UTC instant after which the authority is void.
+    pub expires_at: String,
+    /// True when the kill switch was tripped before/during the run (the payer must refuse everything).
+    #[serde(default)]
+    pub revoked: bool,
+}
+
+/// What a bounded payer did with one invoice, and the rule that decided it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayerDecision {
+    pub invoice_id: String,
+    pub amount_zat: u64,
+    pub receiver: String,
+    /// `paid` or `refused`.
+    pub decision: String,
+    /// The grant rule (or its absence) that produced this decision, verbatim.
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub txid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+}
+
+impl PayerDecision {
+    pub fn paid(&self) -> bool {
+        self.decision == "paid"
+    }
+}
+
+/// A bounded payer's run: the grant it held and one decision per invoice it was shown.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayerRun {
+    /// What the payer is, in its own words (e.g. "zanary bounded payer (reference subject)").
+    pub label: String,
+    pub grant: PayerGrant,
+    #[serde(default)]
+    pub decisions: Vec<PayerDecision>,
+}
+
+impl PayerRun {
+    /// Zatoshis actually spent under this grant.
+    pub fn spent_zat(&self) -> u64 {
+        self.decisions
+            .iter()
+            .filter(|d| d.paid())
+            .map(|d| d.amount_zat)
+            .sum()
+    }
+}
+
 
 impl FlowRun {
     /// Payment labels that share a recipient receiver with another payment.
@@ -229,6 +297,7 @@ mod tests {
             receipts: vec![],
             pool_totals: vec![],
             merchant_is_simulated: false,
+            payer: None,
         };
         let groups = run.receiver_reuse_groups();
         assert_eq!(groups.len(), 1);

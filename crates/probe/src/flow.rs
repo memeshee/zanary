@@ -422,6 +422,7 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
         pool_totals: Vec::new(),
         // The rig runs the merchant side itself, and says so.
         merchant_is_simulated: true,
+        payer: None,
     };
 
     // Pool totals at the start, so pool crossings are checkable after the fact.
@@ -1201,7 +1202,7 @@ fn issue_receiver(merchant: &mut Probe) -> Result<String> {
 }
 
 /// The payer's spendable Orchard value (what a new payment can actually draw on).
-fn spendable_orchard(probe: &Probe) -> Result<u64> {
+pub fn spendable_orchard(probe: &Probe) -> Result<u64> {
     let summary = core::wallet_summary(&probe.db)?;
     Ok(summary
         .as_ref()
@@ -1245,6 +1246,12 @@ fn settlement_of(definition: &FlowDefinition) -> &str {
 
 /// How much the runner should move into the payer's Orchard pool when funding is needed:
 /// the definition's own target, never less than what the invoices require.
+/// [`top_up_payer`], for a caller that has no flow definition: tops the wallet up until it can spend
+/// `at_least` zatoshis (the bounded payer knows its own budget, not a flow's invoice list).
+pub async fn top_up_for_target(profile: WalletProfile, at_least: u64) -> Result<Probe> {
+    top_up_payer_impl(profile, at_least).await
+}
+
 /// Brings the payer's Orchard pool up to what the flow needs, from whatever this chain offers.
 ///
 /// Two funding paths exist, and the order matters:
@@ -1262,15 +1269,33 @@ fn settlement_of(definition: &FlowDefinition) -> &str {
 /// The wallet handle is closed around `shield`/`fund`: they are the commands a human runs, and they
 /// open the wallet themselves, so two connections never contend for the same SQLite file.
 async fn top_up_payer(open_payer: Probe, definition: &FlowDefinition, target: u64) -> Result<Probe> {
-    /// Coinbase needs 100 confirmations on regtest; the margin leaves room for the blocks the
-    /// shield and the flow's own payments mine.
-    const COINBASE_MATURITY_BLOCKS: u64 = 105;
-    let profile = WalletProfile::dev(definition.payer_account);
-    let node = NodeRpc::from_env()?;
-
     // The handle the caller passed in is closed here and reopened below, so the one wallet file is
     // never open twice while `shield`/`fund` do their own opening.
     drop(open_payer);
+    let profile = WalletProfile::dev(definition.payer_account);
+    let mut payer = top_up_payer_impl(profile.clone(), target).await?;
+    if funding_shortfall(&payer, &definition)?.is_some() {
+        // The target was enough for the definition's invoices but the wallet still cannot cover them:
+        // say so with the numbers rather than letting the payment path fail later with "insufficient
+        // funds", which reads like a rig bug.
+        println!(
+            "  funding           : the topping up did not cover the flow — shielding again"
+        );
+        drop(payer);
+        ops::shield(&[]).await?;
+        payer = core::bootstrap_with(profile).await?;
+    }
+    Ok(payer)
+}
+
+/// The topping-up itself: mine the payer's own coinbase to maturity and shield it, or fall back to a
+/// transfer from the node wallet. Shared by the flow runner and the bounded payer, which is why it
+/// takes a target rather than a flow definition.
+async fn top_up_payer_impl(profile: WalletProfile, target: u64) -> Result<Probe> {
+    /// Coinbase needs 100 confirmations on regtest; the margin leaves room for the blocks the
+    /// shield and the payer's own payments mine.
+    const COINBASE_MATURITY_BLOCKS: u64 = 105;
+    let node = NodeRpc::from_env()?;
 
     node.generate(COINBASE_MATURITY_BLOCKS).await?;
     let mut payer = core::bootstrap_with(profile.clone()).await?;
@@ -1285,12 +1310,13 @@ async fn top_up_payer(open_payer: Probe, definition: &FlowDefinition, target: u6
         drop(payer);
         ops::shield(&[]).await?;
         payer = core::bootstrap_with(profile.clone()).await?;
-        if funding_shortfall(&payer, &definition)?.is_none() {
+        if spendable_orchard(&payer)? >= target {
             return Ok(payer);
         }
         println!(
-            "  funding           : the payer's own coinbase did not cover the flow — falling back to \
-             a transfer from the node wallet"
+            "  funding           : the payer's own coinbase did not cover {} — falling back to a \
+             transfer from the node wallet",
+            core::format_zats_signed(target as i128)
         );
     } else {
         println!(
@@ -1320,7 +1346,7 @@ fn funding_target(definition: &FlowDefinition, missing: u64) -> u64 {
 /// receiver recorded is the flow's own Orchard receiver and the transparent origin stays in the
 /// label. What the properties need from this record is how much arrived, when, and where it
 /// landed — the amount-fingerprint and timing-correlation checks.
-fn record_funding(payer: &Probe) -> Result<Vec<Funding>> {
+pub(crate) fn record_funding(payer: &Probe) -> Result<Vec<Funding>> {
     let tip = payer
         .db
         .chain_height()

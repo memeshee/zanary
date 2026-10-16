@@ -24,6 +24,9 @@ zanary-properties = { path = "../properties" }
 zanary-report = { path = "../report" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+# The bounded payer's grant clock (`--now`, EXPIRES_AT) and the run/report timestamps: the same
+# `time` the report crate uses for claim TTLs, so "expired" means one thing in this workspace.
+time = { version = "0.3", features = ["formatting", "parsing"] }
 zcash_client_backend.workspace = true
 zcash_proofs.workspace = true
 zcash_primitives.workspace = true

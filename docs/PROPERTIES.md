@@ -19,6 +19,7 @@ thing in the bytes".
 | `receiver-reuse` | the same receiver is used for two distinct payments/invoices | **D** |
 | `payer-linkability` | repeat payments by the same payer are clusterable by an observer | **D** |
 | `policy-downgrade` | the wallet is instructed to relax its privacy policy (`AllowRevealedAmounts`, weaker) | **D** |
+| `payer-policy` | a bounded payer spent more authority than its grant allowed (over cap, past budget, to a stranger, while revoked) | **D** |
 | `memo-absent` | the flow claims invoice reconciliation but binds no memo to the payment | W |
 | `memo-content` | the memo carries PII in cleartext, or anything that must not be permanent | W |
 | `amount-fingerprint` | amounts are round, repeated, or echo a funding amount so deposits and withdrawals link | W |
@@ -136,6 +137,26 @@ any identity field it does not need to serve the request.
 **Evidence:** the recorded requests (redacted), and the field that made the link possible.
 
 ## N-class properties
+
+### `payer-policy`
+
+**Leak:** a program that pays on someone's behalf is handed *authority* — and spends more of it than it
+was given. The chain shows the payments it made; it cannot show the payment that was never supposed to
+happen, which is why this property reads the payer's ledger instead of the chain.
+
+**Detect:** the run records the grant (budget, per-payment cap, allowlist, expiry, kill switch) and one
+ledger entry per invoice. FAIL when a *paid* entry exceeds the per-payment cap, takes the cumulative
+spend past the budget (in ledger order), names a receiver that is not on the allowlist, or happens while
+the grant was revoked — or when an invoice that should have been paid was refused for an internal error
+rather than a grant rule. SKIP when the run had no bounded payer at all: nothing held a grant, so there
+is no authority to check. An empty ledger under a grant also skips — an empty ledger is not a passing
+ledger.
+
+**Evidence:** each decision with its rule, the grant's own numbers, and the txid of every payment.
+
+**Reference implementation:** [`docs/BOUNDED-PAYER.md`](BOUNDED-PAYER.md) — `zanary-probe payer`, with
+recorded runs (one payment, three refusals by three different rules, and a kill-switch run where
+everything is refused).
 
 ### `report-leak`
 **Leaks:** the receipt or report a flow emits to *prove* something (payment made, invoice settled,

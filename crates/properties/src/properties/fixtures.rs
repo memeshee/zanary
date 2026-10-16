@@ -5,7 +5,8 @@
 use std::collections::BTreeMap;
 
 use zanary_observation::{
-    FlowRun, Funding, MerchantEvent, Payment, PaymentKind, Pool, PoolTotals, Receipt,
+    FlowRun, Funding, MerchantEvent, Payment, PaymentKind, PayerDecision, PayerGrant, PayerRun, Pool,
+    PoolTotals, Receipt,
 };
 
 use super::common::hex_of;
@@ -146,6 +147,51 @@ pub(crate) fn clean_run() -> FlowRun {
             },
         ],
         merchant_is_simulated: true,
+        // A bounded payer that did what its grant allowed: one payment inside the cap and the budget,
+        // one stranger and one over-cap invoice refused with the rule that refused them. The ledger is
+        // part of the fixture for the same reason the payments are — `payer-policy` reads it.
+        payer: Some(PayerRun {
+            label: "fixture bounded payer".to_string(),
+            grant: PayerGrant {
+                budget_zat: 50_000_000,
+                per_payment_cap_zat: 30_000_000,
+                allowlist: vec!["uregtest1merchant+fixture".to_string()],
+                expires_at: "2026-12-01T00:00:00Z".to_string(),
+                revoked: false,
+            },
+            decisions: vec![
+                PayerDecision {
+                    invoice_id: "4471".to_string(),
+                    amount_zat: 25_000_000,
+                    receiver: "uregtest1merchant+fixture".to_string(),
+                    decision: "paid".to_string(),
+                    reason: "paid: within the cap (30000000 zat) and the budget (25000000 of                              50000000 zat spent after this)"
+                        .to_string(),
+                    txid: Some(tid(0x41)),
+                    height: Some(110),
+                },
+                PayerDecision {
+                    invoice_id: "4472".to_string(),
+                    amount_zat: 40_000_000,
+                    receiver: "uregtest1merchant+fixture".to_string(),
+                    decision: "refused".to_string(),
+                    reason: "refused: invoice 4472 asks 40000000 zat, above the per-payment cap of                              30000000"
+                        .to_string(),
+                    txid: None,
+                    height: None,
+                },
+                PayerDecision {
+                    invoice_id: "4473".to_string(),
+                    amount_zat: 1_000_000,
+                    receiver: "uregtest1stranger+fixture".to_string(),
+                    decision: "refused".to_string(),
+                    reason: "refused: uregtest1stranger+fixture is not on the allowlist (1 entries)"
+                        .to_string(),
+                    txid: None,
+                    height: None,
+                },
+            ],
+        }),
     }
 }
 
@@ -287,5 +333,37 @@ pub(crate) fn leaky_run() -> FlowRun {
             },
         ],
         merchant_is_simulated: true,
+        // The leaky payer: it paid a stranger and went past the per-payment cap, and the ledger says
+        // so in the payer's own words — which is what `payer-policy` checks against the grant.
+        payer: Some(PayerRun {
+            label: "fixture bounded payer (leaky)".to_string(),
+            grant: PayerGrant {
+                budget_zat: 10_000_000,
+                per_payment_cap_zat: 5_000_000,
+                allowlist: vec!["uregtest1merchant+fixture".to_string()],
+                expires_at: "2026-01-01T00:00:00Z".to_string(),
+                revoked: false,
+            },
+            decisions: vec![
+                PayerDecision {
+                    invoice_id: "5511".to_string(),
+                    amount_zat: 25_000_000,
+                    receiver: "uregtest1stranger+fixture".to_string(),
+                    decision: "paid".to_string(),
+                    reason: "paid: within the cap and the budget".to_string(),
+                    txid: Some(tid(0x51)),
+                    height: Some(60),
+                },
+                PayerDecision {
+                    invoice_id: "5512".to_string(),
+                    amount_zat: 25_000_000,
+                    receiver: "uregtest1merchant+fixture".to_string(),
+                    decision: "paid".to_string(),
+                    reason: "paid: within the cap and the budget".to_string(),
+                    txid: Some(tid(0x52)),
+                    height: Some(60),
+                },
+            ],
+        }),
     }
 }

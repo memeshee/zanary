@@ -1,4 +1,4 @@
-//! The 12 leak-class properties, one module each, plus the registry that returns them in report
+//! The 13 leak-class properties, one module each, plus the registry that returns them in report
 //! order (disqualifying first). Each property is a pure function over a recorded
 //! [`zanary_observation::FlowRun`].
 
@@ -8,6 +8,7 @@ pub mod amount_fingerprint;
 pub mod memo_absent;
 pub mod memo_content;
 pub mod payer_linkability;
+pub mod payer_policy;
 pub mod policy_downgrade;
 pub mod receiver_reuse;
 pub mod report_leak;
@@ -23,8 +24,8 @@ pub use timing_correlation::TIMING_WINDOW_BLOCKS;
 
 use crate::Property;
 
-/// Every property, in report order: the five disqualifying classes first, then warnings, then
-/// notes — the order of the table in `docs/PROPERTIES.md`.
+/// Every property, in report order: the disqualifying classes first, then warnings, then notes —
+/// the order of the table in `docs/PROPERTIES.md`.
 pub(crate) fn registry() -> Vec<Box<dyn Property>> {
     vec![
         Box::new(transparent_fallback::TransparentFallback),
@@ -32,6 +33,9 @@ pub(crate) fn registry() -> Vec<Box<dyn Property>> {
         Box::new(receiver_reuse::ReceiverReuse),
         Box::new(payer_linkability::PayerLinkability),
         Box::new(policy_downgrade::PolicyDowngrade),
+        // The one property that watches the payer's *ledger* rather than the chain: a bounded payer is
+        // judged by the authority it held, not only by what the chain can see.
+        Box::new(payer_policy::PayerPolicy),
         Box::new(memo_absent::MemoAbsent),
         Box::new(memo_content::MemoContent),
         Box::new(amount_fingerprint::AmountFingerprint),

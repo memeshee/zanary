@@ -24,6 +24,8 @@ mod flow;
 mod gate;
 mod node;
 mod ops;
+mod payer;
+mod record;
 mod wallet;
 
 #[tokio::main]
@@ -45,6 +47,7 @@ async fn main() -> Result<()> {
         // The gate exits with its own code (0 = as expected, 1 = not what was expected,
         // 2 = the rig could not check), so it does not go through the `Result` -> exit 1 path.
         Some("test") => gate::test(rest).await.map(|code| std::process::exit(code)),
+        Some("payer") => payer::run(rest).await,
         Some("invoice") => flow::issue_invoice(rest).await,
         Some("verify-invoice") => flow::verify_invoice(rest).await,
         Some(other) => bail!(
@@ -56,6 +59,10 @@ async fn main() -> Result<()> {
              zanary-probe shield [--policy <p>]  shield transparent funds into the wallet's own Orchard pool\n  \
              zanary-probe pay --to <address> --zec <amount> --memo <text> [--policy <p>] [--account N]\n  \
              zanary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N]\n  \
+             zanary-probe payer --grant <grant.json> --invoices <dir> [--out <dir>]\n  \
+             \x20   [--expect-refused N] [--kill-file <path>] [--label <text>] [--ttl-days N]\n  \
+             \x20   a budget instead of a key: pay every invoice the grant allows, refuse the rest,\n  \
+             \x20   and record one ledger line per decision (the `payer-policy` property reads it)\n  \
              zanary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report\n  \
              zanary-probe test --definition <path> [--out <dir>]   the same run as a build gate:\n  \
              \x20   [--expect pass|fail] [--anchor] [--ttl-days <n>] [--summary <path>]\n  \

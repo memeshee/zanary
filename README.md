@@ -54,6 +54,10 @@ flow starts leaking.
 6. **A claim index with expiry** — a public page per claim (`flow × property`, verified-at-height, TTL,
    evidence). Re-proved on a schedule or it goes stale, then dead. *A privacy claim is not a fact, it
    is a subscription.*
+7. **A reference subject that passes** — a bounded payer given a *budget instead of a key* (per-payment
+   cap, receiver allowlist, expiry, kill switch), which the rig tests with the same library it uses on
+   anyone else: the twelve chain-visible properties plus `payer-policy`, which reads the payer's ledger
+   and fails when a payment broke the grant ([`docs/BOUNDED-PAYER.md`](docs/BOUNDED-PAYER.md)).
 
 ## What works now
 
@@ -72,7 +76,7 @@ flow starts leaking.
 | Anchored reports — a claim with a chain timestamp | **works** — `zanary-probe anchor --report <report.json>` puts the report's `evidence_root` + `report_hash` in a shielded memo to a public beacon, and `zanary-report verify-anchor` finds the earliest anchor for that root with a node and the beacon's *published* viewing key, nothing from ZANARY (640 blocks / 693 txs in ~3 s); unanchored reports, flipped roots, disagreeing `--root`s and post-hoc edits all exit 1 (`docs/ANCHOR-NOTES.md`) |
 | CI gate — one command, an exit code a build can read | **works** — `zanary-probe test --definition <flow.json> --expect pass\|fail [--anchor] [--summary <path>]` runs the flow, re-derives every evidence line from the chain, anchors the evidence root in a shielded memo, prints the claim (height, report hash, expiry) and exits `0`/`1`/`2`; the two CI flows score `12 pass · 0 fail` (private, `4d8279bb`) and `4 fail` (control — the planted leaks, caught) and the GitHub Action runs both on every push ([`docs/CI.md`](docs/CI.md), [`.github/workflows/privacy-gate.yml`](.github/workflows/privacy-gate.yml)) |
 | Claim index with expiry, published | **works** — `zanary-report index --reports <dir> --out <index.html>` renders one page per claim with `live`/`stale`/`dead`/`regression` against a clock and each claim's anchor; CI renders and deploys it on every push and weekly re-probe, next to the claims themselves: **<https://memeshee.github.io/zanary/>** ([`docs/CI.md`](docs/CI.md), golden fixture: [`crates/report/fixtures/index.golden.html`](crates/report/fixtures/index.golden.html)) |
-| The reference implementation that passes | **in build** — the bounded-payer engine (grants: budget, per-payment cap, allowlist, expiry, kill) as the flagship *subject*; today `scripts/agent-pay-loop.sh` is the closest thing running unassisted |
+| The reference implementation that passes — a bounded payer | **works** — `zanary-probe payer --grant <grant.json> --invoices <dir>`: a budget, a per-payment cap, a receiver allowlist, an expiry and a kill switch, with one ledger line per decision (`paid`/`refused` + the rule). Recorded: 4 invoices → 1 paid, 3 refused (budget, cap, allowlist), `payer-policy` PASS, and a kill-switch run where all 4 are refused. `--expect-refused N` makes the refusal set itself a test ([`docs/BOUNDED-PAYER.md`](docs/BOUNDED-PAYER.md)) |
 
 ## How it fits the track
 
@@ -102,6 +106,10 @@ cargo build --release --bin zanary-probe --bin zanary-report
 
 # and the other half of the pair: this one must be caught
 ./target/release/zanary-probe test --definition flows/ci-checkout-control.json --expect fail
+
+# the subject: a bounded payer — a budget instead of a key, with the ledger the rig then checks
+./target/release/zanary-probe payer --grant data/grants/payer-pass.json \
+    --invoices data/invoices/payer-pass --out data/runs/payer-pass --expect-refused 3
 ```
 
 Requirements: Docker, Rust (stable, ≥ 1.88 — the Zcash stack refuses older toolchains), ~3 GB RAM free.

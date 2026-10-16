@@ -46,7 +46,7 @@ fn assert_only_fails(run: &FlowRun, expected: &str) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn registry_has_all_twelve_in_report_order() {
+fn registry_has_every_property_in_report_order() {
     let props = all_properties();
     let ids: Vec<&str> = props.iter().map(|p| p.id()).collect();
     assert_eq!(
@@ -57,6 +57,7 @@ fn registry_has_all_twelve_in_report_order() {
             "receiver-reuse",
             "payer-linkability",
             "policy-downgrade",
+            "payer-policy",
             "memo-absent",
             "memo-content",
             "amount-fingerprint",
@@ -67,9 +68,9 @@ fn registry_has_all_twelve_in_report_order() {
         ]
     );
     let severities: Vec<Severity> = props.iter().map(|p| p.severity()).collect();
-    assert_eq!(&severities[..5], &[Severity::Disqualifying; 5]);
-    assert_eq!(&severities[5..11], &[Severity::Warn; 6]);
-    assert_eq!(severities[11], Severity::Note);
+    assert_eq!(&severities[..6], &[Severity::Disqualifying; 6]);
+    assert_eq!(&severities[6..12], &[Severity::Warn; 6]);
+    assert_eq!(severities[12], Severity::Note);
     // Report order: severity is non-increasing down the registry.
     for w in severities.windows(2) {
         assert!(w[0] >= w[1], "registry order violates severity ordering");
@@ -80,7 +81,7 @@ fn registry_has_all_twelve_in_report_order() {
 fn clean_fixture_passes_every_property() {
     let run = fixtures::clean_run();
     let findings = evaluate(&run);
-    assert_eq!(findings.len(), 12);
+    assert_eq!(findings.len(), 13);
     for f in &findings {
         assert_eq!(
             f.verdict,
@@ -99,7 +100,7 @@ fn clean_fixture_passes_every_property() {
 fn leaky_fixture_fails_every_property() {
     let run = fixtures::leaky_run();
     let findings = evaluate(&run);
-    assert_eq!(findings.len(), 12);
+    assert_eq!(findings.len(), 13);
     for f in &findings {
         assert_eq!(
             f.verdict,
@@ -123,11 +124,13 @@ fn leaky_fixture_fails_every_property() {
 fn evaluate_orders_disqualifying_first() {
     let run = fixtures::leaky_run();
     let findings = evaluate(&run);
-    assert!(findings[..5]
+    // Six disqualifying (the five chain-visible classes plus the payer's own ledger), six warnings,
+    // one note — the order of the table in docs/PROPERTIES.md.
+    assert!(findings[..6]
         .iter()
         .all(|f| f.severity == Severity::Disqualifying));
-    assert!(findings[5..11].iter().all(|f| f.severity == Severity::Warn));
-    assert_eq!(findings[11].severity, Severity::Note);
+    assert!(findings[6..12].iter().all(|f| f.severity == Severity::Warn));
+    assert_eq!(findings[12].severity, Severity::Note);
 }
 
 #[test]
@@ -144,9 +147,10 @@ fn empty_run_skips_everything_with_a_reason() {
         receipts: vec![],
         pool_totals: vec![],
         merchant_is_simulated: true,
+        payer: None,
     };
     let findings = evaluate(&run);
-    assert_eq!(findings.len(), 12);
+    assert_eq!(findings.len(), 13);
     for f in &findings {
         assert_eq!(
             f.verdict,

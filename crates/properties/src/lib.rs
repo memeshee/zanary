@@ -1,4 +1,4 @@
-//! ZANARY property library — the 12 leak classes from `docs/PROPERTIES.md`, each a pure function
+//! ZANARY property library — the 13 leak classes from `docs/PROPERTIES.md`, each a pure function
 //! over a recorded [`FlowRun`].
 //!
 //! Contract for every property:
@@ -157,13 +157,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_exposes_all_twelve_properties() {
+    fn registry_exposes_every_property_exactly_once() {
         let props = all_properties();
-        assert_eq!(props.len(), 12);
+        assert_eq!(props.len(), 13);
         let mut ids: Vec<&str> = props.iter().map(|p| p.id()).collect();
         ids.sort_unstable();
         ids.dedup();
-        assert_eq!(ids.len(), 12, "property ids must be unique");
+        assert_eq!(ids.len(), 13, "property ids must be unique");
     }
 
     #[test]
