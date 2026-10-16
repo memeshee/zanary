@@ -74,18 +74,25 @@ echo "node ready at height ${HEIGHT}"
 
 say "waiting for the indexer (up to ${WAIT_INDEXER_SECONDS}s)"
 deadline=$((SECONDS + WAIT_INDEXER_SECONDS))
-# One successful handshake is not readiness: the indexer starts before the node's RPC is serving,
-# can exit on that first failed fetch and be restarted by compose a moment later. So: answer, still
-# alive, answer again — and agree with the node about the tip.
+# Every probe call is bounded. A gRPC call with no reply does not fail, it *hangs* — and a readiness
+# loop that hangs is worse than one that fails: the second CI run of the gate spent twelve minutes
+# printing nothing at all. A stall is a failed attempt here, never a stopped clock.
+PROBE_TIMEOUT="${ZANARY_PROBE_TIMEOUT_SECONDS:-20}"
+# Readiness is a streak, not a moment: the indexer starts before the node's RPC is serving, can exit
+# on that first failed fetch and be restarted by compose a moment later. So: answer, still alive,
+# answer again.
 indexer_ready=0
 streak=0
 PROBE="$(probe_bin 2>/dev/null || true)"
 [ -n "$PROBE" ] || echo "note: no zanary-probe binary yet — falling back to a port check for the indexer"
-while [ "$indexer_ready" -eq 0 ]; do
-  probe_ok=0
-  if [ -n "$PROBE" ] && ZANARY_LWD_URL="$LWD_URL" "$PROBE" >/dev/null 2>&1; then
-    probe_ok=1
-  elif python3 - "$LWD_URL" <<'PY'
+
+probe_answers() {
+  [ -n "$PROBE" ] || return 1
+  ZANARY_LWD_URL="$LWD_URL" timeout "$PROBE_TIMEOUT" "$PROBE" >/dev/null 2>&1
+}
+
+port_open() {
+  timeout 5 python3 - "$LWD_URL" <<'PY'
 import socket, sys, urllib.parse
 url = urllib.parse.urlparse(sys.argv[1])
 host = url.hostname or "127.0.0.1"
@@ -99,24 +106,29 @@ except OSError:
 finally:
     s.close()
 PY
-  then
-    # A listening socket and a *caught-up* indexer are different things: lightwalletd replays
-    # blocks from the node after a restart, which is why the probe handshake above is preferred.
-    probe_ok=1
-  fi
+}
 
-  # Readiness is a streak, not a moment: the second answer is the one that says the indexer is
-  # still up (see the note above the loop). The port check alone never counts as a second answer —
-  # a restarted container takes its port up before it is serving.
-  if [ "$probe_ok" -eq 1 ] && [ -n "$PROBE" ]; then
+while [ "$indexer_ready" -eq 0 ]; do
+  state="no answer"
+  if probe_answers; then
+    # The second answer is the one that says the indexer is still up. A listening socket never
+    # counts as that second answer: a restarting container takes its port up before it is serving.
     alive="$(docker inspect -f '{{.State.Running}}' zanary-lwd 2>/dev/null || echo false)"
-    if [ "$alive" = "true" ] && ZANARY_LWD_URL="$LWD_URL" "$PROBE" >/dev/null 2>&1; then
+    if [ "$alive" = "true" ] && probe_answers; then
       streak=$((streak + 1))
+      state="answered (streak ${streak}/2)"
     else
       streak=0
+      state="answered once, then not (container running: ${alive}) — it is probably restarting"
     fi
+  elif port_open; then
+    # A listening socket and a *caught-up* indexer are different things: lightwalletd replays blocks
+    # from the node after a restart, which is why the handshake above is preferred.
+    state="port open, no reply"
   fi
-  if [ "${streak:-0}" -ge 2 ]; then
+  echo "  [${SECONDS}s] indexer: ${state}"
+
+  if [ "$streak" -ge 2 ]; then
     indexer_ready=1
   fi
 

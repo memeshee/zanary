@@ -105,8 +105,12 @@ runs:
         anchor_flag=""
         [ "${{ inputs.anchor }}" = "true" ] && anchor_flag="--anchor"
         echo "out=$OUT" >> "$GITHUB_OUTPUT"
+        # Bounded: a rig that stops answering must fail this job in minutes with a reason, not hold a
+        # runner for the job's whole timeout. `timeout` reports 124, which is a rig failure (2), never
+        # a verdict about the flow.
+        GATE_TIMEOUT="${ZANARY_GATE_TIMEOUT_SECONDS:-2700}"
         set +e
-        ./target/release/zanary-probe test \
+        timeout "$GATE_TIMEOUT" ./target/release/zanary-probe test \
           --definition "$FLOW" \
           --out "$OUT" \
           --expect "${{ inputs.expect }}" \
@@ -115,6 +119,10 @@ runs:
           --summary "$OUT/test.json" \
           2>&1 | tee "$OUT/gate.log"
         code=${PIPESTATUS[0]}
+        if [ "$code" = "124" ]; then
+          echo "::warning::the gate did not finish within ${GATE_TIMEOUT}s — treating it as a rig failure"
+          code=2
+        fi
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
         # The step itself stays green so the summary and the artifacts are always written; the
         # verdict step below is what fails the job, with the gate's own reason for it.
