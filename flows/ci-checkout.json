@@ -1,0 +1,11 @@
+{
+  "flow_id": "zanary-ci-checkout",
+  "receiver_strategy": "fresh",
+  "memo": true,
+  "policy": "FullPrivacy",
+  "funding_zat": 20000000,
+  "invoices": [
+    { "invoice_id": "6161", "amount_zat": 1234567, "memo_template": "zanary: invoice {invoice_id}" },
+    { "invoice_id": "6162", "amount_zat": 2345678, "memo_template": "zanary: invoice {invoice_id}" }
+  ]
+}

@@ -6,6 +6,10 @@ with reproducible evidence, and publishes claims that **expire** unless someone 
 
 Built for **ZECATHON** (Core & Tooling track), by kiter + Hermes.
 
+[![privacy gate](https://github.com/memeshee/zanary/actions/workflows/privacy-gate.yml/badge.svg)](https://github.com/memeshee/zanary/actions/workflows/privacy-gate.yml)
+— two flows per push: one that must pass, one that must be **caught**. Both jobs green means the rig
+worked, not that nothing was found; open the control job's summary for the leaks it caught.
+
 > **On the name:** this project ran as *CANARY* until Oct 15, 2026 and is **ZANARY** since. Evidence
 > recorded before the rename — `crates/report/fixtures/`, the claim rows in `docs/LEAK-MATRIX.md` —
 > is kept byte-identical, because editing a recorded run invalidates the hashes that make it
@@ -42,7 +46,12 @@ flow starts leaking.
 4. **A report you can verify without trusting the rig** — `report.json` with txids, receivers, memos
    and heights; hashed, with the root anchored in a shielded memo so the evidence is publicly
    timestamped without revealing who ran it.
-5. **A claim index with expiry** — a public page per claim (`flow × property`, verified-at-height, TTL,
+5. **A gate you can put in CI** — one command (`zanary-probe test <flow>`), one exit code: `0` the run
+   matched its expectation and the chain agrees, `1` a flow leaked or a control flow the library was
+   supposed to bite was not caught, `2` the rig itself could not check. The workflow in this repo runs
+   a private flow and a deliberately leaky control side by side, and uploads the evidence
+   ([`docs/CI.md`](docs/CI.md)).
+6. **A claim index with expiry** — a public page per claim (`flow × property`, verified-at-height, TTL,
    evidence). Re-proved on a schedule or it goes stale, then dead. *A privacy claim is not a fact, it
    is a subscription.*
 
@@ -61,7 +70,9 @@ flow starts leaking.
 | Leak matrix | **works** — `zanary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`: 12 properties × 4 flows, each column pinned to its `flow_commit`; the control shows its four designed failures, and the batched column shows the one the batch discloses, next to two clean private runs |
 | Agent payment loop | **works** — `scripts/agent-pay-loop.sh`: three invoice → pay → verify cycles unassisted, with the merchant's own wallet reading each memo back (invoices 8101–8103, txids in `docs/FLOW-RUNNER-NOTES.md`) |
 | Anchored reports — a claim with a chain timestamp | **works** — `zanary-probe anchor --report <report.json>` puts the report's `evidence_root` + `report_hash` in a shielded memo to a public beacon, and `zanary-report verify-anchor` finds the earliest anchor for that root with a node and the beacon's *published* viewing key, nothing from ZANARY (640 blocks / 693 txs in ~3 s); unanchored reports, flipped roots, disagreeing `--root`s and post-hoc edits all exit 1 (`docs/ANCHOR-NOTES.md`) |
-| Property library, profiler, report, claim index | **in build** |
+| CI gate — one command, an exit code a build can read | **works** — `zanary-probe test --definition <flow.json> --expect pass\|fail [--anchor] [--summary <path>]` runs the flow, re-derives every evidence line from the chain, anchors the evidence root in a shielded memo, prints the claim (height, report hash, expiry) and exits `0`/`1`/`2`; the two CI flows score `12 pass · 0 fail` (private, `4d8279bb`) and `4 fail` (control — the planted leaks, caught) and the GitHub Action runs both on every push ([`docs/CI.md`](docs/CI.md), [`.github/workflows/privacy-gate.yml`](.github/workflows/privacy-gate.yml)) |
+| Claim index with expiry (renderer) | **works** — `zanary-report index --reports <dir> --out <index.html>` renders one page per claim with `live`/`stale`/`dead`/`regression` against a `--now` clock and the anchor's height ([`crates/report/fixtures/index.golden.html`](crates/report/fixtures/index.golden.html)); publishing it on a schedule is next |
+| The reference implementation that passes | **in build** — the bounded-payer engine (grants: budget, per-payment cap, allowlist, expiry, kill) as the flagship *subject*; today `scripts/agent-pay-loop.sh` is the closest thing running unassisted |
 
 ## How it fits the track
 
@@ -82,11 +93,15 @@ ignoring them):
 ## Running it
 
 ```bash
-cd harness
-docker compose up -d                      # chain + indexer (regtest, throwaway)
-./seed.sh                                 # mine, fund, and produce evidence
-cd ..
-cargo run --bin zanary-probe              # our client, over the indexer
+harness/up.sh                             # throwaway chain + indexer, and wait until they are usable
+cargo build --release --bin zanary-probe --bin zanary-report
+
+# the whole point, in one command: run a flow, verify it against the chain, anchor it, judge it
+./target/release/zanary-probe test --definition flows/ci-checkout.json --expect pass \
+    --anchor --ttl-days 30 --summary data/runs/ci/test.json
+
+# and the other half of the pair: this one must be caught
+./target/release/zanary-probe test --definition flows/ci-checkout-control.json --expect fail
 ```
 
 Requirements: Docker, Rust (stable, ≥ 1.88 — the Zcash stack refuses older toolchains), ~3 GB RAM free.

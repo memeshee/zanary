@@ -262,6 +262,13 @@ pub fn expires_at(report: &Report) -> Option<OffsetDateTime> {
     ))
 }
 
+/// [`expires_at`] as RFC3339 — for tools that print a claim's clock (the CI gate does, so the
+/// date a build stands behind is on the build's own log line). `None` when the report carries no
+/// wall clock, which is also the reason it cannot expire.
+pub fn expires_at_rfc3339(report: &Report) -> Option<String> {
+    expires_at(report)?.format(&Rfc3339).ok()
+}
+
 /// A claim's status against the wall clock, per docs/CLAIMS.md:
 /// `live` until `expires_at`, then `stale` (one missed re-probe) for one more TTL, then `dead`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

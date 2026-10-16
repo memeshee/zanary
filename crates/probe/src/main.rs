@@ -21,6 +21,7 @@ use zcash_client_backend::proto::service::{
 
 mod core;
 mod flow;
+mod gate;
 mod node;
 mod ops;
 mod wallet;
@@ -41,6 +42,9 @@ async fn main() -> Result<()> {
         Some("pay") => ops::pay(rest).await,
         Some("anchor") => ops::anchor(rest).await,
         Some("flow") => flow::run(rest).await,
+        // The gate exits with its own code (0 = as expected, 1 = not what was expected,
+        // 2 = the rig could not check), so it does not go through the `Result` -> exit 1 path.
+        Some("test") => gate::test(rest).await.map(|code| std::process::exit(code)),
         Some("invoice") => flow::issue_invoice(rest).await,
         Some("verify-invoice") => flow::verify_invoice(rest).await,
         Some(other) => bail!(
@@ -52,7 +56,13 @@ async fn main() -> Result<()> {
              zanary-probe shield [--policy <p>]  shield transparent funds into the wallet's own Orchard pool\n  \
              zanary-probe pay --to <address> --zec <amount> --memo <text> [--policy <p>] [--account N]\n  \
              zanary-probe anchor --report <report.json> [--out <anchor.json>] [--amount-zat N]\n  \
-             zanary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report"
+             zanary-probe flow --definition <path> [--out <dir>]   run a payment flow, record run.json + findings + report\n  \
+             zanary-probe test --definition <path> [--out <dir>]   the same run as a build gate:\n  \
+             \x20   [--expect pass|fail] [--anchor] [--ttl-days <n>] [--summary <path>]\n  \
+             \x20   [--node <url>] [--indexer <url>]\n  \
+             \x20   exit 0 = the run matched its expectation and the chain agrees,\n  \
+             \x20   exit 1 = it did not (a leak on a flow that must pass, or a control flow that\n  \
+             \x20   the property library failed to bite), exit 2 = the rig could not check"
         ),
     }
 }

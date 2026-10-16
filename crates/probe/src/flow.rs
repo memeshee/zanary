@@ -17,7 +17,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, path::PathBuf};
+use std::{collections::HashMap, env, path::{Path, PathBuf}};
 
 use zanary_observation::{
     FlowRun, Funding, MerchantEvent, Payment, PaymentKind, Pool, PoolTotals, Receipt,
@@ -41,7 +41,7 @@ use zcash_primitives::transaction::Transaction;
 use zcash_protocol::{consensus::BranchId, memo::MemoBytes};
 
 use crate::{
-    core::{self, Probe, WalletProfile},
+    core::{self, BalanceSnapshot, Probe, WalletProfile},
     node::NodeRpc,
     ops,
 };
@@ -220,9 +220,51 @@ impl FlowDefinition {
 // entry point
 // ---------------------------------------------------------------------------
 
-/// `zanary-probe flow --definition <path> [--out <dir>]`
+/// What one flow run produced. The CLI wants an exit code; the CI gate
+/// ([`crate::gate`]) wants the numbers and the paths, so the two share one implementation
+/// instead of one shelling out to the other.
+#[derive(Debug, Clone)]
+pub struct FlowOutcome {
+    pub flow_id: String,
+    pub flow_commit: String,
+    pub out_dir: PathBuf,
+    pub pass: usize,
+    pub fail: usize,
+    pub skip: usize,
+    /// The properties that FAILED, in the order the library reported them.
+    pub failed_properties: Vec<String>,
+    pub report_hash: String,
+    pub report_path: PathBuf,
+    pub findings_path: PathBuf,
+    pub run_path: PathBuf,
+    pub verified_at: Option<String>,
+    pub verified_at_height: u32,
+}
+
+/// `zanary-probe flow` — run one definition and record it.
+///
+/// A failing property is a *result*, not a crash: the run, its findings and its report are all
+/// written, and only then does the exit code say the flow found something.
 pub async fn run(raw: &[String]) -> Result<()> {
-    let (definition_path, out_dir) = parse_args(raw)?;
+    let outcome = run_recording(raw).await?;
+    println!(
+        "\n  next: zanary-report verify {} --node http://127.0.0.1:18232",
+        outcome.report_path.display()
+    );
+    if outcome.fail > 0 {
+        bail!(
+            "{} propert{} FAILED on this flow — see the report above",
+            outcome.fail,
+            if outcome.fail == 1 { "y" } else { "ies" }
+        );
+    }
+    Ok(())
+}
+
+/// The body of `flow`: runs the definition and returns the outcome instead of printing a verdict
+/// and exiting.
+pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
+    let (definition_path, out_dir, ttl_days) = parse_args(raw)?;
     let text = std::fs::read_to_string(&definition_path)
         .with_context(|| format!("reading the flow definition {}", definition_path.display()))?;
     let definition: FlowDefinition = serde_json::from_str(&text)
@@ -375,30 +417,17 @@ pub async fn run(raw: &[String]) -> Result<()> {
         orchard_zat: before_pools.orchard_zat,
     });
 
-    // Funding as the rig sees it, before the runner tops anything up: on this harness the
-    // node mines to the flow's own address, so the coinbase payments *are* the funding.
-    run.funding = record_funding(&payer)?;
-    println!(
-        "  funding recorded  : {} transparent output(s)",
-        run.funding.len()
-    );
-
-    // Funding: make sure the payer's Orchard pool covers the invoices, reusing the same
-    // `fund` + `shield` paths the CLI documents. They open the wallet themselves (they are
-    // what a human runs), so the runner closes its handle first and reopens afterwards —
-    // two connections never contend for the same SQLite file.
+    // Funding: make sure the payer's Orchard pool covers the invoices. The top-up goes through
+    // the same `shield` path the CLI documents, and it is what makes a flow runnable on a chain
+    // that was just created — see `top_up_payer` for the two funding paths and their order.
     if let Some(missing) = funding_shortfall(&payer, &definition)? {
         let target = funding_target(&definition, missing);
-        let profile = WalletProfile::dev(definition.payer_account);
         println!(
-            "  funding           : spendable Orchard short by {} — funding {} from the node wallet, then shielding",
+            "  funding           : spendable Orchard short by {} — topping up to {}",
             core::format_zats_signed(missing as i128),
             core::format_zats_signed(target as i128)
         );
-        drop(payer);
-        ops::fund(&["--zec".to_string(), format!("{}", target as f64 / 100_000_000.0)]).await?;
-        ops::shield(&[]).await?;
-        payer = core::bootstrap_with(profile).await?;
+        payer = top_up_payer(payer, &definition, target).await?;
         if let Some(missing) = funding_shortfall(&payer, &definition)? {
             bail!(
                 "after funding and shielding the payer is still short {} — a freshly shielded \
@@ -412,6 +441,17 @@ pub async fn run(raw: &[String]) -> Result<()> {
             core::format_zats_signed(spendable_orchard(&payer)? as i128)
         );
     }
+
+    // Funding as the rig saw it, recorded *after* the top-up. The order is the point: on this
+    // harness the node mines to the flow's own transparent receiver, so the coinbase the shield
+    // consumed *is* the funding — a record taken before the top-up would say "nothing funded this
+    // flow" on a fresh chain, and the properties that compare funding heights against payment
+    // heights would then have nothing to compare.
+    run.funding = record_funding(&payer)?;
+    println!(
+        "  funding recorded  : {} transparent output(s)",
+        run.funding.len()
+    );
 
     // How the invoices are settled: one transaction each, or one transaction carrying all of
     // them. A different shape of evidence, not a different rig — same wallets, same proposal
@@ -468,11 +508,14 @@ pub async fn run(raw: &[String]) -> Result<()> {
     std::fs::write(&findings_path, serde_json::to_string_pretty(&findings)?)
         .with_context(|| format!("writing {}", findings_path.display()))?;
 
+    let verified_at = utc_now_rfc3339()?;
     let report = zanary_report::build_with_claim(
         &run,
         findings.clone(),
-        Some(utc_now_rfc3339()?),
-        None,
+        Some(verified_at.clone()),
+        // A claim without a clock cannot expire, and `--ttl-days` is how a CI job says how long
+        // it is willing to stand behind this run (docs/CLAIMS.md).
+        ttl_days.map(|days| days * 86_400),
     )?;
     let report_path = out_dir.join("report.json");
     std::fs::write(&report_path, zanary_report::canonical_json(&report)?)
@@ -539,17 +582,26 @@ pub async fn run(raw: &[String]) -> Result<()> {
     println!("  report hash       : {}", report.report_hash);
     println!("  run               : {}", run_path.display());
     println!("  findings          : {}", findings_path.display());
-    println!(
-        "\n  next: zanary-report verify {} --node http://127.0.0.1:18232",
-        report_path.display()
-    );
 
-    if fail > 0 {
-        // A failing property is a result, not a crash: the report is written and the exit code
-        // says the run found something.
-        bail!("{fail} propert{} FAILED on this flow — see the report above", if fail == 1 { "y" } else { "ies" });
-    }
-    Ok(())
+    Ok(FlowOutcome {
+        flow_id: run.flow_id.clone(),
+        flow_commit: flow_commit.clone(),
+        out_dir: out_dir.clone(),
+        pass,
+        fail,
+        skip,
+        failed_properties: findings
+            .iter()
+            .filter(|finding| matches!(finding.verdict, zanary_properties::Verdict::Fail))
+            .map(|finding| finding.property.clone())
+            .collect(),
+        report_hash: report.report_hash.clone(),
+        report_path,
+        findings_path,
+        run_path,
+        verified_at: Some(verified_at),
+        verified_at_height: ended_at_height,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1067,11 +1119,23 @@ fn batch_order(count: usize, seed: Option<u64>) -> Vec<usize> {
 // helpers
 // ---------------------------------------------------------------------------
 
-/// Parses `--definition <path>` and `--out <dir>` (default `data/runs/<flow_id>`).
-fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf)> {
-    const USAGE: &str = "zanary-probe flow --definition <path> [--out <dir>]";
+/// Where a definition's run goes when `--out` is not given: `data/runs/<stem of the definition>`.
+///
+/// The CI gate resolves the same default, so `flow` and `test` never disagree about where a run
+/// landed (and a gate that reads the wrong directory would report a stale report as this run).
+pub fn default_out_dir(definition: &Path) -> PathBuf {
+    let stem = definition
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "run".to_string());
+    PathBuf::from("data/runs").join(stem)
+}
+
+fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf, Option<u64>)> {
+    const USAGE: &str = "zanary-probe flow --definition <path> [--out <dir>] [--ttl-days <n>]";
     let mut definition: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
+    let mut ttl_days: Option<u64> = None;
     let mut iter = raw.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -1087,21 +1151,22 @@ fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf)> {
                         .ok_or_else(|| anyhow!("--out needs a path\nusage: {USAGE}"))?,
                 ));
             }
+            "--ttl-days" => {
+                let value = iter
+                    .next()
+                    .ok_or_else(|| anyhow!("--ttl-days needs a number\nusage: {USAGE}"))?;
+                ttl_days = Some(
+                    value
+                        .parse()
+                        .with_context(|| format!("`--ttl-days {value}` is not a number"))?,
+                );
+            }
             other => bail!("unknown argument `{other}`\nusage: {USAGE}"),
         }
     }
     let definition = definition.ok_or_else(|| anyhow!("--definition is required\nusage: {USAGE}"))?;
-    let out = match out {
-        Some(out) => out,
-        None => {
-            let stem = definition
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "run".to_string());
-            PathBuf::from("data/runs").join(stem)
-        }
-    };
-    Ok((definition, out))
+    let out = out.unwrap_or_else(|| default_out_dir(&definition));
+    Ok((definition, out, ttl_days))
 }
 
 /// Issues a fresh diversified Orchard-only receiver from the merchant wallet.
@@ -1164,6 +1229,66 @@ fn settlement_of(definition: &FlowDefinition) -> &str {
 
 /// How much the runner should move into the payer's Orchard pool when funding is needed:
 /// the definition's own target, never less than what the invoices require.
+/// Brings the payer's Orchard pool up to what the flow needs, from whatever this chain offers.
+///
+/// Two funding paths exist, and the order matters:
+///
+/// 1. **The payer's own coinbase.** The harness conf mines straight to the flow's transparent
+///    receiver (`mineraddress` + `minetolocalwallet=0` in `data/zcashd/.zcash/zcash.conf`), so what
+///    funds a flow is coinbase the payer already owns — it has to be mature (100 confirmations on
+///    regtest) and then shielded. On a chain that was just created there is nothing else, which is
+///    why this path comes first: it is the difference between "a flow a stranger can run" and "a
+///    flow that needs the rig pre-seeded by hand".
+/// 2. **A transfer from the node wallet** (`ops::fund`), for a chain whose conf mines to the node's
+///    own wallet. On the harness conf the node wallet holds no coinbase, so this is the fallback,
+///    not the default — and it is checked rather than assumed.
+///
+/// The wallet handle is closed around `shield`/`fund`: they are the commands a human runs, and they
+/// open the wallet themselves, so two connections never contend for the same SQLite file.
+async fn top_up_payer(open_payer: Probe, definition: &FlowDefinition, target: u64) -> Result<Probe> {
+    /// Coinbase needs 100 confirmations on regtest; the margin leaves room for the blocks the
+    /// shield and the flow's own payments mine.
+    const COINBASE_MATURITY_BLOCKS: u64 = 105;
+    let profile = WalletProfile::dev(definition.payer_account);
+    let node = NodeRpc::from_env()?;
+
+    // The handle the caller passed in is closed here and reopened below, so the one wallet file is
+    // never open twice while `shield`/`fund` do their own opening.
+    drop(open_payer);
+
+    node.generate(COINBASE_MATURITY_BLOCKS).await?;
+    let mut payer = core::bootstrap_with(profile.clone()).await?;
+    let transparent = BalanceSnapshot::capture(&payer.db, payer.account)?.transparent;
+    println!(
+        "  funding           : mined {COINBASE_MATURITY_BLOCKS} blocks (coinbase to the payer's own \
+         receiver); payer transparent balance now {}",
+        core::format_zats_signed(transparent)
+    );
+
+    if transparent > 0 {
+        drop(payer);
+        ops::shield(&[]).await?;
+        payer = core::bootstrap_with(profile.clone()).await?;
+        if funding_shortfall(&payer, &definition)?.is_none() {
+            return Ok(payer);
+        }
+        println!(
+            "  funding           : the payer's own coinbase did not cover the flow — falling back to \
+             a transfer from the node wallet"
+        );
+    } else {
+        println!(
+            "  funding           : this chain mines to the node's wallet (no coinbase to the flow's \
+             address), so the payer has none of its own — using the node wallet"
+        );
+    }
+
+    drop(payer);
+    ops::fund(&["--zec".to_string(), format!("{}", target as f64 / 100_000_000.0)]).await?;
+    ops::shield(&[]).await?;
+    core::bootstrap_with(profile).await
+}
+
 fn funding_target(definition: &FlowDefinition, missing: u64) -> u64 {
     let needed: u64 = definition.invoices.iter().map(|i| i.amount_zat).sum::<u64>()
         + fee_budget_zat(definition.invoices.len(), settlement_of(definition));

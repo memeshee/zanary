@@ -1,0 +1,11 @@
+{
+  "flow_id": "zanary-ci-checkout-control",
+  "receiver_strategy": "reused",
+  "memo": false,
+  "policy": "AllowRevealedAmounts",
+  "funding_zat": 20000000,
+  "invoices": [
+    { "invoice_id": "7171", "amount_zat": 25000000 },
+    { "invoice_id": "7172", "amount_zat": 25000000 }
+  ]
+}

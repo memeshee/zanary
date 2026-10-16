@@ -9,8 +9,11 @@ services:
     image: electriccoinco/zcashd:latest
     container_name: zanary-zcashd
     restart: unless-stopped
-    # uid 1000 so the bind-mounted datadir (owned by the host user) is writable
-    user: "1000:1000"
+    # Runs as the *host* user so the bind-mounted datadir is writable. `up.sh` exports the ids;
+    # the default keeps a bare `docker compose up` working on the machine this rig was built on.
+    # (On CI runners the checkout belongs to a runner uid, not 1000 — a node that cannot write its
+    # datadir reads as a crash, not as a permission problem.)
+    user: "${ZANARY_UID:-1000}:${ZANARY_GID:-1000}"
     volumes:
       - ../data/zcashd:/srv/zcashd
     ports:

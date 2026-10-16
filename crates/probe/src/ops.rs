@@ -62,13 +62,13 @@ pub(crate) const CONFIRM_BLOCKS: u64 = 11;
 
 /// A tiny `--flag value` parser (no external argument crate): every argument is a
 /// `--name`; `--name value` binds a value, a bare `--name` is a boolean `true`.
-struct Args {
+pub(crate) struct Args {
     values: HashMap<String, String>,
     usage: &'static str,
 }
 
 impl Args {
-    fn parse(args: &[String], usage: &'static str) -> Result<Self> {
+    pub(crate) fn parse(args: &[String], usage: &'static str) -> Result<Self> {
         let mut values = HashMap::new();
         let mut iter = args.iter().peekable();
         while let Some(arg) = iter.next() {
@@ -86,20 +86,20 @@ impl Args {
         Ok(Self { values, usage })
     }
 
-    fn value(&mut self, name: &str) -> Option<String> {
+    pub(crate) fn value(&mut self, name: &str) -> Option<String> {
         self.values.remove(name)
     }
 
-    fn flag(&mut self, name: &str) -> bool {
+    pub(crate) fn flag(&mut self, name: &str) -> bool {
         self.values.remove(name).is_some_and(|v| v == "true")
     }
 
-    fn require(&mut self, name: &str) -> Result<String> {
+    pub(crate) fn require(&mut self, name: &str) -> Result<String> {
         self.value(name)
             .ok_or_else(|| anyhow!("missing required argument `{name}`\nusage: {}", self.usage))
     }
 
-    fn optional_u32(&mut self, name: &str) -> Result<Option<u32>> {
+    pub(crate) fn optional_u32(&mut self, name: &str) -> Result<Option<u32>> {
         self.value(name)
             .map(|v| {
                 v.parse::<u32>()
@@ -108,7 +108,7 @@ impl Args {
             .transpose()
     }
 
-    fn finish(self) -> Result<()> {
+    pub(crate) fn finish(self) -> Result<()> {
         if !self.values.is_empty() {
             let mut unknown: Vec<String> = self.values.into_keys().collect();
             unknown.sort();

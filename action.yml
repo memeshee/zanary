@@ -1,0 +1,150 @@
+# ZANARY privacy gate — a composite action, so `uses: memeshee/zanary@main` is the whole setup.
+#
+# What a caller gets: a throwaway Zcash chain, the rig's own wallets, a real payment flow executed
+# against it with real shielded transactions, and a job that fails when the flow leaks a privacy
+# property — or when a deliberately leaky control flow stops being caught.
+#
+#   - uses: memeshee/zanary@main
+#     with:
+#       flow: flows/my-checkout.json        # in *your* repository
+#       expect: pass
+#
+# The harness, the property library and the report tooling come from this action's own checkout
+# (${{ github.action_path }}), so the calling repository only has to provide a flow definition.
+name: ZANARY privacy gate
+description: >-
+  Run a Zcash payment flow on a throwaway chain with real shielded transactions, score it against
+  ZANARY's privacy property library, and fail the build when the flow leaks.
+author: kiter + Hermes (ZECATHON, Core & Tooling)
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  flow:
+    description: Flow definition to run (JSON, path in the calling workspace).
+    required: true
+  expect:
+    description: >-
+      `pass` (every property must hold — a leak fails the build) or `fail` (a deliberately leaky
+      control flow whose leaks the library must catch).
+    required: false
+    default: pass
+  anchor:
+    description: >-
+      Publish the report's evidence root in a shielded memo to the public beacon, so the run has a
+      chain timestamp anyone can check without trusting the rig (`verify-anchor`).
+    required: false
+    default: "true"
+  ttl-days:
+    description: How long the claim this run issues stays live unless it is re-proved.
+    required: false
+    default: "30"
+  out:
+    description: Where the run (run.json, findings.json, report.json, anchor.json, test.json) goes.
+    required: false
+    default: zanary-run
+
+runs:
+  using: composite
+  steps:
+    - name: rust toolchain (as pinned by rust-toolchain.toml)
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        # Install the pinned channel explicitly instead of hoping the runner's rustup picks the
+        # file up: the Zcash stack refuses toolchains older than 1.88, and "cargo: toolchain not
+        # installed" is a confusing way to learn that.
+        CHANNEL="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml | head -1)"
+        rustup toolchain install "${CHANNEL:-stable}" --profile minimal \
+          --component rustfmt --component clippy --no-self-update
+        rustc --version
+        cargo --version
+
+    - name: cache cargo + target
+      uses: Swatinem/rust-cache@v2
+      with:
+        # The action is executed in its own checkout for local use (`uses: ./`), but a remote
+        # caller (`uses: memeshee/zanary@main`) runs from the action cache while its files stay in
+        # the calling workspace — so cache both, and the build is warm either way.
+        workspaces: |
+          ${{ github.action_path }}
+          .
+
+    - name: build the rig
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        # Only the two binaries a gate needs: `zanary-probe` runs the flow, `zanary-report` is the
+        # independent verifier the log tells people to re-run.
+        cargo build --release --bin zanary-probe --bin zanary-report
+
+    - name: start the throwaway chain
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: harness/up.sh
+
+    - name: run the gate
+      id: gate
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        set -o pipefail
+        # The flow and the run directory belong to the calling repository, not to this action: a
+        # caller reads their own evidence and uploads it as their own artifact.
+        FLOW="${{ inputs.flow }}"
+        for candidate in "${{ github.workspace }}/$FLOW" "${{ github.action_path }}/$FLOW" "$FLOW"; do
+          if [ -f "$candidate" ]; then FLOW="$candidate"; break; fi
+        done
+        if [ ! -f "$FLOW" ]; then
+          echo "::error::ZANARY gate: no flow definition at ${{ inputs.flow }}"
+          exit 2
+        fi
+        OUT="${{ github.workspace }}/${{ inputs.out }}"
+        mkdir -p "$OUT"
+        anchor_flag=""
+        [ "${{ inputs.anchor }}" = "true" ] && anchor_flag="--anchor"
+        echo "out=$OUT" >> "$GITHUB_OUTPUT"
+        set +e
+        ./target/release/zanary-probe test \
+          --definition "$FLOW" \
+          --out "$OUT" \
+          --expect "${{ inputs.expect }}" \
+          --ttl-days "${{ inputs.ttl-days }}" \
+          $anchor_flag \
+          --summary "$OUT/test.json" \
+          2>&1 | tee "$OUT/gate.log"
+        code=${PIPESTATUS[0]}
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        # The step itself stays green so the summary and the artifacts are always written; the
+        # verdict step below is what fails the job, with the gate's own reason for it.
+        exit 0
+
+    - name: job summary
+      if: always()
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        OUT="${{ steps.gate.outputs.out }}"
+        {
+          echo ""
+          python3 scripts/ci-summary.py "$OUT/test.json" \
+            --title "${{ inputs.flow }} (expect ${{ inputs.expect }})" || true
+        } >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo "### gate log (tail)"
+          echo '```'
+          tail -40 "$OUT/gate.log" 2>/dev/null || echo "(no log)"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: verdict
+      shell: bash
+      run: |
+        code="${{ steps.gate.outputs.exit_code }}"
+        case "$code" in
+          0) echo "ZANARY gate: the run matched its expectation (--expect ${{ inputs.expect }})."; exit 0 ;;
+          1) echo "::error::ZANARY gate: the run did NOT match its expectation (--expect ${{ inputs.expect }}) — see the summary and gate.log."; exit 1 ;;
+          2) echo "::error::ZANARY gate: the rig could not check this run (chain unreachable, report does not hash to itself, or the anchor could not be found). This says nothing about the flow either way."; exit 2 ;;
+          *) echo "::error::ZANARY gate: unexpected exit code ${code}."; exit 1 ;;
+        esac

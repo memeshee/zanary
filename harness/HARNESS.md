@@ -14,12 +14,31 @@ zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ─
 ## One command
 
 ```bash
-docker compose up -d          # or: docker-compose up -d
-docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary generate 130
+harness/up.sh                 # config + `docker compose up -d` + wait until the rig is usable
 ```
 
+`up.sh` exists because three steps that look like one are actually four, and skipping any of them
+fails in a way that reads like a code bug:
+
+1. **the node config.** `data/zcashd/.zcash/zcash.conf` is gitignored (it is live node state), so a
+   fresh checkout has none: `up.sh` seeds it from the tracked `harness/zcash.conf` and never
+   overwrites an existing one;
+2. **`docker compose up -d`**;
+3. **waiting for the node's RPC** (`getblockcount`);
+4. **waiting for the indexer**, through the probe's own `GetLightdInfo` handshake when a binary
+   exists — a listening port is not the same thing as a caught-up indexer.
+
 Block production is manual and instant: the rig decides when a block exists, so tests never race a
-network. `generate N` mines N blocks in about two seconds.
+network. `generate N` mines N blocks in about two seconds, and a flow mines what it needs itself
+(coinbase into the flow's own receiver — see *the node wallet is not part of the rig* below).
+
+Without `up.sh` the raw commands are:
+
+```bash
+mkdir -p ../data/zcashd/.zcash && cp zcash.conf ../data/zcashd/.zcash/zcash.conf
+docker compose up -d          # or: docker-compose up -d
+until docker exec zanary-zcashd zcash-cli -regtest -rpcuser=zanary -rpcpassword=zanary getblockcount; do sleep 2; done
+```
 
 ## Nodes
 
@@ -30,8 +49,9 @@ network. `generate N` mines N blocks in about two seconds.
 
 ## The config file that matters
 
-`data/zcashd/.zcash/zcash.conf` — regtest, RPC open to the docker bridge, `txindex=1`, and the
-**network-upgrade activations**, which zcashd does *not* apply on regtest by default:
+`harness/zcash.conf` (tracked) is copied to `data/zcashd/.zcash/zcash.conf` (gitignored, live node
+state) by `up.sh` — regtest, RPC open to the docker bridge, `txindex=1`, and the **network-upgrade
+activations**, which zcashd does *not* apply on regtest by default:
 
 ```
 nuparams=5ba81b19:1   # Overwinter
@@ -92,6 +112,15 @@ fragility, and irrelevant to what the rig is for — but it *does* change the ha
   wallet directly; maturity is 100 blocks (≈ a fifth of a second of regtest mining), and no
   node-wallet call is ever made.
 - `restart: unless-stopped` is set on the node so a crash self-heals during long test runs.
+
+**As built (2026-10-16):** `harness/zcash.conf` carries `mineraddress` = the dev account's
+transparent receiver (derived from the public BIP-39 test-vector seed) with `minetolocalwallet=0`, so
+coinbase pays the rig's own wallet while the node stays the chain and the miner. The flow runner
+funds itself from that coinbase — mine to maturity (100 confirmations, 105 with margin), shield,
+pay — and only falls back to a node-wallet transfer on a chain that mines to the node's wallet
+(`top_up_payer` in `crates/probe/src/flow.rs`). That fallback is checked, never assumed: on this
+conf the node wallet holds nothing to send. This is what makes a flow runnable on a chain at height
+0 with no seeding step, locally and in CI (`docs/CI.md`).
 
 ## What is proven vs what is next
 

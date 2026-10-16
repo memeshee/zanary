@@ -1,0 +1,69 @@
+# ZANARY's own privacy gate.
+#
+# Two jobs, and the pair is the point: the same rig, the same property library, one flow that must
+# pass and one that must be caught. A gate that only ever says "green" proves nothing, so the
+# control flow's leaks are a test result too — read its job summary for the four FAIL lines.
+#
+# Both jobs are green when the rig behaves. A red job means one of two things, and the job summary
+# says which: a flow that leaked, or a control flow the property library failed to bite.
+name: privacy gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # A claim is a subscription, not a fact: re-prove weekly or it goes stale (docs/CLAIMS.md).
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: privacy-gate-${{ github.ref }}
+  # A push and a scheduled re-probe are different pieces of evidence; neither cancels the other.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      # Both halves of the pair always run: a red private flow must not hide the control's verdict.
+      fail-fast: false
+      matrix:
+        include:
+          - name: private flow — a leak fails this build
+            id: private
+            flow: flows/ci-checkout.json
+            expect: pass
+          - name: control flow — the property library must catch it
+            id: control
+            flow: flows/ci-checkout-control.json
+            expect: fail
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gate is the repository's own action, exercised here on every push: the rig and the
+      # property library come from the action's checkout, the flow definition from this workspace.
+      - uses: ./
+        with:
+          flow: ${{ matrix.flow }}
+          expect: ${{ matrix.expect }}
+          anchor: "true"
+          ttl-days: "30"
+          out: runs/${{ matrix.id }}
+
+      - name: upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zanary-${{ matrix.id }}-evidence
+          path: runs/${{ matrix.id }}/
+          # run.json + findings.json + report.json + anchor.json + test.json + the gate log: what a
+          # reviewer needs to re-derive every line of the summary without trusting this job.
+          retention-days: 30
+          if-no-files-found: warn

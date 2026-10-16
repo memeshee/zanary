@@ -153,3 +153,14 @@ The **control run** is the same definition with `receiver_strategy: "reused"` / 
    invoices 8101/8102/8103, txids `e73f4926…`, `4ae3f0be…`, `cf0789ee…` — with the merchant's
    read-back recorded in `docs/FLOW-RUNNER-NOTES.md`. Traps found by running it: displayed txids are
    the reverse of the transaction's internal byte order, and a piped command hides a real exit status.
+7. **The CI gate — done.** `zanary-probe test --definition <flow.json> [--expect pass|fail] [--anchor]
+   [--ttl-days N] [--summary <path>]` composes the pieces the pipeline needs in one process: run the
+   flow (through `flow::run_recording`, the same code the CLI uses — not a second implementation),
+   re-derive every evidence line from the chain, anchor the root, print the claim block (height, report
+   hash, expiry) and exit `0`/`1`/`2`. `--expect fail` is what makes the control flow a *test*: a
+   library that stops catching planted leaks fails the build. Shipped with the harness's missing piece
+   for a fresh clone — `harness/up.sh` seeds `data/zcashd/.zcash/zcash.conf` from the tracked
+   `harness/zcash.conf` and waits for the node *and* the indexer — and with `flows/ci-checkout.json`
+   (2 invoices, must pass) / `flows/ci-checkout-control.json` (2 invoices, must be caught) so a run is
+   minutes instead of ten. The composite action (`action.yml`) plus `.github/workflows/privacy-gate.yml`
+   run both per push, write a job summary and upload the evidence. Full notes: `docs/CI.md`.
