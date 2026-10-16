@@ -120,7 +120,8 @@ which the control app is the reference.
 |---|---|
 | `12 pass · 0 fail` on the private flow | `data/runs/demo/demo-private/report.json` (or the CI artifact) |
 | `4 fail` caught on the control flow | `data/runs/demo/demo-control/report.json` — four properties named |
-| `1 paid · 3 refused [allowlist, budget, cap]` | `data/payer-demo/runs/allowed/ledger.jsonl` |
-| `0 paid · 4 refused [kill switch]` | `data/payer-demo/runs/killed/ledger.jsonl` |
+| `1 paid · 3 refused [allowlist, budget, cap]` | `data/payer-demo/runs/allowed/ledger.jsonl` (the demo scripts' default output dir; the recorded take used `ZANARY_PAYER_DEMO_DIR=data/demo-payer`, so the same file lives under whichever name that command was run with) |
+| `0 paid · 4 refused [kill switch]` | `data/payer-demo/runs/killed/ledger.jsonl` — same caveat |
 | 13 properties × 7 runs | `docs/LEAK-MATRIX.md` |
 | a claim's clock | every row of the published index: `expires in …`, then stale, then dead |
+| a claim surviving a moving chain | re-run `zanary-report verify data/runs/demo/demo-private/report.json --indexer $ZANARY_LWD_URL`: the evidence is height-pinned (`@983`, `@987`, `@1000`), so it still reads `12 pass · 0 fail · 6 skip → VERIFIED` after the chain has advanced past it — the report is a check, not a snapshot |
