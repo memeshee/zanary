@@ -12,7 +12,7 @@ transactions on a throwaway chain, proves or breaks each privacy claim with repr
 publishes claims that expire unless someone re-proves them.
 
 **Repo:** <https://github.com/memeshee/zanary> (public) · **Live claims:**
-<https://memeshee.github.io/zanary/> · **CI:** the `privacy gate` workflow, four jobs per push
+<https://memeshee.github.io/zanary/> · **CI:** the `privacy gate` workflow, five jobs per push (fmt + clippy + the 67-test unit suite; private flow must pass; control flow must be caught; the bounded payer's ledger must show its refusals; the index and the demo video are republished)
 
 **Track:** Core & Tooling (one submission, one track)
 
@@ -110,7 +110,7 @@ which the control app is the reference.
 | description | ✅ this file |
 | video (≤2 min) | ✅ built and served: <https://memeshee.github.io/zanary/video/> — 112 s, frames verbatim from a real run, published by the same workflow as the claims (`docs/VIDEO-SCRIPT.md` is the cut sheet; replace the audio track with your own voice any time) |
 | repo public by the deadline | ✅ public since the first commit |
-| CI green on `main` | ✅ four jobs: private, control, bounded payer, publish |
+| CI green on `main` | ✅ five jobs: tests (fmt · clippy · 67 unit tests), private flow, control flow, bounded payer, publish |
 | claims published | ✅ <https://memeshee.github.io/zanary/> |
 | submission form sent | ⏳ operator step: Telegram handle, one track (Core & Tooling), before Oct 28 23:59 UTC |
 

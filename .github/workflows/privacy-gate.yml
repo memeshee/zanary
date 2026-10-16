@@ -1,11 +1,16 @@
 # ZANARY's own privacy gate.
 #
-# Two jobs, and the pair is the point: the same rig, the same property library, one flow that must
-# pass and one that must be caught. A gate that only ever says "green" proves nothing, so the
+# Five jobs, and the pair in the middle is the point: the same rig, the same property library, one flow
+# that must pass and one that must be caught. A gate that only ever says "green" proves nothing, so the
 # control flow's leaks are a test result too — read its job summary for the four FAIL lines.
 #
-# Both jobs are green when the rig behaves. A red job means one of two things, and the job summary
-# says which: a flow that leaked, or a control flow the property library failed to bite.
+#   tests    — fmt (clean), clippy (warnings denied), the unit suite: the library under the rig
+#   private  — a clean flow, which must PASS (a leak fails this build)
+#   control  — a deliberately leaky flow, which must be CAUGHT (a silent detector fails this build)
+#   payer    — the bounded payer's ledger must show the refusals the grant implies
+#   publish  — the claim index and the two-minute demo, served from the repository's own Pages
+#
+# A red job means the rig or the library misbehaved, and the job summary says which.
 name: privacy gate
 
 on:
@@ -26,6 +31,36 @@ permissions:
   contents: read
 
 jobs:
+
+  # The suite and the hygiene checks, first because they are the cheapest signal: 67 unit tests
+  # (including the fixtures that prove "clean passes everything, leaky fails everything" and the golden
+  # reports that pin the recorded evidence), plus fmt and clippy with warnings denied. The gate jobs
+  # below prove the rig works on a real chain; this job proves the library underneath it still behaves.
+  tests:
+    name: tests — fmt, clippy, the unit suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: rust toolchain (as pinned by rust-toolchain.toml)
+        shell: bash
+        run: |
+          CHANNEL="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml | head -1)"
+          rustup toolchain install "${CHANNEL:-stable}" --profile minimal --no-self-update
+          rustup component add rustfmt clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: formatting
+        run: cargo fmt --all --check
+
+      - name: lints (warnings are errors here, unlike a local run)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: the unit suite
+        run: cargo test --workspace
+
   gate:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
