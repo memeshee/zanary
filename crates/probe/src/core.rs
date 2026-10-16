@@ -101,6 +101,40 @@ pub fn endpoint() -> String {
     env::var("ZANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
 }
 
+/// Waits until the indexer's tip reaches `min_height`, and returns the tip it saw.
+///
+/// A wallet cannot start scanning against blocks the indexer has not ingested: the sync asks for the
+/// tree state below its scan range, and lightwalletd answers `Block height out of range` for a height
+/// it does not have yet. That is what a chain at height 0 looks like from the wallet's side, and also
+/// what an indexer still catching up after a restart looks like — so a caller that just mined the
+/// first block waits here instead of racing it.
+pub async fn wait_for_indexer_height(endpoint: &str, min_height: u32) -> Result<u32> {
+    const ATTEMPTS: u32 = 60;
+    let mut client = CompactTxStreamerClient::connect(endpoint.to_string())
+        .await
+        .with_context(|| format!("connecting to the indexer at {endpoint}"))?;
+    let mut tip = 0u32;
+    for attempt in 0..ATTEMPTS {
+        tip = client
+            .get_latest_block(ChainSpec {})
+            .await
+            .context("GetLatestBlock while waiting for the indexer")?
+            .into_inner()
+            .height as u32;
+        if tip >= min_height {
+            return Ok(tip);
+        }
+        if attempt + 1 < ATTEMPTS {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+    anyhow::bail!(
+        "the indexer at {endpoint} still reports tip {tip} after {}s, below the {min_height} this \
+         run needs — the indexer is not following the node (see `harness/up.sh` and its logs)",
+        ATTEMPTS / 2
+    )
+}
+
 /// Wallet data directory (`ZANARY_DATA_DIR`, default `./data/wallet`).
 pub fn data_dir() -> PathBuf {
     PathBuf::from(env::var("ZANARY_DATA_DIR").unwrap_or_else(|_| "./data/wallet".to_string()))

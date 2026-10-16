@@ -373,7 +373,21 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     println!("  policy            : {}", policy.name());
 
     let node = NodeRpc::from_env()?;
-    let started_at_height = node.block_count().await? as u32;
+    let mut started_at_height = node.block_count().await? as u32;
+    if started_at_height == 0 {
+        // A chain at height 0 has no tree state for a wallet to sync from: the sync asks for the
+        // state below its scan range and lightwalletd refuses a height that does not exist yet
+        // ("Block height out of range"), so the wallet — and therefore the flow — cannot start.
+        // Mining block 1 is part of running a flow on a brand-new chain, and doing it here is what
+        // makes `harness/up.sh` + one command sufficient on a fresh checkout (docs/CI.md).
+        node.generate(1).await?;
+        let tip = core::wait_for_indexer_height(&core::endpoint(), 1).await?;
+        started_at_height = node.block_count().await? as u32;
+        println!(
+            "  chain             : mined block 1 (an empty chain has nothing to sync from) · \
+             indexer tip {tip} · node height {started_at_height}"
+        );
+    }
     println!("  start height      : {started_at_height}");
 
     // The payer: the probe's own wallet. The merchant: its own seed and database.
