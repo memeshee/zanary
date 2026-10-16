@@ -1,0 +1,89 @@
+# Submission — what goes in the form, and what was actually shipped
+
+ZECATHON 2026 · track: **Core & Tooling** · deadline **Oct 28, 23:59 UTC** (Oct 29, 06:59 ICT).
+Everything below is either in the repository or live at a URL, and every number is one this rig printed.
+
+## Form fields (ready to paste)
+
+**Project name:** ZANARY — the privacy gate for Zcash payment flows
+
+**One line:** An independent prober for Zcash payment flows: it runs a flow with real shielded
+transactions on a throwaway chain, proves or breaks each privacy claim with reproducible evidence, and
+publishes claims that expire unless someone re-proves them.
+
+**Repo:** <https://github.com/memeshee/zanary> (public) · **Live claims:**
+<https://memeshee.github.io/zanary/> · **CI:** the `privacy gate` workflow, four jobs per push
+
+**Track:** Core & Tooling (one submission, one track)
+
+## Description
+
+**The problem.** Privacy claims about Zcash payment flows are un-falsifiable prose. "We don't leak your
+identity" is either untested or tested by the same code that makes the claim. Anyone building a checkout
+knows the failure mode: the UI is right and the *bytes* are wrong — one receiver reused, a memo left
+out, the wallet told it may reveal amounts, round amounts that fingerprint a deposit.
+
+**What ZANARY is.** A rig that runs a payment flow on a throwaway regtest chain with real shielded
+transactions, observes what the chain, the merchant and an observer can see, and scores it against a
+library of **13 named leak classes** — then hashes the evidence and lets the claim expire.
+
+Four things make it more than a test suite:
+
+1. **The evidence is re-derived, not reported.** `report.json` carries a hash of its own bytes and an
+   evidence root; `zanary-report verify` is a *second implementation* that re-checks every line against
+   the chain (transaction exists, receiver decrypts, memo decrypts, pool totals match `getblock`). A
+   flipped byte exits 1.
+2. **The claims have a clock.** Each claim is `flow × commit × height` with a TTL: *live*, then *stale*,
+   then *dead* unless CI re-proves it weekly. *A privacy claim is not a fact, it is a subscription.*
+3. **The gate fails builds — including on itself.** `zanary-probe test` exits `0`/`1`/`2` (passed / did
+   not match expectation / rig could not check). CI runs two flows: a private one that must pass and a
+   deliberately leaky control that must be **caught**, so a property library that goes quiet fails the
+   build too. The control's four planted leaks are printed by name in the job summary.
+4. **Timestamps nobody is trusted for.** The evidence root goes into a shielded memo to a public beacon;
+   `verify-anchor` finds the *earliest* anchor for that root with a node and the beacon's published
+   viewing key — nothing from us.
+
+**The subject that passes.** A bounded payer — an agent given **a budget instead of a key**: budget,
+per-payment cap, receiver allowlist, expiry, kill switch. It decides every invoice before it pays any of
+them, writes one ledger line per decision with the rule that decided it, and the rig checks that ledger
+against the grant (`payer-policy`: over-cap, past-budget, stranger-receiver and post-revocation payments
+fail; an "internal error" refusal fails too). Recorded: 4 invoices → 1 paid, 3 refused by three
+different rules; the same four under a tripped kill switch → all refused, nothing spent.
+
+**Reproduce it (one command each).**
+
+```sh
+git clone https://github.com/memeshee/zanary && cd zanary
+harness/up.sh && scripts/demo-run.sh        # private PASS · control CAUGHT · payer ledger · index
+```
+
+**What this does not prove** (stated in the reports themselves, not discovered by a judge): the chain is
+regtest and local, so pool-specific and network-level behaviour is out of scope; the merchant side is the
+rig's own simulation and the verifier *skips* those fields rather than pretending; the flows tested are
+flows in this repository — driving a third party's implementation directly needs an endpoint driver, for
+which the control app is the reference.
+
+## The ship checklist (memo §5, D17)
+
+| artifact | state |
+|---|---|
+| README (truthful about what is real) | ✅ |
+| architecture diagram | ✅ `docs/rig.svg`, referenced from the README |
+| mark | ✅ `docs/zanary-mark.svg` |
+| description | ✅ this file |
+| video | ⏳ script + single-take driver ready (`docs/VIDEO-SCRIPT.md`, `scripts/demo-run.sh`) |
+| repo public by the deadline | ✅ public since the first commit |
+| CI green on `main` | ✅ four jobs: private, control, bounded payer, publish |
+| claims published | ✅ <https://memeshee.github.io/zanary/> |
+| submission form sent | ⏳ operator step: Telegram handle, one track (Core & Tooling), before Oct 28 23:59 UTC |
+
+## Numbers a judge can re-derive
+
+| what | where it comes from |
+|---|---|
+| `12 pass · 0 fail` on the private flow | `data/runs/demo/demo-private/report.json` (or the CI artifact) |
+| `4 fail` caught on the control flow | `data/runs/demo/demo-control/report.json` — four properties named |
+| `1 paid · 3 refused [allowlist, budget, cap]` | `data/payer-demo/runs/allowed/ledger.jsonl` |
+| `0 paid · 4 refused [kill switch]` | `data/payer-demo/runs/killed/ledger.jsonl` |
+| 13 properties × 7 runs | `docs/LEAK-MATRIX.md` |
+| a claim's clock | every row of the published index: `expires in …`, then stale, then dead |
