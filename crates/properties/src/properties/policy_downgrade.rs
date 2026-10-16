@@ -75,7 +75,7 @@ impl Property for PolicyDowngrade {
         for p in &run.payments {
             if let Some(policy) = &p.policy {
                 any_captured = true;
-                for tok in policy.split(|c: char| matches!(c, '|' | ',' | ';' | '+' | ' ')) {
+                for tok in policy.split(['|', ',', ';', '+', ' ']) {
                     let norm = normalize_alnum(tok);
                     if token_is_downgrade(&norm) {
                         evidence.push(format!(
@@ -100,7 +100,7 @@ impl Property for PolicyDowngrade {
                     pool_str(p.pool_out)
                 ));
                 let policy_clean = p.policy.as_deref().map(|pol| {
-                    !pol.split(|c: char| matches!(c, '|' | ',' | ';' | '+' | ' '))
+                    !pol.split(['|', ',', ';', '+', ' '])
                         .any(|tok| token_is_downgrade(&normalize_alnum(tok)))
                 });
                 if policy_clean == Some(true) {

@@ -43,13 +43,13 @@ use zcash_keys::{
     encoding::AddressCodec as _,
     keys::{UnifiedFullViewingKey, UnifiedSpendingKey},
 };
+use zcash_primitives::transaction::Transaction;
 use zcash_protocol::{
     consensus::{BlockHeight, BranchId},
     local_consensus::LocalNetwork,
     value::Zatoshis,
     PoolType, TxId,
 };
-use zcash_primitives::transaction::Transaction;
 use zcash_script::script;
 use zcash_transparent::{
     address::Script,
@@ -211,8 +211,7 @@ pub const MERCHANT_MNEMONIC: &str =
 /// wallet that is neither the payer's nor the merchant's. TEST ONLY — and the beacon's *viewing key*
 /// is published on purpose: it can only ever decrypt a public log of hashes, which is what lets a
 /// stranger check an anchor without trusting ZANARY.
-pub const BEACON_MNEMONIC: &str =
-    "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
+pub const BEACON_MNEMONIC: &str = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
 
 /// Which wallet a command operates on: its seed phrase, ZIP-32 account, the name it
 /// is recorded under, and where its database lives.
@@ -294,7 +293,10 @@ impl WalletProfile {
         let account_id = AccountId::try_from(self.account)
             .map_err(|_| anyhow!("ZIP-32 account index {} is out of range", self.account))?;
         UnifiedSpendingKey::from_seed(network, &seed, account_id).with_context(|| {
-            format!("deriving the unified spending key for account {}", self.account)
+            format!(
+                "deriving the unified spending key for account {}",
+                self.account
+            )
         })
     }
 
@@ -327,12 +329,8 @@ pub fn open_db(data_dir: &PathBuf) -> Result<(ProbeDb, PathBuf)> {
 /// [`open_db`], for any wallet profile (the merchant's database is its own file).
 pub fn open_db_for(profile: &WalletProfile) -> Result<(ProbeDb, PathBuf)> {
     let db_path = profile.db_path();
-    std::fs::create_dir_all(&profile.data_dir).with_context(|| {
-        format!(
-            "creating wallet data dir {}",
-            profile.data_dir.display()
-        )
-    })?;
+    std::fs::create_dir_all(&profile.data_dir)
+        .with_context(|| format!("creating wallet data dir {}", profile.data_dir.display()))?;
     let mut db = WalletDb::for_path(&db_path, regtest_network(), SystemClock, rand::rngs::OsRng)
         .with_context(|| format!("opening the wallet database {}", db_path.display()))?;
     init_wallet_db(&mut db, None).context("initializing the wallet database schema")?;
@@ -511,7 +509,7 @@ pub async fn sync_wallet(
         for reply in reply_list.address_utxos {
             reply_count += 1;
             if env::var("ZANARY_TIMINGS").is_ok()
-                && (reply_count == 1 || reply_count % 25 == 0)
+                && (reply_count == 1 || reply_count.is_multiple_of(25))
             {
                 println!(
                     "  TIMING     utxo reply #{reply_count}: {:?}",
@@ -549,12 +547,8 @@ pub async fn sync_wallet(
             }
 
             let output = WalletTransparentOutput::from_parts(
-                OutPoint::new(
-                    txid,
-                    output_index
-                        .try_into()
-                        .map_err(|_| anyhow!("indexer returned a malformed output index"))?,
-                ),
+                // The indexer's output index is already the u32 `OutPoint` wants.
+                OutPoint::new(txid, output_index),
                 TxOut::new(
                     Zatoshis::from_nonnegative_i64(reply.value_zat)
                         .map_err(|_| anyhow!("indexer returned an invalid output value"))?,
@@ -784,8 +778,9 @@ async fn detect_transparent_spends(
                     continue;
                 }
 
-                decrypt_and_store_transaction(network, db, &tx, mined_height)
-                    .context("storing a transaction that involves the wallet's transparent funds")?;
+                decrypt_and_store_transaction(network, db, &tx, mined_height).context(
+                    "storing a transaction that involves the wallet's transparent funds",
+                )?;
             }
         }
     }
@@ -828,7 +823,9 @@ async fn annotate_transparent_tx_indices(db_path: &Path) -> Result<()> {
             )
             .context("querying transactions without an in-block index")?;
         let rows = stmt
-            .query_map([], |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, u32>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, u32>(1)?))
+            })
             .context("reading transactions without an in-block index")?
             .collect::<std::result::Result<Vec<_>, _>>()
             .context("reading transactions without an in-block index")?;
@@ -843,7 +840,11 @@ async fn annotate_transparent_tx_indices(db_path: &Path) -> Result<()> {
     // visible, so fetch it per distinct height (2 calls per height, cached).
     let mut block_txids: std::collections::HashMap<u32, Vec<String>> =
         std::collections::HashMap::new();
-    for height in missing.iter().map(|(_, h)| *h).collect::<std::collections::BTreeSet<_>>() {
+    for height in missing
+        .iter()
+        .map(|(_, h)| *h)
+        .collect::<std::collections::BTreeSet<_>>()
+    {
         let hash = node
             .block_hash(height)
             .await
@@ -872,7 +873,9 @@ async fn annotate_transparent_tx_indices(db_path: &Path) -> Result<()> {
             .context("starting the tx-index annotation transaction")?;
         {
             let mut update = transaction
-                .prepare("UPDATE transactions SET tx_index = ?1 WHERE txid = ?2 AND tx_index IS NULL")
+                .prepare(
+                    "UPDATE transactions SET tx_index = ?1 WHERE txid = ?2 AND tx_index IS NULL",
+                )
                 .context("preparing the tx-index update")?;
             for (txid, height) in &missing {
                 if let Some(index) = block_txids
@@ -1030,7 +1033,10 @@ pub fn print_delta(delta: &BalanceSnapshot) {
     println!("  balance delta    : {}", format_zats_signed(delta.total));
     println!("    orchard        : {}", format_zats_signed(delta.orchard));
     println!("    sapling        : {}", format_zats_signed(delta.sapling));
-    println!("    transparent    : {}", format_zats_signed(delta.transparent));
+    println!(
+        "    transparent    : {}",
+        format_zats_signed(delta.transparent)
+    );
 }
 
 /// Formats zatoshis as a ZEC amount with 8 decimal places, e.g. `0.00000000 ZEC`.

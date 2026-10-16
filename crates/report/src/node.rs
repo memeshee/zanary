@@ -25,7 +25,11 @@ impl NodeRpc {
         }
     }
 
-    pub fn new(hostport: impl Into<String>, user: impl Into<String>, pass: impl Into<String>) -> Self {
+    pub fn new(
+        hostport: impl Into<String>,
+        user: impl Into<String>,
+        pass: impl Into<String>,
+    ) -> Self {
         Self {
             hostport: hostport.into(),
             user: user.into(),
@@ -63,7 +67,8 @@ impl NodeRpc {
         let (_, response_body) = response
             .split_once("\r\n\r\n")
             .ok_or_else(|| anyhow!("malformed HTTP response from the node"))?;
-        let json: Value = serde_json::from_str(response_body).context("parsing the node response")?;
+        let json: Value =
+            serde_json::from_str(response_body).context("parsing the node response")?;
         if let Some(error) = json.get("error") {
             if !error.is_null() {
                 bail!("node RPC `{method}` failed: {error}");
@@ -186,7 +191,7 @@ fn env_hostport() -> String {
 }
 
 pub fn hex_decode(hex: &str) -> Result<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         bail!("odd-length hex string");
     }
     let mut out = vec![0u8; hex.len() / 2];

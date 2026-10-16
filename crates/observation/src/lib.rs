@@ -240,7 +240,6 @@ impl PayerRun {
     }
 }
 
-
 impl FlowRun {
     /// Payment labels that share a recipient receiver with another payment.
     pub fn receiver_reuse_groups(&self) -> BTreeMap<String, Vec<&Payment>> {
@@ -292,7 +291,11 @@ mod tests {
             started_at_height: 1,
             ended_at_height: 20,
             funding: vec![],
-            payments: vec![pay("a", "uregtest1same"), pay("b", "uregtest1same"), pay("c", "uregtest1fresh")],
+            payments: vec![
+                pay("a", "uregtest1same"),
+                pay("b", "uregtest1same"),
+                pay("c", "uregtest1fresh"),
+            ],
             merchant_events: vec![],
             receipts: vec![],
             pool_totals: vec![],

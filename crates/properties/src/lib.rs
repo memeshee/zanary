@@ -13,8 +13,8 @@ pub mod properties;
 
 pub use properties::{AMOUNT_EPSILON_ZAT, PAYER_LINKABILITY_THRESHOLD, TIMING_WINDOW_BLOCKS};
 
-use zanary_observation::FlowRun;
 use serde::{Deserialize, Serialize};
+use zanary_observation::FlowRun;
 
 /// How bad a failure of this property is. `D` failures disqualify a flow's privacy claim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

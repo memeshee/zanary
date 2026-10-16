@@ -79,19 +79,31 @@ pub struct VerifyOutcome {
 
 impl VerifyOutcome {
     pub fn fails(&self) -> usize {
-        self.checks.iter().filter(|c| c.verdict == Verdict::Fail).count()
+        self.checks
+            .iter()
+            .filter(|c| c.verdict == Verdict::Fail)
+            .count()
     }
 
     pub fn warns(&self) -> usize {
-        self.checks.iter().filter(|c| c.verdict == Verdict::Warn).count()
+        self.checks
+            .iter()
+            .filter(|c| c.verdict == Verdict::Warn)
+            .count()
     }
 
     pub fn skips(&self) -> usize {
-        self.checks.iter().filter(|c| c.verdict == Verdict::Skip).count()
+        self.checks
+            .iter()
+            .filter(|c| c.verdict == Verdict::Skip)
+            .count()
     }
 
     pub fn passes(&self) -> usize {
-        self.checks.iter().filter(|c| c.verdict == Verdict::Pass).count()
+        self.checks
+            .iter()
+            .filter(|c| c.verdict == Verdict::Pass)
+            .count()
     }
 
     pub fn verified(&self) -> bool {
@@ -201,7 +213,10 @@ impl<'a> Verifier<'a> {
 
     /// Trial-decryption keys: the harness dev account's UFVK (public seed) plus an optional
     /// caller-supplied key.
-    fn viewing_keys(params: &ChainParams, extra: Option<&str>) -> Result<HashMap<AccountId, UnifiedFullViewingKey>> {
+    fn viewing_keys(
+        params: &ChainParams,
+        extra: Option<&str>,
+    ) -> Result<HashMap<AccountId, UnifiedFullViewingKey>> {
         let mut keys = HashMap::new();
         let mnemonic = bip39::Mnemonic::parse_in_normalized(bip39::Language::English, DEV_MNEMONIC)
             .map_err(|e| anyhow!("dev mnemonic is not valid BIP-39: {e}"))?;
@@ -277,7 +292,12 @@ impl<'a> Verifier<'a> {
     /// keys: fewer actions than claimed payments means the claim is simply false. More than
     /// `N + 1` would mean outputs nobody claimed, which is a warning rather than a failure — the
     /// extra one is the payer's change.
-    async fn check_transaction(&mut self, txid: &str, claimed_height: Option<u32>, batch_size: Option<u32>) {
+    async fn check_transaction(
+        &mut self,
+        txid: &str,
+        claimed_height: Option<u32>,
+        batch_size: Option<u32>,
+    ) {
         let label = match claimed_height {
             Some(h) => format!("tx {txid}@{h}"),
             None => format!("tx {txid}"),
@@ -404,7 +424,10 @@ impl<'a> Verifier<'a> {
                 self.push(
                     label,
                     Verdict::Fail,
-                    format!("address does not decode on chain `{}`: {e}", self.report.chain),
+                    format!(
+                        "address does not decode on chain `{}`: {e}",
+                        self.report.chain
+                    ),
                 );
                 return;
             }
@@ -637,7 +660,10 @@ impl<'a> Verifier<'a> {
             Ok(recomputed) if recomputed == self.report.report_hash => self.push(
                 "report hash",
                 Verdict::Pass,
-                format!("sha256 over canonical JSON recomputes: {}", short(&recomputed)),
+                format!(
+                    "sha256 over canonical JSON recomputes: {}",
+                    short(&recomputed)
+                ),
             ),
             Ok(recomputed) => self.push(
                 "report hash",
@@ -660,7 +686,11 @@ impl<'a> Verifier<'a> {
                     short(&root)
                 ),
             ),
-            Err(e) => self.push("evidence root", Verdict::Fail, format!("cannot compute: {e:#}")),
+            Err(e) => self.push(
+                "evidence root",
+                Verdict::Fail,
+                format!("cannot compute: {e:#}"),
+            ),
         }
 
         // 2) Chain sanity.
@@ -668,20 +698,33 @@ impl<'a> Verifier<'a> {
             Ok(chain) if chain == self.report.chain => self.push(
                 "chain",
                 Verdict::Pass,
-                format!("node reports chain `{chain}`, report claims `{}`", self.report.chain),
+                format!(
+                    "node reports chain `{chain}`, report claims `{}`",
+                    self.report.chain
+                ),
             ),
             Ok(chain) => self.push(
                 "chain",
                 Verdict::Fail,
-                format!("report claims `{}` but the node reports `{chain}`", self.report.chain),
+                format!(
+                    "report claims `{}` but the node reports `{chain}`",
+                    self.report.chain
+                ),
             ),
-            Err(e) => self.push("chain", Verdict::Fail, format!("cannot read the node: {e:#}")),
+            Err(e) => self.push(
+                "chain",
+                Verdict::Fail,
+                format!("cannot read the node: {e:#}"),
+            ),
         }
         match self.opts.node.tip_height() {
             Ok(tip) if self.report.verified_at_height <= tip => self.push(
                 "claim height",
                 Verdict::Pass,
-                format!("verified at height {} (tip {tip})", self.report.verified_at_height),
+                format!(
+                    "verified at height {} (tip {tip})",
+                    self.report.verified_at_height
+                ),
             ),
             Ok(tip) => self.push(
                 "claim height",
@@ -744,7 +787,9 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        Ok(VerifyOutcome { checks: self.checks })
+        Ok(VerifyOutcome {
+            checks: self.checks,
+        })
     }
 }
 
@@ -752,10 +797,9 @@ impl<'a> Verifier<'a> {
 pub async fn verify_report(report: &Report, opts: &VerifyOptions) -> Result<VerifyOutcome> {
     let params = ChainParams::for_chain(&report.chain)?;
     let ufvks = Verifier::viewing_keys(&params, opts.extra_ufvk.as_deref())?;
-    let indexer = match CompactTxStreamerClient::connect(opts.indexer_url.clone()).await {
-        Ok(client) => Some(client),
-        Err(_) => None,
-    };
+    let indexer = CompactTxStreamerClient::connect(opts.indexer_url.clone())
+        .await
+        .ok();
     let verifier = Verifier {
         report,
         opts,

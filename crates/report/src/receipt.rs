@@ -12,9 +12,9 @@
 //! chain evidence in the report is for.
 
 use anyhow::{anyhow, Context, Result};
-use zanary_observation::{Receipt, ReceiptAttestation};
 use reddsa::orchard::SpendAuth;
 use serde::Serialize;
+use zanary_observation::{Receipt, ReceiptAttestation};
 
 /// The bytes a receipt signature covers: the receipt's own fields, in a fixed order, as JSON.
 ///
@@ -63,15 +63,19 @@ pub fn verify_signature(receipt: &Receipt) -> Result<SignatureCheck> {
         .ok_or_else(|| anyhow!("this receipt has no `signature` field"))?;
 
     let signer_bytes = hex_decode(signer_hex).context("decoding the receipt's signer key")?;
-    let signer_array: [u8; 32] = signer_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| anyhow!("the signer key is {} bytes, expected 32", signer_bytes.len()))?;
+    let signer_array: [u8; 32] = signer_bytes.as_slice().try_into().map_err(|_| {
+        anyhow!(
+            "the signer key is {} bytes, expected 32",
+            signer_bytes.len()
+        )
+    })?;
     let signature_bytes = hex_decode(signature_hex).context("decoding the receipt signature")?;
-    let signature_array: [u8; 64] = signature_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| anyhow!("the signature is {} bytes, expected 64", signature_bytes.len()))?;
+    let signature_array: [u8; 64] = signature_bytes.as_slice().try_into().map_err(|_| {
+        anyhow!(
+            "the signature is {} bytes, expected 64",
+            signature_bytes.len()
+        )
+    })?;
 
     let verifying_key = reddsa::VerificationKey::<SpendAuth>::try_from(
         reddsa::VerificationKeyBytes::<SpendAuth>::from(signer_array),
@@ -151,21 +155,20 @@ pub fn verify_attestation(receipt: &Receipt, wallet_ak_hex: &str) -> Result<()> 
     }
 
     let wallet_bytes = hex_decode(&attestation.wallet_ak).context("decoding the wallet key")?;
-    let wallet_array: [u8; 32] = wallet_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| anyhow!("the wallet key is {} bytes, expected 32", wallet_bytes.len()))?;
+    let wallet_array: [u8; 32] = wallet_bytes.as_slice().try_into().map_err(|_| {
+        anyhow!(
+            "the wallet key is {} bytes, expected 32",
+            wallet_bytes.len()
+        )
+    })?;
     let signature_bytes =
         hex_decode(&attestation.signature).context("decoding the attestation signature")?;
-    let signature_array: [u8; 64] = signature_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| {
-            anyhow!(
-                "the attestation signature is {} bytes, expected 64",
-                signature_bytes.len()
-            )
-        })?;
+    let signature_array: [u8; 64] = signature_bytes.as_slice().try_into().map_err(|_| {
+        anyhow!(
+            "the attestation signature is {} bytes, expected 64",
+            signature_bytes.len()
+        )
+    })?;
 
     let verifying_key = reddsa::VerificationKey::<SpendAuth>::try_from(
         reddsa::VerificationKeyBytes::<SpendAuth>::from(wallet_array),
@@ -347,7 +350,7 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 }
 
 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has an odd length"));
     }
     (0..hex.len())
@@ -510,6 +513,9 @@ mod tests {
         receipt.attestation = Some(att);
 
         let err = verify_attestation(&receipt, &wallet_ak).expect_err("unknown format");
-        assert!(format!("{err}").contains("unknown attestation format"), "{err}");
+        assert!(
+            format!("{err}").contains("unknown attestation format"),
+            "{err}"
+        );
     }
 }

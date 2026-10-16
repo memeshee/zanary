@@ -49,9 +49,9 @@ impl NodeRpc {
     pub fn from_env() -> Result<Self> {
         let url =
             std::env::var("ZANARY_NODE_RPC_URL").unwrap_or_else(|_| DEFAULT_RPC_URL.to_string());
-        let rest = url
-            .strip_prefix("http://")
-            .ok_or_else(|| anyhow!("ZANARY_NODE_RPC_URL must be a plain http:// URL, got `{url}`"))?;
+        let rest = url.strip_prefix("http://").ok_or_else(|| {
+            anyhow!("ZANARY_NODE_RPC_URL must be a plain http:// URL, got `{url}`")
+        })?;
         let (host, port) = rest
             .split_once(':')
             .ok_or_else(|| anyhow!("ZANARY_NODE_RPC_URL must include a port, got `{url}`"))?;
@@ -103,7 +103,12 @@ impl NodeRpc {
                 self.host, self.port
             )
         })?
-        .with_context(|| format!("connecting to the zcashd RPC at {}:{}", self.host, self.port))?;
+        .with_context(|| {
+            format!(
+                "connecting to the zcashd RPC at {}:{}",
+                self.host, self.port
+            )
+        })?;
         stream
             .write_all(request.as_bytes())
             .await

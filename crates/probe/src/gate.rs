@@ -178,7 +178,11 @@ pub async fn test(raw: &[String]) -> Result<i32> {
     if anchor {
         println!();
         println!("  --- anchor: a shielded memo carries the evidence root ---");
-        ops::anchor(&["--report".to_string(), outcome.report_path.display().to_string()]).await?;
+        ops::anchor(&[
+            "--report".to_string(),
+            outcome.report_path.display().to_string(),
+        ])
+        .await?;
 
         let anchor_path = outcome.report_path.with_file_name("anchor.json");
         let anchor_path_text = anchor_path.display().to_string();
@@ -255,7 +259,10 @@ pub async fn test(raw: &[String]) -> Result<i32> {
     println!(
         "  verified at       : height {} · {}",
         report.verified_at_height,
-        report.verified_at.as_deref().unwrap_or("(no wall clock recorded)")
+        report
+            .verified_at
+            .as_deref()
+            .unwrap_or("(no wall clock recorded)")
     );
     println!(
         "  properties        : {} pass · {} fail · {} skip",
@@ -297,9 +304,9 @@ pub async fn test(raw: &[String]) -> Result<i32> {
         println!(
             "  verdict           : {}",
             match expect {
-                Expect::Pass =>
-                    "PASS — every property held, and the chain agrees with the report",
-                Expect::Fail => "CAUGHT — the property library found the leaks this flow plants, \
+                Expect::Pass => "PASS — every property held, and the chain agrees with the report",
+                Expect::Fail =>
+                    "CAUGHT — the property library found the leaks this flow plants, \
                                  which is what a control flow is for",
             }
         );

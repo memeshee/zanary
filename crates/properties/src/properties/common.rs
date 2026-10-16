@@ -50,7 +50,7 @@ pub(crate) fn height_str(h: Option<u32>) -> String {
 
 pub(crate) fn decode_hex(s: &str) -> Option<Vec<u8>> {
     let s = s.trim();
-    if s.is_empty() || s.len() % 2 != 0 {
+    if s.is_empty() || !s.len().is_multiple_of(2) {
         return None;
     }
     let bytes = s.as_bytes();

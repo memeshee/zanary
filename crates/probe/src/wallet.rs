@@ -50,8 +50,7 @@ pub async fn run() -> Result<()> {
     let mut client = core::connect(&endpoint).await?;
 
     // --- 3) Import the dev account once; reuse it on later runs (idempotent). ---
-    let imported =
-        core::import_account_if_needed(&mut db, &mut client, &ufvk, &seed, 0).await?;
+    let imported = core::import_account_if_needed(&mut db, &mut client, &ufvk, &seed, 0).await?;
     let account_id = imported.id;
     println!(
         "  account           : {} ({:?}, birthday height {})",
@@ -125,5 +124,3 @@ pub async fn run() -> Result<()> {
     println!("  next: mine coinbase to the receiver above, then shield and spend it with a memo");
     Ok(())
 }
-
-

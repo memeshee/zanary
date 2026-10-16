@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use zanary_observation::{
-    FlowRun, Funding, MerchantEvent, Payment, PaymentKind, PayerDecision, PayerGrant, PayerRun, Pool,
-    PoolTotals, Receipt,
+    FlowRun, Funding, MerchantEvent, PayerDecision, PayerGrant, PayerRun, Payment, PaymentKind,
+    Pool, PoolTotals, Receipt,
 };
 
 use super::common::hex_of;

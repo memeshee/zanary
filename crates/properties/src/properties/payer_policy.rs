@@ -238,7 +238,12 @@ mod tests {
             vec![
                 paid("1", 300, "uregtest1allowed"),
                 refused("2", 900, "uregtest1allowed", "over the per-payment cap"),
-                refused("3", 100, "uregtest1stranger", "receiver not on the allowlist"),
+                refused(
+                    "3",
+                    100,
+                    "uregtest1stranger",
+                    "receiver not on the allowlist",
+                ),
             ],
             false,
         );
@@ -265,7 +270,10 @@ mod tests {
         let finding = PayerPolicy.check(&run);
         assert_eq!(finding.verdict, Verdict::Fail);
         assert!(
-            finding.evidence.iter().any(|e| e.contains("past the budget")),
+            finding
+                .evidence
+                .iter()
+                .any(|e| e.contains("past the budget")),
             "{:?}",
             finding.evidence
         );
@@ -286,13 +294,23 @@ mod tests {
     #[test]
     fn an_error_refusal_fails_but_a_policy_refusal_does_not() {
         let ok = run_with(
-            vec![refused("1", 100, "uregtest1allowed", "over the budget of the grant")],
+            vec![refused(
+                "1",
+                100,
+                "uregtest1allowed",
+                "over the budget of the grant",
+            )],
             false,
         );
         assert_eq!(PayerPolicy.check(&ok).verdict, Verdict::Pass);
 
         let broken = run_with(
-            vec![refused("1", 100, "uregtest1allowed", "error: wallet sync failed")],
+            vec![refused(
+                "1",
+                100,
+                "uregtest1allowed",
+                "error: wallet sync failed",
+            )],
             false,
         );
         assert_eq!(PayerPolicy.check(&broken).verdict, Verdict::Fail);

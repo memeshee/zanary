@@ -5,17 +5,17 @@
 //! node-wallet path crashed the node (see `harness/HARNESS.md`), and the rig's rule is
 //! that every wallet in it is ours. So this tool:
 //!
-//!   1. `addr`   — open (or create) the seed wallet, import the public dev account, and
-//!                 print the account's default transparent receiver (the address the node
-//!                 will mine to via `-mineraddress`) and a fresh Orchard-only receiver.
-//!   2. `sync`   — sync the wallet from the harness indexer (lightwalletd gRPC), scanning
-//!                 compact blocks and refreshing transparent UTXOs.
-//!   3. `shield` — take the wallet's *coinbase* transparent outputs and shield them into
-//!                 an Orchard output **carrying a memo**, using
-//!                 `zcash_client_backend::data_api::wallet::propose_shielding_coinbase`
-//!                 (which exists precisely for this: coinbase-only inputs, no change),
-//!                 then broadcast the signed transaction through the indexer.
-//!   4. `tx`     — print what the indexer knows about a txid (height + raw bytes).
+//! 1. `addr` — open (or create) the seed wallet, import the public dev account, and print the
+//!    account's default transparent receiver (the address the node mines to via `-mineraddress`)
+//!    and a fresh Orchard-only receiver.
+//! 2. `sync` — sync the wallet from the harness indexer (lightwalletd gRPC), scanning compact
+//!    blocks and refreshing transparent UTXOs.
+//! 3. `shield` — take the wallet's *coinbase* transparent outputs and shield them into an Orchard
+//!    output **carrying a memo**, using
+//!    `zcash_client_backend::data_api::wallet::propose_shielding_coinbase` (which exists precisely
+//!    for this: coinbase-only inputs, no change), then broadcast the signed transaction through
+//!    the indexer.
+//! 4. `tx` — print what the indexer knows about a txid (height + raw bytes).
 //!
 //! The wallet database is separate from `zanary-probe wallet`'s
 //! (`$ZANARY_SEED_DB`, default `./data/wallet-seed/zanary-seed.db`) so this tool never
@@ -248,7 +248,7 @@ async fn sync_wallet(
         .await
         .context("GetLatestBlock")?
         .into_inner();
-    let tip_height = u64::from(tip.height);
+    let tip_height = tip.height;
     db.update_chain_tip(BlockHeight::from_u32(tip.height as u32))
         .context("updating wallet chain tip")?;
 
@@ -368,7 +368,10 @@ fn node_rpc(method: &str, params: serde_json::Value) -> Result<serde_json::Value
     let url = env::var("ZANARY_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:18232".into());
     let user = env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into());
     let pass = env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into());
-    let hostport = url.strip_prefix("http://").unwrap_or(&url).trim_end_matches('/');
+    let hostport = url
+        .strip_prefix("http://")
+        .unwrap_or(&url)
+        .trim_end_matches('/');
     let body = serde_json::json!({
         "jsonrpc": "1.0",
         "id": "zanary-seed",
@@ -513,7 +516,7 @@ async fn learn_coinbase() -> Result<()> {
 }
 
 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         bail!("odd-length hex string");
     }
     let mut out = vec![0u8; hex.len() / 2];

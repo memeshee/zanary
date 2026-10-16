@@ -7,9 +7,9 @@
 //! revision of a flow, never about a flow name — and the re-check command for that run's report.
 
 use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
 use zanary_observation::FlowRun;
 use zanary_properties::{Finding, Verdict};
-use std::path::{Path, PathBuf};
 
 /// One run's column in the matrix.
 pub struct RunColumn {
@@ -22,7 +22,10 @@ pub struct RunColumn {
 
 impl RunColumn {
     pub fn count(&self, verdict: Verdict) -> usize {
-        self.findings.iter().filter(|f| f.verdict == verdict).count()
+        self.findings
+            .iter()
+            .filter(|f| f.verdict == verdict)
+            .count()
     }
 
     pub fn verdict(&self, property: &str) -> Option<&Finding> {

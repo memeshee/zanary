@@ -11,11 +11,11 @@
 //!   cargo run -p zanary-report -- index --reports crates/report/fixtures/reports \
 //!     --out crates/report/fixtures/index.golden.html --now 2026-11-01T00:00:00Z
 
+use std::path::PathBuf;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zanary_observation::FlowRun;
 use zanary_properties::Finding;
 use zanary_report::{build_with_claim, hash_report, index::render_index, Report};
-use std::path::PathBuf;
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 const RUN: &str = include_str!("../fixtures/run.json");
 const FINDINGS: &str = include_str!("../fixtures/findings.json");
@@ -89,7 +89,8 @@ fn index_matches_golden_html() {
     let golden = std::fs::read_to_string(&golden_path)
         .unwrap_or_else(|e| panic!("reading {}: {e}", golden_path.display()));
     assert_eq!(
-        html, golden,
+        html,
+        golden,
         "index output drifted from {}; regenerate it with `zanary-report index --reports \
          crates/report/fixtures/reports --out crates/report/fixtures/index.golden.html \
          --now 2026-10-25T00:00:00Z`",
@@ -112,10 +113,22 @@ fn fixture_claims_expire_on_schedule() {
             )
         })
         .collect();
-    assert!(statuses.contains(&("2026-10-10T18:00:00Z", "dead")), "{statuses:?}");
-    assert!(statuses.contains(&("2026-10-10T18:30:00Z", "stale")), "{statuses:?}");
-    assert!(statuses.contains(&("2026-10-10T20:30:00Z", "live")), "{statuses:?}");
-    assert!(statuses.contains(&("2026-10-10T21:05:00Z", "live")), "{statuses:?}");
+    assert!(
+        statuses.contains(&("2026-10-10T18:00:00Z", "dead")),
+        "{statuses:?}"
+    );
+    assert!(
+        statuses.contains(&("2026-10-10T18:30:00Z", "stale")),
+        "{statuses:?}"
+    );
+    assert!(
+        statuses.contains(&("2026-10-10T20:30:00Z", "live")),
+        "{statuses:?}"
+    );
+    assert!(
+        statuses.contains(&("2026-10-10T21:05:00Z", "live")),
+        "{statuses:?}"
+    );
 
     // The receiver-reuse regression: passed in the first run of the revision, failed in the
     // second (both real runs; see docs/REPORT-NOTES.md).

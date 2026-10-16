@@ -17,7 +17,11 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    env,
+    path::{Path, PathBuf},
+};
 
 use zanary_observation::{
     FlowRun, Funding, MerchantEvent, Payment, PaymentKind, Pool, PoolTotals, Receipt,
@@ -36,9 +40,9 @@ use zcash_keys::{
     address::Address,
     keys::{UnifiedAddressRequest, UnifiedFullViewingKey},
 };
-use zip32::DiversifierIndex;
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::{consensus::BranchId, memo::MemoBytes};
+use zip32::DiversifierIndex;
 
 use crate::{
     core::{self, BalanceSnapshot, Probe, WalletProfile},
@@ -158,9 +162,7 @@ struct Jitter {
 impl Jitter {
     fn from_definition(definition: &FlowDefinition) -> Self {
         use rand::SeedableRng;
-        let seed = definition
-            .jitter_seed
-            .unwrap_or_else(|| rand::random::<u64>());
+        let seed = definition.jitter_seed.unwrap_or_else(rand::random::<u64>);
         let (min, max, fixed) = match definition.jitter_blocks {
             Some([min, max]) if min <= max && min >= 1 => (min, max, None),
             Some([min, max]) => {
@@ -220,27 +222,6 @@ impl FlowDefinition {
 // entry point
 // ---------------------------------------------------------------------------
 
-/// What one flow run produced. The CLI wants an exit code; the CI gate
-/// ([`crate::gate`]) wants the numbers and the paths, so the two share one implementation
-/// instead of one shelling out to the other.
-#[derive(Debug, Clone)]
-pub struct FlowOutcome {
-    pub flow_id: String,
-    pub flow_commit: String,
-    pub out_dir: PathBuf,
-    pub pass: usize,
-    pub fail: usize,
-    pub skip: usize,
-    /// The properties that FAILED, in the order the library reported them.
-    pub failed_properties: Vec<String>,
-    pub report_hash: String,
-    pub report_path: PathBuf,
-    pub findings_path: PathBuf,
-    pub run_path: PathBuf,
-    pub verified_at: Option<String>,
-    pub verified_at_height: u32,
-}
-
 /// `zanary-probe flow` — run one definition and record it.
 ///
 /// A failing property is a *result*, not a crash: the run, its findings and its report are all
@@ -263,7 +244,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
 
 /// The body of `flow`: runs the definition and returns the outcome instead of printing a verdict
 /// and exiting.
-pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
+pub async fn run_recording(raw: &[String]) -> Result<crate::record::RunArtifacts> {
     let (definition_path, out_dir, ttl_days) = parse_args(raw)?;
     let text = std::fs::read_to_string(&definition_path)
         .with_context(|| format!("reading the flow definition {}", definition_path.display()))?;
@@ -336,7 +317,8 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     println!(
         "  settlement        : {}",
         if settlement == "batch" {
-            "batch — ONE transaction carries every invoice (a stated disclosure: it links them)".to_string()
+            "batch — ONE transaction carries every invoice (a stated disclosure: it links them)"
+                .to_string()
         } else {
             "per_invoice — one transaction per invoice".to_string()
         }
@@ -401,8 +383,7 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     // The receipt key: derived from the merchant seed at its own account, used for nothing but
     // signing. A receipt that named the wallet's own spend authority would be a linkable identity
     // for the merchant's money; this key names neither.
-    let receipt_key =
-        WalletProfile::merchant(definition.receipt_account).usk(&merchant.network)?;
+    let receipt_key = WalletProfile::merchant(definition.receipt_account).usk(&merchant.network)?;
     println!(
         "  receipt account   : {} (a dedicated receipt key — the wallet attests it, and the \
          attestation is optional to publish)",
@@ -428,7 +409,9 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     // Pool totals at the start, so pool crossings are checkable after the fact.
     let before_pools = node.pool_totals(started_at_height).await?;
     run.pool_totals.push(PoolTotals {
-        height: started_at_height,
+        // The node's own answer about which height these totals belong to, not our loop variable:
+        // the evidence line reads "pool totals @H" and H should be the node's number.
+        height: before_pools.height,
         transparent_zat: before_pools.transparent_zat,
         sapling_zat: before_pools.sapling_zat,
         orchard_zat: before_pools.orchard_zat,
@@ -484,7 +467,7 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
                 &mut jitter,
                 &mut run,
             )
-                .await?
+            .await?
         }
         _ => {
             settle_per_invoice(
@@ -496,7 +479,7 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
                 &mut jitter,
                 &mut run,
             )
-                .await?
+            .await?
         }
     }
 
@@ -505,38 +488,19 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     ops::mine_and_resync(&mut payer, ops::CONFIRM_BLOCKS).await?;
     let ended_at_height = node.block_count().await? as u32;
     let after_pools = node.pool_totals(ended_at_height).await?;
-    run.ended_at_height = ended_at_height;
+    run.ended_at_height = after_pools.height;
     run.pool_totals.push(PoolTotals {
-        height: ended_at_height,
+        height: after_pools.height,
         transparent_zat: after_pools.transparent_zat,
         sapling_zat: after_pools.sapling_zat,
         orchard_zat: after_pools.orchard_zat,
     });
 
     // --- record: run.json, findings.json, report.json -------------------------------
-    std::fs::create_dir_all(&out_dir)
-        .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
-    let run_path = out_dir.join("run.json");
-    std::fs::write(&run_path, serde_json::to_string_pretty(&run)?)
-        .with_context(|| format!("writing {}", run_path.display()))?;
-
+    // One implementation of "record a run", shared with the bounded payer: the observation, the
+    // findings, then the canonical report a stranger verifies (docs/BOUNDED-PAYER.md).
+    let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
     let findings = zanary_properties::evaluate(&run);
-    let findings_path = out_dir.join("findings.json");
-    std::fs::write(&findings_path, serde_json::to_string_pretty(&findings)?)
-        .with_context(|| format!("writing {}", findings_path.display()))?;
-
-    let verified_at = utc_now_rfc3339()?;
-    let report = zanary_report::build_with_claim(
-        &run,
-        findings.clone(),
-        Some(verified_at.clone()),
-        // A claim without a clock cannot expire, and `--ttl-days` is how a CI job says how long
-        // it is willing to stand behind this run (docs/CLAIMS.md).
-        ttl_days.map(|days| days * 86_400),
-    )?;
-    let report_path = out_dir.join("report.json");
-    std::fs::write(&report_path, zanary_report::canonical_json(&report)?)
-        .with_context(|| format!("writing {}", report_path.display()))?;
 
     // --- summary --------------------------------------------------------------------
     println!();
@@ -595,30 +559,15 @@ pub async fn run_recording(raw: &[String]) -> Result<FlowOutcome> {
     }
     println!();
     println!("  {pass} pass · {fail} fail · {skip} skip");
-    println!("  report            : {}", report_path.display());
-    println!("  report hash       : {}", report.report_hash);
-    println!("  run               : {}", run_path.display());
-    println!("  findings          : {}", findings_path.display());
+    println!("  report            : {}", artifacts.report_path.display());
+    println!("  report hash       : {}", artifacts.report_hash);
+    println!("  run               : {}", artifacts.run_path.display());
+    println!(
+        "  findings          : {}",
+        artifacts.findings_path.display()
+    );
 
-    Ok(FlowOutcome {
-        flow_id: run.flow_id.clone(),
-        flow_commit: flow_commit.clone(),
-        out_dir: out_dir.clone(),
-        pass,
-        fail,
-        skip,
-        failed_properties: findings
-            .iter()
-            .filter(|finding| matches!(finding.verdict, zanary_properties::Verdict::Fail))
-            .map(|finding| finding.property.clone())
-            .collect(),
-        report_hash: report.report_hash.clone(),
-        report_path,
-        findings_path,
-        run_path,
-        verified_at: Some(verified_at),
-        verified_at_height: ended_at_height,
-    })
+    Ok(artifacts)
 }
 
 // ---------------------------------------------------------------------------
@@ -685,8 +634,7 @@ async fn settle_per_invoice(
         ops::check_policy(policy, required, revealed, "payment")?;
         let memo = MemoBytes::from_bytes(memo_text.as_bytes())
             .map_err(|e| anyhow!("memo rejected: {e}"))?;
-        let proposal =
-            ops::propose_shielded_payment(payer, &recipient, invoice.amount_zat, &memo)?;
+        let proposal = ops::propose_shielded_payment(payer, &recipient, invoice.amount_zat, &memo)?;
         let fee_zat = proposal.steps().first().balance().fee_required().into_u64();
         let txid = ops::build_sign_broadcast(payer, &proposal, OvkPolicy::Sender).await?;
         println!("  txid              : {txid}");
@@ -1157,16 +1105,16 @@ fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf, Option<u64>)> {
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--definition" => {
-                definition = Some(PathBuf::from(
-                    iter.next()
-                        .ok_or_else(|| anyhow!("--definition needs a path\nusage: {USAGE}"))?,
-                ));
+                definition =
+                    Some(PathBuf::from(iter.next().ok_or_else(|| {
+                        anyhow!("--definition needs a path\nusage: {USAGE}")
+                    })?));
             }
             "--out" => {
-                out = Some(PathBuf::from(
-                    iter.next()
-                        .ok_or_else(|| anyhow!("--out needs a path\nusage: {USAGE}"))?,
-                ));
+                out =
+                    Some(PathBuf::from(iter.next().ok_or_else(|| {
+                        anyhow!("--out needs a path\nusage: {USAGE}")
+                    })?));
             }
             "--ttl-days" => {
                 let value = iter
@@ -1181,7 +1129,8 @@ fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf, Option<u64>)> {
             other => bail!("unknown argument `{other}`\nusage: {USAGE}"),
         }
     }
-    let definition = definition.ok_or_else(|| anyhow!("--definition is required\nusage: {USAGE}"))?;
+    let definition =
+        definition.ok_or_else(|| anyhow!("--definition is required\nusage: {USAGE}"))?;
     let out = out.unwrap_or_else(|| default_out_dir(&definition));
     Ok((definition, out, ttl_days))
 }
@@ -1196,7 +1145,9 @@ fn issue_receiver(merchant: &mut Probe) -> Result<String> {
         .db
         .get_next_available_address(merchant.account, UnifiedAddressRequest::ORCHARD)
         .context("generating the merchant's next diversified receiver")?
-        .ok_or_else(|| anyhow!("the merchant wallet could not generate another Orchard receiver"))?;
+        .ok_or_else(|| {
+            anyhow!("the merchant wallet could not generate another Orchard receiver")
+        })?;
     println!("  merchant diversifier: {index:?}");
     Ok(address.encode(&merchant.network))
 }
@@ -1268,19 +1219,21 @@ pub async fn top_up_for_target(profile: WalletProfile, at_least: u64) -> Result<
 ///
 /// The wallet handle is closed around `shield`/`fund`: they are the commands a human runs, and they
 /// open the wallet themselves, so two connections never contend for the same SQLite file.
-async fn top_up_payer(open_payer: Probe, definition: &FlowDefinition, target: u64) -> Result<Probe> {
+async fn top_up_payer(
+    open_payer: Probe,
+    definition: &FlowDefinition,
+    target: u64,
+) -> Result<Probe> {
     // The handle the caller passed in is closed here and reopened below, so the one wallet file is
     // never open twice while `shield`/`fund` do their own opening.
     drop(open_payer);
     let profile = WalletProfile::dev(definition.payer_account);
     let mut payer = top_up_payer_impl(profile.clone(), target).await?;
-    if funding_shortfall(&payer, &definition)?.is_some() {
+    if funding_shortfall(&payer, definition)?.is_some() {
         // The target was enough for the definition's invoices but the wallet still cannot cover them:
         // say so with the numbers rather than letting the payment path fail later with "insufficient
         // funds", which reads like a rig bug.
-        println!(
-            "  funding           : the topping up did not cover the flow — shielding again"
-        );
+        println!("  funding           : the topping up did not cover the flow — shielding again");
         drop(payer);
         ops::shield(&[]).await?;
         payer = core::bootstrap_with(profile).await?;
@@ -1326,13 +1279,21 @@ async fn top_up_payer_impl(profile: WalletProfile, target: u64) -> Result<Probe>
     }
 
     drop(payer);
-    ops::fund(&["--zec".to_string(), format!("{}", target as f64 / 100_000_000.0)]).await?;
+    ops::fund(&[
+        "--zec".to_string(),
+        format!("{}", target as f64 / 100_000_000.0),
+    ])
+    .await?;
     ops::shield(&[]).await?;
     core::bootstrap_with(profile).await
 }
 
 fn funding_target(definition: &FlowDefinition, missing: u64) -> u64 {
-    let needed: u64 = definition.invoices.iter().map(|i| i.amount_zat).sum::<u64>()
+    let needed: u64 = definition
+        .invoices
+        .iter()
+        .map(|i| i.amount_zat)
+        .sum::<u64>()
         + fee_budget_zat(definition.invoices.len(), settlement_of(definition));
     definition.funding_zat.max(needed).max(missing)
 }
@@ -1355,10 +1316,7 @@ pub(crate) fn record_funding(payer: &Probe) -> Result<Vec<Funding>> {
     let target = TargetHeight::from(tip + 1);
     let orchard_receiver = payer
         .ufvk
-        .find_address(
-            DiversifierIndex::from(0u32),
-            UnifiedAddressRequest::ORCHARD,
-        )
+        .find_address(DiversifierIndex::from(0u32), UnifiedAddressRequest::ORCHARD)
         .map(|(address, _)| address.encode(&payer.network))
         .map_err(|e| anyhow!("deriving the payer's Orchard receiver: {e}"))?;
     let receivers = payer
@@ -1431,10 +1389,14 @@ async fn merchant_outputs(
     if raw.data.is_empty() {
         bail!("the indexer returned an empty transaction for {txid}");
     }
-    let height = (raw.height != 0).then(|| zcash_protocol::consensus::BlockHeight::from_u32(raw.height as u32));
+    let height = (raw.height != 0)
+        .then(|| zcash_protocol::consensus::BlockHeight::from_u32(raw.height as u32));
     let tx = Transaction::read(
         &raw.data[..],
-        BranchId::for_height(&merchant.network, height.unwrap_or(zcash_protocol::consensus::BlockHeight::from_u32(1))),
+        BranchId::for_height(
+            &merchant.network,
+            height.unwrap_or(zcash_protocol::consensus::BlockHeight::from_u32(1)),
+        ),
     )
     .context("parsing the transaction the indexer returned")?;
 
@@ -1444,7 +1406,11 @@ async fn merchant_outputs(
         .get_account_ids()
         .context("listing the merchant's accounts")?
     {
-        if let Some(account) = merchant.db.get_account(account_id).context("reading an account")? {
+        if let Some(account) = merchant
+            .db
+            .get_account(account_id)
+            .context("reading an account")?
+        {
             if let Some(ufvk) = account.ufvk() {
                 ufvks.insert(account.id(), ufvk.clone());
             }
@@ -1667,15 +1633,16 @@ pub async fn issue_invoice(raw: &[String]) -> Result<()> {
         .with_context(|| format!("writing the invoice to {out}"))?;
 
     println!("  invoice           : {invoice_id}");
-    println!("  amount            : {}", core::format_zats_signed(amount_zat as i128));
+    println!(
+        "  amount            : {}",
+        core::format_zats_signed(amount_zat as i128)
+    );
     println!("  receiver (fresh)  : {receiver}");
     println!("  memo              : {memo}");
     println!("  ZIP-321 URI       : {uri}");
     println!("  issued at height  : {tip}");
     println!("  written to        : {out}");
-    println!(
-        "\n  next: zanary-probe pay --invoice {out} --policy AllowRevealedAmounts"
-    );
+    println!("\n  next: zanary-probe pay --invoice {out} --policy AllowRevealedAmounts");
     Ok(())
 }
 
@@ -1707,9 +1674,10 @@ pub async fn verify_invoice(raw: &[String]) -> Result<()> {
             other => bail!("unexpected argument for verify-invoice: {other}\nUSAGE: {USAGE}"),
         }
     }
-    let invoice_path =
-        invoice_path.ok_or_else(|| anyhow!("verify-invoice needs --invoice <file>\nUSAGE: {USAGE}"))?;
-    let txid_hex = txid_hex.ok_or_else(|| anyhow!("verify-invoice needs --txid <txid>\nUSAGE: {USAGE}"))?;
+    let invoice_path = invoice_path
+        .ok_or_else(|| anyhow!("verify-invoice needs --invoice <file>\nUSAGE: {USAGE}"))?;
+    let txid_hex =
+        txid_hex.ok_or_else(|| anyhow!("verify-invoice needs --txid <txid>\nUSAGE: {USAGE}"))?;
     let invoice: Invoice = serde_json::from_str(
         &std::fs::read_to_string(&invoice_path)
             .with_context(|| format!("reading the invoice {invoice_path}"))?,
@@ -1728,9 +1696,13 @@ pub async fn verify_invoice(raw: &[String]) -> Result<()> {
     bytes.reverse();
     let txid = zcash_protocol::TxId::from_bytes(bytes);
 
-    let mut merchant = core::bootstrap_with(WalletProfile::merchant(invoice.merchant_account)).await?;
+    let mut merchant =
+        core::bootstrap_with(WalletProfile::merchant(invoice.merchant_account)).await?;
     println!("  invoice           : {}", invoice.invoice_id);
-    println!("  expecting         : {}", core::format_zats_signed(invoice.amount_zat as i128));
+    println!(
+        "  expecting         : {}",
+        core::format_zats_signed(invoice.amount_zat as i128)
+    );
     match merchant_read(&mut merchant, txid, invoice.amount_zat).await? {
         Some(read) => {
             let binds = read.memo_text.contains(&invoice.invoice_id);
@@ -1740,10 +1712,7 @@ pub async fn verify_invoice(raw: &[String]) -> Result<()> {
             );
             println!("  orchard output    : {}", read.output_index);
             println!("  memo read         : {}", read.memo_text);
-            println!(
-                "  binds invoice id  : {}",
-                if binds { "yes" } else { "NO" }
-            );
+            println!("  binds invoice id  : {}", if binds { "yes" } else { "NO" });
             if !binds {
                 bail!(
                     "the merchant read the payment but its memo does not name invoice {} — \
@@ -1751,7 +1720,9 @@ pub async fn verify_invoice(raw: &[String]) -> Result<()> {
                     invoice.invoice_id
                 );
             }
-            println!("\n  PAID — the merchant's own wallet read this invoice's id in the payment's memo");
+            println!(
+                "\n  PAID — the merchant's own wallet read this invoice's id in the payment's memo"
+            );
             Ok(())
         }
         None => bail!(
@@ -1768,7 +1739,8 @@ impl Invoice {
     /// intake path — a payer acts on the standard, not on this rig's JSON.
     pub fn from_path(path: &str) -> Result<Self> {
         let invoice: Invoice = serde_json::from_str(
-            &std::fs::read_to_string(path).with_context(|| format!("reading the invoice {path}"))?,
+            &std::fs::read_to_string(path)
+                .with_context(|| format!("reading the invoice {path}"))?,
         )
         .with_context(|| format!("parsing the invoice {path}"))?;
         let request = zip321::TransactionRequest::from_uri(&invoice.uri)
@@ -1804,7 +1776,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 /// Decodes lowercase hex into bytes, for txids that arrive as text.
 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         bail!("hex string has an odd length");
     }
     (0..hex.len())
@@ -1814,16 +1786,4 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>> {
                 .map_err(|e| anyhow!("invalid hex at byte {}: {e}", i / 2))
         })
         .collect()
-}
-
-/// Current UTC time as RFC3339, for the report's claim clock.
-fn utc_now_rfc3339() -> Result<String> {
-    let output = std::process::Command::new("date")
-        .args(["-u", "+%Y-%m-%dT%H:%M:%SZ"])
-        .output()
-        .context("running `date` for the claim clock")?;
-    if !output.status.success() {
-        bail!("`date -u` failed while building the claim clock");
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }

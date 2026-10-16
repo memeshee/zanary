@@ -12,10 +12,10 @@
 //! (`zanary-report index`).
 
 use anyhow::Result;
-use zanary_observation::FlowRun;
-use zanary_properties::Finding;
 use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use zanary_observation::FlowRun;
+use zanary_properties::Finding;
 
 pub mod anchor;
 pub mod index;
@@ -101,7 +101,11 @@ impl Evidence {
                 Some(h) => format!("tx {txid}@{h}"),
                 None => format!("tx {txid}"),
             },
-            Evidence::Receiver { address, first_seen_payment, .. } => {
+            Evidence::Receiver {
+                address,
+                first_seen_payment,
+                ..
+            } => {
                 format!("receiver {address} ({first_seen_payment})")
             }
             Evidence::Memo { txid, .. } => format!("memo {txid}"),
@@ -294,7 +298,8 @@ pub fn claim_status(report: &Report, now: OffsetDateTime) -> Option<ClaimStatus>
     if now < expires {
         Some(ClaimStatus::Live)
     } else {
-        let ttl = time::Duration::seconds(i64::try_from(claim_ttl_seconds(report)).unwrap_or(i64::MAX));
+        let ttl =
+            time::Duration::seconds(i64::try_from(claim_ttl_seconds(report)).unwrap_or(i64::MAX));
         if now < expires + ttl {
             Some(ClaimStatus::Stale)
         } else {
@@ -310,12 +315,28 @@ mod tests {
     #[test]
     fn evidence_root_is_deterministic_and_order_sensitive() {
         let a = vec![
-            Evidence::Transaction { txid: "aa".into(), height: Some(1), batch_size: None },
-            Evidence::Transaction { txid: "bb".into(), height: Some(2), batch_size: None },
+            Evidence::Transaction {
+                txid: "aa".into(),
+                height: Some(1),
+                batch_size: None,
+            },
+            Evidence::Transaction {
+                txid: "bb".into(),
+                height: Some(2),
+                batch_size: None,
+            },
         ];
         let b = vec![
-            Evidence::Transaction { txid: "bb".into(), height: Some(2), batch_size: None },
-            Evidence::Transaction { txid: "aa".into(), height: Some(1), batch_size: None },
+            Evidence::Transaction {
+                txid: "bb".into(),
+                height: Some(2),
+                batch_size: None,
+            },
+            Evidence::Transaction {
+                txid: "aa".into(),
+                height: Some(1),
+                batch_size: None,
+            },
         ];
         assert_eq!(evidence_root(&a).unwrap(), evidence_root(&a).unwrap());
         assert_ne!(evidence_root(&a).unwrap(), evidence_root(&b).unwrap());
@@ -337,9 +358,18 @@ mod tests {
             report_hash: String::new(),
         };
         let t = |s: &str| OffsetDateTime::parse(s, &Rfc3339).unwrap();
-        assert_eq!(claim_status(&report, t("2026-01-01T12:00:00Z")), Some(ClaimStatus::Live));
-        assert_eq!(claim_status(&report, t("2026-01-02T00:00:00Z")), Some(ClaimStatus::Stale));
-        assert_eq!(claim_status(&report, t("2026-01-03T00:00:00Z")), Some(ClaimStatus::Dead));
+        assert_eq!(
+            claim_status(&report, t("2026-01-01T12:00:00Z")),
+            Some(ClaimStatus::Live)
+        );
+        assert_eq!(
+            claim_status(&report, t("2026-01-02T00:00:00Z")),
+            Some(ClaimStatus::Stale)
+        );
+        assert_eq!(
+            claim_status(&report, t("2026-01-03T00:00:00Z")),
+            Some(ClaimStatus::Dead)
+        );
         // No clock → no status.
         report.verified_at = None;
         assert_eq!(claim_status(&report, t("2026-01-01T12:00:00Z")), None);

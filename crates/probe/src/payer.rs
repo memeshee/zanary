@@ -29,7 +29,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use std::path::{Path, PathBuf};
-use zanary_observation::{Payment, PaymentKind, PayerDecision, PayerGrant, PayerRun, Pool};
+use zanary_observation::{PayerDecision, PayerGrant, PayerRun, Payment, PaymentKind, Pool};
 use zcash_client_backend::{address::Address, wallet::OvkPolicy};
 use zcash_protocol::memo::MemoBytes;
 
@@ -62,11 +62,11 @@ pub struct Grant {
 }
 
 fn default_budget() -> u64 {
-    500_000_00 // 0.5 ZEC
+    50_000_000 // 0.5 ZEC, in zatoshis
 }
 
 fn default_cap() -> u64 {
-    100_000_00 // 0.1 ZEC per payment
+    10_000_000 // 0.1 ZEC per payment
 }
 
 /// One decision, with the rule that produced it, phrased so a reader of the ledger knows why.
@@ -81,12 +81,7 @@ pub struct Decision {
 /// Pure on purpose: this is the part of a bounded payer that must never depend on a wallet, a clock or
 /// a network, and the tests below pin every rule. `now` is passed in rather than read, so "the grant
 /// expired" is testable without waiting for it.
-pub fn decide(
-    grant: &PayerGrant,
-    spent_zat: u64,
-    invoice: &Invoice,
-    now: &str,
-) -> Decision {
+pub fn decide(grant: &PayerGrant, spent_zat: u64, invoice: &Invoice, now: &str) -> Decision {
     if grant.revoked {
         return Decision {
             allowed: false,
@@ -173,7 +168,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
         .with_context(|| format!("parsing the grant {}", grant_path.display()))?;
     let now = match now_override {
         Some(ts) => ts,
-        None => utc_now_rfc3339()?,
+        None => crate::record::utc_now_rfc3339()?,
     };
     let expires_at = match grant_file.expires_at.clone() {
         Some(ts) => ts,
@@ -239,7 +234,11 @@ pub async fn run(raw: &[String]) -> Result<()> {
             (None, false) => "not configured".to_string(),
         }
     );
-    println!("  invoices          : {} in {}", invoices.len(), invoices_path.display());
+    println!(
+        "  invoices          : {} in {}",
+        invoices.len(),
+        invoices_path.display()
+    );
     println!();
 
     // Decide everything first, then pay: the ledger a reviewer reads is complete before any money
@@ -304,7 +303,8 @@ pub async fn run(raw: &[String]) -> Result<()> {
         })?;
         let memo = MemoBytes::from_bytes(invoice.memo.as_bytes())
             .map_err(|e| anyhow!("the invoice's memo was rejected: {e}"))?;
-        let proposal = ops::propose_shielded_payment(&mut payer, &recipient, invoice.amount_zat, &memo)?;
+        let proposal =
+            ops::propose_shielded_payment(&mut payer, &recipient, invoice.amount_zat, &memo)?;
         let txid = ops::build_sign_broadcast(&mut payer, &proposal, OvkPolicy::Sender).await?;
         ops::mine_and_resync(&mut payer, ops::CONFIRM_BLOCKS).await?;
         let height = mined_height_of(&mut payer, txid).await?;
@@ -312,10 +312,15 @@ pub async fn run(raw: &[String]) -> Result<()> {
             "  paid              : {} · {} · height {}",
             txid,
             core::format_zats_signed(invoice.amount_zat as i128),
-            height.map(|h| h.to_string()).unwrap_or_else(|| "unmined".into())
+            height
+                .map(|h| h.to_string())
+                .unwrap_or_else(|| "unmined".into())
         );
 
-        if let Some(entry) = decisions.iter_mut().find(|d| d.invoice_id == invoice.invoice_id) {
+        if let Some(entry) = decisions
+            .iter_mut()
+            .find(|d| d.invoice_id == invoice.invoice_id)
+        {
             entry.txid = Some(txid.to_string());
             entry.height = height;
         }
@@ -347,12 +352,20 @@ pub async fn run(raw: &[String]) -> Result<()> {
             policy: Some("FullPrivacy".to_string()),
             observed: std::collections::BTreeMap::from([(
                 "payer".to_string(),
-                format!("grant {} (cap {}, budget {})", grant_path.display(), grant.per_payment_cap_zat, grant.budget_zat),
+                format!(
+                    "grant {} (cap {}, budget {})",
+                    grant_path.display(),
+                    grant.per_payment_cap_zat,
+                    grant.budget_zat
+                ),
             )]),
         });
     }
     for decision in decisions.iter().filter(|d| !d.paid()) {
-        println!("  refused           : {} — {}", decision.invoice_id, decision.reason);
+        println!(
+            "  refused           : {} — {}",
+            decision.invoice_id, decision.reason
+        );
         ledger.push(
             serde_json::json!({
                 "invoice_id": decision.invoice_id,
@@ -377,9 +390,7 @@ pub async fn run(raw: &[String]) -> Result<()> {
     };
     let run = zanary_observation::FlowRun {
         flow_id: format!("zanary-payer/{}", short_commit(&invoices_path)),
-        flow_commit: zanary_report::sha256_hex(
-            serde_json::to_string(&decisions)?.as_bytes(),
-        ),
+        flow_commit: zanary_report::sha256_hex(serde_json::to_string(&decisions)?.as_bytes()),
         chain: "regtest".to_string(),
         started_at_height,
         ended_at_height,
@@ -395,11 +406,8 @@ pub async fn run(raw: &[String]) -> Result<()> {
     std::fs::create_dir_all(&out_dir)
         .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
     let ledger_path = out_dir.join("ledger.jsonl");
-    std::fs::write(
-        &ledger_path,
-        format!("{}\n", ledger.join("\n")),
-    )
-    .with_context(|| format!("writing {}", ledger_path.display()))?;
+    std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))
+        .with_context(|| format!("writing {}", ledger_path.display()))?;
     let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
     let report = crate::record::read_report(&out_dir)?;
     let expires_at = zanary_report::expires_at_rfc3339(&report);
@@ -422,13 +430,20 @@ pub async fn run(raw: &[String]) -> Result<()> {
         decisions.len() - refused,
         refused,
         core::format_zats_signed(
-            decisions.iter().filter(|d| d.paid()).map(|d| d.amount_zat).sum::<u64>() as i128
+            decisions
+                .iter()
+                .filter(|d| d.paid())
+                .map(|d| d.amount_zat)
+                .sum::<u64>() as i128
         ),
         core::format_zats_signed(grant.budget_zat as i128)
     );
     println!("  ledger            : {}", ledger_path.display());
     println!("  run               : {}", artifacts.run_path.display());
-    println!("  findings          : {}", artifacts.findings_path.display());
+    println!(
+        "  findings          : {}",
+        artifacts.findings_path.display()
+    );
     println!("  report            : {}", artifacts.report_path.display());
     println!("  report hash       : {}", artifacts.report_hash);
     println!(
@@ -546,13 +561,6 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn utc_now_rfc3339() -> Result<String> {
-    use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-    OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .map_err(|e| anyhow!("formatting the current time: {e}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -591,7 +599,11 @@ mod tests {
     fn refuses_over_the_cap() {
         let decision = decide(&grant(), 0, &invoice("1", 401, "uregtest1merchant"), NOW);
         assert!(!decision.allowed);
-        assert!(decision.reason.contains("per-payment cap"), "{}", decision.reason);
+        assert!(
+            decision.reason.contains("per-payment cap"),
+            "{}",
+            decision.reason
+        );
     }
 
     #[test]
@@ -610,7 +622,12 @@ mod tests {
 
     #[test]
     fn refuses_after_expiry() {
-        let decision = decide(&grant(), 0, &invoice("1", 100, "uregtest1merchant"), "2026-11-01T00:00:01Z");
+        let decision = decide(
+            &grant(),
+            0,
+            &invoice("1", 100, "uregtest1merchant"),
+            "2026-11-01T00:00:01Z",
+        );
         assert!(!decision.allowed);
         assert!(decision.reason.contains("expired"), "{}", decision.reason);
     }
@@ -621,7 +638,11 @@ mod tests {
         grant.revoked = true;
         let decision = decide(&grant, 0, &invoice("1", 1, "uregtest1merchant"), NOW);
         assert!(!decision.allowed);
-        assert!(decision.reason.contains("kill switch"), "{}", decision.reason);
+        assert!(
+            decision.reason.contains("kill switch"),
+            "{}",
+            decision.reason
+        );
     }
 
     #[test]

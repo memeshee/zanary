@@ -10,6 +10,8 @@
 //! ```
 
 use anyhow::{Context, Result};
+use std::{fs, path::PathBuf};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zanary_observation::FlowRun;
 use zanary_properties::Finding;
 use zanary_report::{
@@ -18,8 +20,6 @@ use zanary_report::{
     verify::{verify_report, VerifyOptions},
     Report,
 };
-use std::{fs, path::PathBuf};
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 /// The bundled fixture run: a real run recorded against the local harness chain
 /// (`crates/report/fixtures/run.json`). `sample-run` emits it so the whole pipeline can be
@@ -93,14 +93,17 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
                 expected_signer = args.get(i + 1).cloned();
                 i += 2;
             }
-            other => return Err(anyhow::anyhow!("unexpected argument for verify-receipt: {other}")),
+            other => {
+                return Err(anyhow::anyhow!(
+                    "unexpected argument for verify-receipt: {other}"
+                ))
+            }
         }
     }
 
-    let text = std::fs::read_to_string(path)
-        .with_context(|| format!("reading {path}"))?;
-    let receipt: zanary_observation::Receipt = serde_json::from_str(&text)
-        .with_context(|| format!("parsing {path} as a receipt"))?;
+    let text = std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?;
+    let receipt: zanary_observation::Receipt =
+        serde_json::from_str(&text).with_context(|| format!("parsing {path} as a receipt"))?;
 
     println!("receipt   : {path}");
     println!("format    : {}", receipt.format);
@@ -202,8 +205,8 @@ fn verify_receipt(args: &[String]) -> Result<i32> {
 /// One property × flow table over every run directory under `--runs`. The submission artifact: the
 /// private flows and the control side by side, each column pinned to its `flow_commit`.
 fn matrix(args: &[String]) -> Result<i32> {
-    let runs = arg_value(args, "--runs")
-        .ok_or_else(|| anyhow::anyhow!("matrix needs --runs <dir>"))?;
+    let runs =
+        arg_value(args, "--runs").ok_or_else(|| anyhow::anyhow!("matrix needs --runs <dir>"))?;
     let out =
         arg_value(args, "--out").ok_or_else(|| anyhow::anyhow!("matrix needs --out <file.md>"))?;
     let columns = zanary_report::matrix::collect(std::path::Path::new(runs))?;
@@ -226,11 +229,7 @@ fn matrix(args: &[String]) -> Result<i32> {
             column.count(Verdict::Skip),
         );
     }
-    let properties = columns
-        .iter()
-        .map(|c| c.findings.len())
-        .max()
-        .unwrap_or(0);
+    let properties = columns.iter().map(|c| c.findings.len()).max().unwrap_or(0);
     println!(
         "\n  matrix: {out} — {} run(s) × {properties} property(ies)",
         columns.len()
@@ -322,7 +321,9 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
     }
     let node = match arg_value(args, "--node") {
         Some(url) => zanary_report::node::NodeRpc::new(
-            url.strip_prefix("http://").unwrap_or(url).trim_end_matches('/'),
+            url.strip_prefix("http://")
+                .unwrap_or(url)
+                .trim_end_matches('/'),
             std::env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into()),
             std::env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into()),
         ),
@@ -387,7 +388,10 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
         ));
     };
 
-    println!("zanary-report verify-anchor — evidence root {}", short(&root));
+    println!(
+        "zanary-report verify-anchor — evidence root {}",
+        short(&root)
+    );
     println!("  chain             : {chain} (scanning from height {since})");
     println!();
     let outcome = zanary_report::anchor::scan(&node, &chain, &beacon_ufvk, since)
@@ -410,7 +414,9 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
                 format!(
                     "no anchor memo in blocks {}..={} carries this evidence root ({} anchor \
                      memo(s) were readable, none of them this one)",
-                    outcome.since, outcome.tip, outcome.hits.len()
+                    outcome.since,
+                    outcome.tip,
+                    outcome.hits.len()
                 ),
             ));
         }
@@ -431,8 +437,7 @@ fn verify_anchor(args: &[String]) -> Result<i32> {
                         "{} anchors carry this root; the earliest is the timestamp, later copies \
                          (heights {}) prove nothing extra",
                         hits.len(),
-                        hits
-                            .iter()
+                        hits.iter()
                             .skip(1)
                             .map(|h| h.height.to_string())
                             .collect::<Vec<_>>()
@@ -513,15 +518,16 @@ async fn verify(args: &[String]) -> Result<i32> {
     let path = args
         .get(2)
         .ok_or_else(|| anyhow::anyhow!("verify needs a report path"))?;
-    let report: Report = serde_json::from_str(
-        &fs::read_to_string(path).with_context(|| format!("reading {path}"))?,
-    )
-    .with_context(|| format!("parsing {path} as a report"))?;
+    let report: Report =
+        serde_json::from_str(&fs::read_to_string(path).with_context(|| format!("reading {path}"))?)
+            .with_context(|| format!("parsing {path} as a report"))?;
 
     let mut opts = VerifyOptions::default();
     if let Some(url) = arg_value(args, "--node") {
         opts.node = zanary_report::node::NodeRpc::new(
-            url.strip_prefix("http://").unwrap_or(url).trim_end_matches('/'),
+            url.strip_prefix("http://")
+                .unwrap_or(url)
+                .trim_end_matches('/'),
             std::env::var("ZANARY_NODE_USER").unwrap_or_else(|_| "zanary".into()),
             std::env::var("ZANARY_NODE_PASS").unwrap_or_else(|_| "zanary".into()),
         );
@@ -543,7 +549,11 @@ async fn verify(args: &[String]) -> Result<i32> {
         report.chain,
         report.verified_at_height,
         report.evidence.len(),
-        if report.evidence.len() == 1 { "y" } else { "ies" },
+        if report.evidence.len() == 1 {
+            "y"
+        } else {
+            "ies"
+        },
     );
     println!();
 
@@ -573,7 +583,8 @@ async fn verify(args: &[String]) -> Result<i32> {
 }
 
 fn build(args: &[String]) -> Result<i32> {
-    let run_path = arg_value(args, "--run").ok_or_else(|| anyhow::anyhow!("build needs --run <run.json>"))?;
+    let run_path =
+        arg_value(args, "--run").ok_or_else(|| anyhow::anyhow!("build needs --run <run.json>"))?;
     let run: FlowRun = serde_json::from_str(
         &fs::read_to_string(run_path).with_context(|| format!("reading {run_path}"))?,
     )
@@ -612,10 +623,23 @@ fn build(args: &[String]) -> Result<i32> {
 
     let root = zanary_report::evidence_root(&report.evidence)?;
     println!("built {}", out.display());
-    println!("  flow        : {} @ {}", report.flow_id, short(&report.flow_commit));
-    println!("  chain       : {} (verified at height {})", report.chain, report.verified_at_height);
-    println!("  verified_at : {}", report.verified_at.as_deref().unwrap_or("(none)"));
-    println!("  ttl         : {}d", zanary_report::claim_ttl_seconds(&report) / 86_400);
+    println!(
+        "  flow        : {} @ {}",
+        report.flow_id,
+        short(&report.flow_commit)
+    );
+    println!(
+        "  chain       : {} (verified at height {})",
+        report.chain, report.verified_at_height
+    );
+    println!(
+        "  verified_at : {}",
+        report.verified_at.as_deref().unwrap_or("(none)")
+    );
+    println!(
+        "  ttl         : {}d",
+        zanary_report::claim_ttl_seconds(&report) / 86_400
+    );
     println!("  findings    : {}", report.findings.len());
     println!("  evidence    : {} entries", report.evidence.len());
     println!("  report_hash : {}", report.report_hash);
@@ -638,8 +662,10 @@ fn sample_run(args: &[String]) -> Result<i32> {
 }
 
 fn index(args: &[String]) -> Result<i32> {
-    let dir = arg_value(args, "--reports").ok_or_else(|| anyhow::anyhow!("index needs --reports <dir>"))?;
-    let out = arg_value(args, "--out").ok_or_else(|| anyhow::anyhow!("index needs --out <index.html>"))?;
+    let dir = arg_value(args, "--reports")
+        .ok_or_else(|| anyhow::anyhow!("index needs --reports <dir>"))?;
+    let out = arg_value(args, "--out")
+        .ok_or_else(|| anyhow::anyhow!("index needs --out <index.html>"))?;
     let now = match arg_value(args, "--now") {
         Some(ts) => parse_ts(ts)?,
         None => OffsetDateTime::now_utc(),
@@ -667,7 +693,8 @@ fn index(args: &[String]) -> Result<i32> {
 
     let mut reports = Vec::new();
     for path in &files {
-        let text = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let text =
+            fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         match serde_json::from_str::<Report>(&text) {
             Ok(report) => reports.push(report),
             Err(e) => eprintln!("warning: skipping {}: {e}", path.display()),
@@ -706,11 +733,23 @@ fn index(args: &[String]) -> Result<i32> {
     let html = render_index_with_anchors(&reports, &anchors, now)?;
     fs::write(out, html).with_context(|| format!("writing {out}"))?;
     let (claims, regressions) = zanary_report::index::index_claims(&reports, now);
-    let live = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Live)).count();
-    let stale = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Stale)).count();
-    let dead = claims.iter().filter(|c| c.status == Some(zanary_report::ClaimStatus::Dead)).count();
+    let live = claims
+        .iter()
+        .filter(|c| c.status == Some(zanary_report::ClaimStatus::Live))
+        .count();
+    let stale = claims
+        .iter()
+        .filter(|c| c.status == Some(zanary_report::ClaimStatus::Stale))
+        .count();
+    let dead = claims
+        .iter()
+        .filter(|c| c.status == Some(zanary_report::ClaimStatus::Dead))
+        .count();
     println!("indexed {} report(s) → {out}", reports.len());
-    println!("  live {live} · stale {stale} · dead {dead} · regressions {}", regressions.len());
+    println!(
+        "  live {live} · stale {stale} · dead {dead} · regressions {}",
+        regressions.len()
+    );
     println!(
         "  anchors: {} report(s) carry an anchor record (the rest are unanchored evidence)",
         anchors.len()

@@ -13,8 +13,8 @@
 //! one explicit `--now`, no ambient clock reads.
 
 use anyhow::Result;
-use zanary_properties::{Severity, Verdict};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use zanary_properties::{Severity, Verdict};
 
 use crate::{claim_status, claim_ttl_seconds, expires_at, hash_report, ClaimStatus, Report};
 
@@ -54,9 +54,12 @@ fn order_key(report: &Report) -> (String, String, i128, u32, String) {
 }
 
 /// Index a set of reports: stable ordering, per-claim status, supersede links, regressions.
-pub fn index_claims<'a>(reports: &'a [Report], now: OffsetDateTime) -> (Vec<IndexedClaim<'a>>, Vec<Regression<'a>>) {
+pub fn index_claims<'a>(
+    reports: &'a [Report],
+    now: OffsetDateTime,
+) -> (Vec<IndexedClaim<'a>>, Vec<Regression<'a>>) {
     let mut ordered: Vec<&Report> = reports.iter().collect();
-    ordered.sort_by(|a, b| order_key(a).cmp(&order_key(b)));
+    ordered.sort_by_key(|a| order_key(a));
 
     let mut claims: Vec<IndexedClaim<'a>> = Vec::with_capacity(ordered.len());
     for (i, report) in ordered.iter().enumerate() {
@@ -175,7 +178,9 @@ fn countdown(report: &Report, now: OffsetDateTime) -> String {
     };
     let delta = expires - now;
     let days = delta.whole_days().abs();
-    let hours = (delta - time::Duration::days(delta.whole_days())).whole_hours().abs();
+    let hours = (delta - time::Duration::days(delta.whole_days()))
+        .whole_hours()
+        .abs();
     if delta.is_positive() {
         format!("expires in {days}d {hours}h")
     } else {
@@ -200,9 +205,18 @@ pub fn render_index_with_anchors(
     now: OffsetDateTime,
 ) -> Result<String> {
     let (claims, regressions) = index_claims(reports, now);
-    let live = claims.iter().filter(|c| c.status == Some(ClaimStatus::Live)).count();
-    let stale = claims.iter().filter(|c| c.status == Some(ClaimStatus::Stale)).count();
-    let dead = claims.iter().filter(|c| c.status == Some(ClaimStatus::Dead)).count();
+    let live = claims
+        .iter()
+        .filter(|c| c.status == Some(ClaimStatus::Live))
+        .count();
+    let stale = claims
+        .iter()
+        .filter(|c| c.status == Some(ClaimStatus::Stale))
+        .count();
+    let dead = claims
+        .iter()
+        .filter(|c| c.status == Some(ClaimStatus::Dead))
+        .count();
     let undated = claims.iter().filter(|c| c.status.is_none()).count();
     let invalid = claims.iter().filter(|c| !c.hash_valid).count();
 
@@ -254,7 +268,11 @@ pub fn render_index_with_anchors(
          <span class=\"badge dead\">{dead} dead</span>{} \
          <span>{} regression{}</span>{}</p>\n",
         esc(&now.format(&Rfc3339).unwrap_or_else(|_| now.to_string())),
-        if undated > 0 { format!(" <span class=\"badge undated\">{undated} undated</span>") } else { String::new() },
+        if undated > 0 {
+            format!(" <span class=\"badge undated\">{undated} undated</span>")
+        } else {
+            String::new()
+        },
         regressions.len(),
         if regressions.len() == 1 { "" } else { "s" },
         if invalid > 0 {
@@ -281,10 +299,7 @@ pub fn render_index_with_anchors(
             status_class(claim.status),
             esc(status_label(claim.status)),
         ));
-        let verified_at = report
-            .verified_at
-            .as_deref()
-            .unwrap_or("(no verified_at)");
+        let verified_at = report.verified_at.as_deref().unwrap_or("(no verified_at)");
         html.push_str(&format!(
             "<p class=\"meta\">chain <code>{}</code> · verified at height {} · verified_at \
              <code>{}</code> · ttl {}d · {}{}</p>\n",
@@ -293,8 +308,7 @@ pub fn render_index_with_anchors(
             esc(verified_at),
             claim_ttl_seconds(report) / 86_400,
             esc(&countdown(report, now)),
-            if claim.superseded_by.is_some() {
-                let s = claim.superseded_by.unwrap();
+            if let Some(s) = &claim.superseded_by {
                 format!(
                     " · <span class=\"meta\">re-issued by <code>{}</code></span>",
                     esc(&short(&s.report_hash))
@@ -336,8 +350,16 @@ pub fn render_index_with_anchors(
         html.push_str(&format!(
             "<p class=\"meta\">{} evidence entr{} · merchant side {}</p>\n",
             report.evidence.len(),
-            if report.evidence.len() == 1 { "y" } else { "ies" },
-            if report.merchant_is_simulated { "simulated (stated)" } else { "real" },
+            if report.evidence.len() == 1 {
+                "y"
+            } else {
+                "ies"
+            },
+            if report.merchant_is_simulated {
+                "simulated (stated)"
+            } else {
+                "real"
+            },
         ));
 
         if report.findings.is_empty() {

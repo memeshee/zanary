@@ -14,6 +14,11 @@ use zanary_report::Report;
 /// Where a run's artifacts landed, plus the verdict summary a CLI wants to print and exit on.
 #[derive(Debug, Clone)]
 pub struct RunArtifacts {
+    /// Which flow this was, and which revision of it: the pair a claim is about.
+    pub flow_id: String,
+    pub flow_commit: String,
+    /// The directory the artifacts were written into.
+    pub out_dir: PathBuf,
     pub run_path: PathBuf,
     pub findings_path: PathBuf,
     pub report_path: PathBuf,
@@ -66,6 +71,9 @@ pub fn write_run_artifacts(
     }
 
     Ok(RunArtifacts {
+        flow_id: run.flow_id.clone(),
+        flow_commit: run.flow_commit.clone(),
+        out_dir: out_dir.to_path_buf(),
         run_path,
         findings_path,
         report_path,
@@ -113,12 +121,15 @@ pub fn print_findings(out_dir: &Path) -> Result<usize> {
 /// The `Report` a run's directory holds, parsed (used by callers that want the claim's clock).
 pub fn read_report(out_dir: &Path) -> Result<Report> {
     let path = out_dir.join("report.json");
-    Ok(serde_json::from_str(&std::fs::read_to_string(&path).with_context(|| {
-        format!("reading {}", path.display())
-    })?)?)
+    Ok(serde_json::from_str(
+        &std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?,
+    )?)
 }
 
-fn utc_now_rfc3339() -> Result<String> {
+/// The one clock in this workspace's probe: RFC3339 UTC, from the same `time` the report crate uses
+/// for claim TTLs, so "expired" means one thing everywhere (flow.rs used to shell out to `date` and
+/// payer.rs had its own copy).
+pub(crate) fn utc_now_rfc3339() -> Result<String> {
     use time::{format_description::well_known::Rfc3339, OffsetDateTime};
     OffsetDateTime::now_utc()
         .format(&Rfc3339)

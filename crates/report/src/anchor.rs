@@ -68,7 +68,10 @@ impl Anchor {
         let text = format!("{MEMO_PREFIX}{json}");
         // A ZIP-302 memo holds 512 bytes; an anchor that does not fit is a bug, not a truncation.
         if text.len() > 512 {
-            bail!("the anchor memo is {} bytes, more than the 512 a ZIP-302 memo holds", text.len());
+            bail!(
+                "the anchor memo is {} bytes, more than the 512 a ZIP-302 memo holds",
+                text.len()
+            );
         }
         Ok(text)
     }
@@ -93,8 +96,9 @@ impl Anchor {
                 );
             }
         }
-        let anchor: Anchor = serde_json::from_value(value)
-            .with_context(|| format!("an anchor memo does not parse as v{ANCHOR_VERSION}: {json:?}"))?;
+        let anchor: Anchor = serde_json::from_value(value).with_context(|| {
+            format!("an anchor memo does not parse as v{ANCHOR_VERSION}: {json:?}")
+        })?;
         if anchor.v != ANCHOR_VERSION {
             bail!(
                 "an anchor memo carries payload version {} — this code knows version {ANCHOR_VERSION}",
@@ -108,14 +112,25 @@ impl Anchor {
     ///
     /// An anchor is only worth anything if it is about a specific report, so the verifier checks
     /// every field it can re-derive rather than trusting the match on the root alone.
-    pub fn disagreements(&self, report: &Report, report_hash: &str, evidence_root: &str) -> Vec<String> {
+    pub fn disagreements(
+        &self,
+        report: &Report,
+        report_hash: &str,
+        evidence_root: &str,
+    ) -> Vec<String> {
         let mut out = Vec::new();
-        let expect = |what: &str, got: &str, want: &str| format!("{what}: anchor says {got}, the report says {want}");
+        let expect = |what: &str, got: &str, want: &str| {
+            format!("{what}: anchor says {got}, the report says {want}")
+        };
         if self.chain != report.chain {
             out.push(expect("chain", &self.chain, &report.chain));
         }
         if self.flow_commit != report.flow_commit {
-            out.push(expect("flow_commit", &self.flow_commit, &report.flow_commit));
+            out.push(expect(
+                "flow_commit",
+                &self.flow_commit,
+                &report.flow_commit,
+            ));
         }
         if self.report_hash != report_hash {
             out.push(expect("report_hash", &self.report_hash, report_hash));
@@ -229,12 +244,7 @@ pub struct AnchorHit {
 ///
 /// A scan that finds nothing must never look like a scan that did not run: the caller reports how
 /// many blocks and transactions were read, and how many anchor memos they carried.
-pub fn scan(
-    node: &NodeRpc,
-    chain: &str,
-    beacon_ufvk: &str,
-    since: u32,
-) -> Result<ScanOutcome> {
+pub fn scan(node: &NodeRpc, chain: &str, beacon_ufvk: &str, since: u32) -> Result<ScanOutcome> {
     let params = ChainParams::for_chain(chain)?;
     let ufvk = UnifiedFullViewingKey::decode(&params, beacon_ufvk)
         .map_err(|e| anyhow!("the beacon's viewing key is not a UFVK for {chain}: {e}"))?;
@@ -347,7 +357,10 @@ mod tests {
 
     #[test]
     fn a_non_anchor_memo_is_none_and_a_broken_one_is_an_error() {
-        assert_eq!(Anchor::from_memo_text("zanary: invoice 4471").unwrap(), None);
+        assert_eq!(
+            Anchor::from_memo_text("zanary: invoice 4471").unwrap(),
+            None
+        );
         assert_eq!(Anchor::from_memo_text("").unwrap(), None);
         // Prefix matches, so it claims to be an anchor: it must fail loudly, never parse as absent.
         assert!(Anchor::from_memo_text(&format!("{MEMO_PREFIX}not json")).is_err());

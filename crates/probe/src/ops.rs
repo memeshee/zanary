@@ -42,7 +42,9 @@ use zcash_keys::{
 };
 use zcash_primitives::transaction::fees::FeeRule;
 use zcash_proofs::prover::LocalTxProver;
-use zcash_protocol::{local_consensus::LocalNetwork, memo::MemoBytes, value::Zatoshis, ShieldedPool, TxId};
+use zcash_protocol::{
+    local_consensus::LocalNetwork, memo::MemoBytes, value::Zatoshis, ShieldedPool, TxId,
+};
 use zcash_transparent::address::TransparentAddress;
 use zip32::DiversifierIndex;
 
@@ -112,7 +114,11 @@ impl Args {
         if !self.values.is_empty() {
             let mut unknown: Vec<String> = self.values.into_keys().collect();
             unknown.sort();
-            bail!("unknown argument(s) {}\nusage: {}", unknown.join(", "), self.usage);
+            bail!(
+                "unknown argument(s) {}\nusage: {}",
+                unknown.join(", "),
+                self.usage
+            );
         }
         Ok(())
     }
@@ -127,8 +133,7 @@ pub(crate) fn parse_zec(s: &str) -> Result<u64> {
     if whole_s.is_empty() && frac_s.is_empty() {
         bail!("`{s}` is not a ZEC amount (use a decimal like `1` or `0.01`)");
     }
-    if !whole_s.chars().all(|c| c.is_ascii_digit()) || !frac_s.chars().all(|c| c.is_ascii_digit())
-    {
+    if !whole_s.chars().all(|c| c.is_ascii_digit()) || !frac_s.chars().all(|c| c.is_ascii_digit()) {
         bail!("`{s}` is not a valid ZEC amount (use a decimal like `1` or `0.01`)");
     }
     if frac_s.len() > 8 {
@@ -137,9 +142,7 @@ pub(crate) fn parse_zec(s: &str) -> Result<u64> {
     let whole: u64 = if whole_s.is_empty() {
         0
     } else {
-        whole_s
-            .parse()
-            .map_err(|_| anyhow!("`{s}` is too large"))?
+        whole_s.parse().map_err(|_| anyhow!("`{s}` is too large"))?
     };
     let frac: u64 = if frac_s.is_empty() {
         0
@@ -178,19 +181,21 @@ pub(crate) enum PrivacyPolicy {
 
 impl PrivacyPolicy {
     pub(crate) fn parse(s: &str) -> Result<Self> {
-        Ok(match s.to_ascii_lowercase().replace(['_', '-'], "").as_str() {
-            "fullprivacy" => Self::FullPrivacy,
-            "allowrevealedamounts" => Self::AllowRevealedAmounts,
-            "allowrevealedrecipients" => Self::AllowRevealedRecipients,
-            "allowrevealedsenders" => Self::AllowRevealedSenders,
-            "allowfullytransparent" => Self::AllowFullyTransparent,
-            "noprivacy" => Self::NoPrivacy,
-            _ => bail!(
-                "unknown privacy policy `{s}` — expected one of FullPrivacy, \
+        Ok(
+            match s.to_ascii_lowercase().replace(['_', '-'], "").as_str() {
+                "fullprivacy" => Self::FullPrivacy,
+                "allowrevealedamounts" => Self::AllowRevealedAmounts,
+                "allowrevealedrecipients" => Self::AllowRevealedRecipients,
+                "allowrevealedsenders" => Self::AllowRevealedSenders,
+                "allowfullytransparent" => Self::AllowFullyTransparent,
+                "noprivacy" => Self::NoPrivacy,
+                _ => bail!(
+                    "unknown privacy policy `{s}` — expected one of FullPrivacy, \
                  AllowRevealedAmounts, AllowRevealedRecipients, AllowRevealedSenders, \
                  AllowFullyTransparent, NoPrivacy"
-            ),
-        })
+                ),
+            },
+        )
     }
 
     pub(crate) fn name(self) -> &'static str {
@@ -328,18 +333,18 @@ fn transparent_receiver(
 
     let mut known: Vec<(u32, TransparentAddress)> = receivers
         .iter()
-        .filter_map(|(address, meta)| meta.address_index().map(|i| (i.index(), address.clone())))
+        .filter_map(|(address, meta)| meta.address_index().map(|i| (i.index(), *address)))
         .collect();
     known.sort_by_key(|(index, _)| *index);
     if known.is_empty() {
         bail!("the wallet has no derived transparent receivers for this account");
     }
     match index {
-        None => Ok(known[0].1.clone()),
+        None => Ok(known[0].1),
         Some(wanted) => known
             .iter()
             .find(|(index, _)| *index == wanted)
-            .map(|(_, address)| address.clone())
+            .map(|(_, address)| *address)
             .ok_or_else(|| {
                 anyhow!(
                     "no transparent receiver at child index {wanted} is registered \
@@ -396,7 +401,8 @@ where
             anyhow!("transaction {txid} was built but is not present in the wallet database")
         })?;
     let mut bytes = Vec::new();
-    tx.write(&mut bytes).context("serializing the transaction")?;
+    tx.write(&mut bytes)
+        .context("serializing the transaction")?;
 
     let response = probe
         .client
@@ -435,7 +441,13 @@ pub(crate) async fn mine_and_resync(probe: &mut Probe, blocks: u64) -> Result<()
         before,
         after
     );
-    core::sync_wallet(&mut probe.db, &mut probe.client, &probe.network, &probe.db_path).await?;
+    core::sync_wallet(
+        &mut probe.db,
+        &mut probe.client,
+        &probe.network,
+        &probe.db_path,
+    )
+    .await?;
     Ok(())
 }
 
@@ -511,11 +523,18 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
 
     print_header("anchor");
     println!("  report            : {report_path}");
-    println!("  flow              : {} @ {}", report.flow_id, &report.flow_commit[..8.min(report.flow_commit.len())]);
+    println!(
+        "  flow              : {} @ {}",
+        report.flow_id,
+        &report.flow_commit[..8.min(report.flow_commit.len())]
+    );
     println!("  report hash       : {}", report.report_hash);
     println!("  evidence root     : {evidence_root}");
     println!("  verified height   : {}", report.verified_at_height);
-    println!("  anchor amount     : {} (the note the memo rides on, not a payment)", core::format_zats_signed(amount_zat as i128));
+    println!(
+        "  anchor amount     : {} (the note the memo rides on, not a payment)",
+        core::format_zats_signed(amount_zat as i128)
+    );
 
     let mut payer = core::bootstrap(account_no).await?;
     let mut beacon = core::bootstrap_with(WalletProfile::beacon(0)).await?;
@@ -532,7 +551,10 @@ pub async fn anchor(raw: &[String]) -> Result<()> {
         "  beacon tag        : {beacon_index:?} (this anchor's tag; the wallet draws diversifier \
          indices, so the tag is a label, not a sequence number)"
     );
-    println!("  beacon UFVK       : {}", beacon.ufvk.encode(&beacon.network));
+    println!(
+        "  beacon UFVK       : {}",
+        beacon.ufvk.encode(&beacon.network)
+    );
     println!("  anchor memo       : {memo_text:?}");
 
     let recipient = Address::decode(&payer.network, &beacon_receiver).ok_or_else(|| {
@@ -658,12 +680,19 @@ pub async fn fund(raw: &[String]) -> Result<()> {
 
     let mut probe = core::bootstrap(0).await?;
     print_header("fund");
-    println!("  account           : {} ({:?})", core::DEV_ACCOUNT_NAME, probe.account);
+    println!(
+        "  account           : {} ({:?})",
+        core::DEV_ACCOUNT_NAME,
+        probe.account
+    );
 
     let recipient = transparent_receiver(&mut probe.db, probe.account, None)?;
     let recipient = recipient.encode(&probe.network);
     println!("  recipient (t)     : {recipient}");
-    println!("  amount            : {}", core::format_zats_signed(zats as i128));
+    println!(
+        "  amount            : {}",
+        core::format_zats_signed(zats as i128)
+    );
 
     let node = NodeRpc::from_env()?;
     let mut height = node.block_count().await?;
@@ -685,7 +714,10 @@ pub async fn fund(raw: &[String]) -> Result<()> {
         node.generate(110).await?;
         height = node.block_count().await?;
         (spendable, _) = node.transparent_balances().await?;
-        println!("  node wallet       : after mining: {} spendable · chain height {height}", core::format_zats_signed(spendable as i128));
+        println!(
+            "  node wallet       : after mining: {} spendable · chain height {height}",
+            core::format_zats_signed(spendable as i128)
+        );
     }
     if spendable < zats.saturating_add(NODE_FEE_MARGIN) {
         bail!(
@@ -707,7 +739,13 @@ pub async fn fund(raw: &[String]) -> Result<()> {
         hashes.len()
     );
 
-    core::sync_wallet(&mut probe.db, &mut probe.client, &probe.network, &probe.db_path).await?;
+    core::sync_wallet(
+        &mut probe.db,
+        &mut probe.client,
+        &probe.network,
+        &probe.db_path,
+    )
+    .await?;
     let snapshot = BalanceSnapshot::capture(&probe.db, probe.account)?;
     println!(
         "  wallet view       : transparent {} · orchard {} · total {}",
@@ -849,10 +887,7 @@ pub(crate) fn propose_shielded_payment(
     zats: u64,
     memo: &MemoBytes,
 ) -> Result<Proposal<StandardFeeRule, <ProbeDb as InputSource>::NoteRef>> {
-    propose_shielded_payments(
-        probe,
-        &[(recipient.clone(), zats, memo.clone())],
-    )
+    propose_shielded_payments(probe, &[(recipient.clone(), zats, memo.clone())])
 }
 
 /// [`propose_shielded_payment`], for a request carrying several payments at once.
@@ -984,15 +1019,17 @@ pub async fn pay(raw: &[String]) -> Result<()> {
     let (required, revealed) = required_policy_for_recipient(&recipient);
     check_policy(policy, required, revealed, "payment")?;
 
-    let memo = MemoBytes::from_bytes(memo_input.as_bytes()).map_err(|e| {
-        anyhow!("memo rejected: {e}\n  (ZIP-302 memos are at most 512 bytes)")
-    })?;
+    let memo = MemoBytes::from_bytes(memo_input.as_bytes())
+        .map_err(|e| anyhow!("memo rejected: {e}\n  (ZIP-302 memos are at most 512 bytes)"))?;
     // The ZIP-321 request, spend policy and change strategy live in
     // `propose_shielded_payment` — shared with the flow runner, so both pay through the
     // same code path and the same policy.
     println!("  to                : {to}");
     println!("  recipient         : {}", describe_address(&recipient));
-    println!("  amount            : {}", core::format_zats_signed(zats as i128));
+    println!(
+        "  amount            : {}",
+        core::format_zats_signed(zats as i128)
+    );
     println!(
         "  memo              : {:?} ({} bytes, ZIP-302)",
         memo_input,
@@ -1047,7 +1084,11 @@ pub async fn pay(raw: &[String]) -> Result<()> {
         .get_account_ids()
         .context("listing the wallet's accounts")?
     {
-        if let Some(account) = probe.db.get_account(account).context("reading an account")? {
+        if let Some(account) = probe
+            .db
+            .get_account(account)
+            .context("reading an account")?
+        {
             if let Some(ufvk) = account.ufvk() {
                 ufvks.insert(account.id(), ufvk.clone());
             }
