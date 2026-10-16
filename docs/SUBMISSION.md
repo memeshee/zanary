@@ -96,7 +96,7 @@ which the control app is the reference.
 | description | **≤2000 characters** | the version above, **1997** — the long form is folded away and must not be pasted into the field |
 | repo URL | public by the deadline | <https://github.com/memeshee/zanary>, public |
 | working demo URL | a live URL a judge can open | <https://memeshee.github.io/zanary/> — the published claim index (this product is a CLI rig; the index is its live surface, with the raw claims served beside it) |
-| video URL | **≤2 minutes**, closing shot = profiler-vs-control | not recorded yet; the ≤2-minute cut sheet is `docs/VIDEO-SCRIPT.md` (narration word-counted to 1:58), the take is `scripts/demo-run.sh`, and the contrast is the closing substantive shot |
+| video URL | **≤2 minutes**, closing shot = profiler-vs-control | **<https://memeshee.github.io/zanary/video/>** (player) · direct file: `.../video/zanary-demo.mp4` · **112 s**, 1600×900, 3.7 MB, served by the same Pages deploy as the claims; frames from a real exit-0 run, narration word-counted to 1:52 |
 | attestation | repo will be public | true, and it already is |
 | profile | Telegram handle required | operator step |
 
@@ -108,7 +108,7 @@ which the control app is the reference.
 | architecture diagram | ✅ `docs/rig.svg`, referenced from the README |
 | mark | ✅ `docs/zanary-mark.svg` |
 | description | ✅ this file |
-| video (≤2 min) | ⏳ cut sheet word-counted to 1:58 + the single-take driver (`docs/VIDEO-SCRIPT.md`, `scripts/demo-run.sh`); recording is an operator step |
+| video (≤2 min) | ✅ built and served: <https://memeshee.github.io/zanary/video/> — 112 s, frames verbatim from a real run, published by the same workflow as the claims (`docs/VIDEO-SCRIPT.md` is the cut sheet; replace the audio track with your own voice any time) |
 | repo public by the deadline | ✅ public since the first commit |
 | CI green on `main` | ✅ four jobs: private, control, bounded payer, publish |
 | claims published | ✅ <https://memeshee.github.io/zanary/> |

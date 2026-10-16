@@ -12,6 +12,11 @@ Built for **ZECATHON** (Core & Tooling track), by kiter + Hermes.
 — two flows per push: one that must pass, one that must be **caught**. Both jobs green means the rig
 worked, not that nothing was found; open the control job's summary for the leaks it caught.
 
+**▶ [The two-minute demo](https://memeshee.github.io/zanary/video/)** — one real run: the private flow
+passing, the deliberately leaky control flow being **caught**, the bounded payer's ledger refusing
+over-cap, off-allowlist and revoked invoices, and the published claims with their expiry clocks
+([cut sheet](docs/VIDEO-SCRIPT.md)).
+
 ![ZANARY — the rig, end to end](docs/rig.svg)
 
 > **On the name:** this project ran as *CANARY* until Oct 15, 2026 and is **ZANARY** since. Evidence
