@@ -71,7 +71,7 @@ flow starts leaking.
 | Flow runner — one command, real evidence | **works** — `zanary-probe flow --definition flows/checkout-private.json` executes N invoices (fresh diversified receiver + ZIP-302 memo each, verified by a separate merchant wallet), then writes `run.json` + `findings.json` + `report.json`; the private flow scores 12 pass / 0 fail, the control flow fails by design (`docs/FLOW-RUNNER-NOTES.md`) |
 | Batched settlement — N invoices, one transaction | **works** — `settlement: "batch"` puts every invoice in one transaction (one txid, one fee, shuffled output order, a distinct amount per invoice enforced before anything is built) and reads each payment back at the merchant by amount + memo; `flows/checkout-private-batch.json` scores 11 pass / 1 fail — the failure is `payer-linkability`, because a batch links its own invoices by construction (`docs/THREAT-MODEL.md`) |
 | Signed receipts, verified offline | **works** — each receipt is signed by a *dedicated receipt key* (ZIP-32 account 1 of the merchant seed), never the wallet's own spend authority, and the wallet **attests** that key with its own signature; `zanary-report verify-receipt` checks the receipt with no node, no indexer and no rig (proven with both pointed at dead ports), and `--fvk` binds receipt key → wallet through the attestation — a receipt published without it is bound to no wallet, which is the point |
-| Leak matrix | **works** — `zanary-report matrix --runs data/runs --out docs/LEAK-MATRIX.md`: 12 properties × 4 flows, each column pinned to its `flow_commit`; the control shows its four designed failures, and the batched column shows the one the batch discloses, next to two clean private runs |
+| Leak matrix | **works** — `zanary-report matrix --runs <dir> --out docs/LEAK-MATRIX.md`: **13 properties × 7 runs**, each column pinned to its `flow_commit` — two clean private flows, the batch that discloses its own `payer-linkability`, the control's four designed failures, both CI flows, and the bounded payer (where `payer-policy` is the only property with a ledger to read) |
 | Agent payment loop | **works** — `scripts/agent-pay-loop.sh`: three invoice → pay → verify cycles unassisted, with the merchant's own wallet reading each memo back (invoices 8101–8103, txids in `docs/FLOW-RUNNER-NOTES.md`) |
 | Anchored reports — a claim with a chain timestamp | **works** — `zanary-probe anchor --report <report.json>` puts the report's `evidence_root` + `report_hash` in a shielded memo to a public beacon, and `zanary-report verify-anchor` finds the earliest anchor for that root with a node and the beacon's *published* viewing key, nothing from ZANARY (640 blocks / 693 txs in ~3 s); unanchored reports, flipped roots, disagreeing `--root`s and post-hoc edits all exit 1 (`docs/ANCHOR-NOTES.md`) |
 | CI gate — one command, an exit code a build can read | **works** — `zanary-probe test --definition <flow.json> --expect pass\|fail [--anchor] [--summary <path>]` runs the flow, re-derives every evidence line from the chain, anchors the evidence root in a shielded memo, prints the claim (height, report hash, expiry) and exits `0`/`1`/`2`; the two CI flows score `12 pass · 0 fail` (private, `4d8279bb`) and `4 fail` (control — the planted leaks, caught) and the GitHub Action runs both on every push ([`docs/CI.md`](docs/CI.md), [`.github/workflows/privacy-gate.yml`](.github/workflows/privacy-gate.yml)) |
@@ -97,6 +97,11 @@ ignoring them):
 ## Running it
 
 ```bash
+# the whole story in one command: private flow PASS, control flow CAUGHT, bounded payer's ledger,
+# claim index — every stage allowed to fail, and reported if it does
+harness/up.sh && scripts/demo-run.sh
+
+# or the pieces, one at a time:
 harness/up.sh                             # throwaway chain + indexer, and wait until they are usable
 cargo build --release --bin zanary-probe --bin zanary-report
 
