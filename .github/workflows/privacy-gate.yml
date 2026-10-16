@@ -67,3 +67,71 @@ jobs:
           # reviewer needs to re-derive every line of the summary without trusting this job.
           retention-days: 30
           if-no-files-found: warn
+
+  # The claims the two gate jobs just made, rendered as the public index: "a privacy claim is not a
+  # fact, it is a subscription". Published from main (a pull request's claims are not published, a
+  # scheduled re-probe is), together with the recorded claims in `crates/report/fixtures/reports/` —
+  # those are history, and a claim that has expired is still evidence.
+  publish:
+    name: publish the claim index
+    needs: gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: rust toolchain
+        shell: bash
+        run: |
+          CHANNEL="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml | head -1)"
+          rustup toolchain install "${CHANNEL:-stable}" --profile minimal --no-self-update
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: build the report tool
+        run: cargo build --release --bin zanary-report
+
+      - name: collect this run's claims
+        uses: actions/download-artifact@v4
+        with:
+          pattern: zanary-*-evidence
+          path: claim-input
+
+      - name: add the recorded claims (history)
+        run: |
+          # The recorded claims in this repository are flat report files, which is exactly the other
+          # layout `zanary-report index` reads (run directories for this run's claims, flat files for
+          # history). A claim that has expired is still evidence, so it stays on the page.
+          cp crates/report/fixtures/reports/*.json claim-input/
+          ls claim-input
+
+      - name: render the index
+        run: |
+          mkdir -p public/claims
+          ./target/release/zanary-report index --reports claim-input --out public/index.html
+          # The claims themselves stay fetchable next to the page, in the run-directory layout the
+          # index reads: a reader can download one and run `zanary-report verify` on it instead of
+          # trusting a rendering of it.
+          for dir in claim-input/*/; do
+            name="$(basename "$dir")"
+            mkdir -p "public/claims/$name"
+            cp "$dir"report.json "$dir"anchor.json "$dir"test.json "public/claims/$name/" 2>/dev/null || true
+          done
+          cp claim-input/*.json public/claims/ 2>/dev/null || true
+          find public -type f | sort | head -20
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

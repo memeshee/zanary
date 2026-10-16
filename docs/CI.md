@@ -133,6 +133,19 @@ first reuses the cargo cache. Budget tens of minutes for the first run in a new 
 digits once the cache is warm; `timeout-minutes: 120` in this repository's workflow is deliberate
 headroom, not an expectation.
 
+## The published index
+
+A third job (`publish`, after the gates, `main` only) collects the two run directories, adds the
+recorded claims from `crates/report/fixtures/reports/` as history, renders them with
+`zanary-report index` and deploys the result to GitHub Pages:
+**<https://memeshee.github.io/zanary/>**.
+
+The page is a rendering, not the authority: each claim sits at `claims/<run>/report.json` next to
+its `anchor.json`, in the run-directory layout the index reads, so anyone can download one and
+`zanary-report verify` it. The claim's clock is on the page (`expires in 12d`, then `stale`, then
+`dead`), and the weekly `schedule` in the workflow is what re-issues it. A claim that stops being
+re-proved keeps its row and its countdown — that is the point of publishing it.
+
 ## Where this sits
 
 `docs/CLAIMS.md` describes the claim lifecycle (live → stale → dead, re-probe to re-issue). This

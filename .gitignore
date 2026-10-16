@@ -21,4 +21,8 @@
 *.swp
 .idea/
 .vscode/
+# claim index publishing (the CI job's scratch dirs)
+claim-input/
+public/
+
 scratch/
