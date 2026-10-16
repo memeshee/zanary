@@ -101,6 +101,23 @@ pub fn endpoint() -> String {
     env::var("ZANARY_LWD_URL").unwrap_or_else(|_| "http://127.0.0.1:9067".to_string())
 }
 
+/// Makes sure the chain has at least one block, and that the indexer has it too.
+///
+/// A chain at height 0 has nothing for a wallet to sync from: the sync asks for the tree state below
+/// its scan range and lightwalletd refuses a height that does not exist yet ("Block height out of
+/// range"). Every tool in this workspace opens a wallet, so the first block is mined here rather than
+/// in each caller — otherwise "start the rig, run one command" quietly requires a manual mining step
+/// before anything works.
+pub async fn ensure_chain_has_a_block() -> Result<()> {
+    let node = crate::node::NodeRpc::from_env()?;
+    if node.block_count().await? > 0 {
+        return Ok(());
+    }
+    node.generate(1).await?;
+    wait_for_indexer_height(&endpoint(), 1).await?;
+    Ok(())
+}
+
 /// Waits until the indexer's tip reaches `min_height`, and returns the tip it saw.
 ///
 /// A wallet cannot start scanning against blocks the indexer has not ingested: the sync asks for the
@@ -913,6 +930,7 @@ pub async fn bootstrap_with(profile: WalletProfile) -> Result<Probe> {
         println!("  TIMING keys: {:?}", t0.elapsed());
     }
 
+    ensure_chain_has_a_block().await?;
     let (mut db, db_path) = open_db_for(&profile)?;
     if timings {
         println!("  TIMING open_db: {:?}", t0.elapsed());

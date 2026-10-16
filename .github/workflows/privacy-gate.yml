@@ -135,3 +135,39 @@ jobs:
       - name: deploy
         id: deploy
         uses: actions/deploy-pages@v4
+
+  # The acceptance test for the *subject*: a bounded payer given a budget instead of a key. Over-cap and
+  # off-allowlist invoices must be refused, the refusals must be in the ledger, and a tripped kill
+  # switch must stop everything — asserted from the ledger and the report, not from the payer's console.
+  payer:
+    name: bounded payer — the ledger must show the refusals
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: rust toolchain (as pinned by rust-toolchain.toml)
+        shell: bash
+        run: |
+          CHANNEL="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml | head -1)"
+          rustup toolchain install "${CHANNEL:-stable}" --profile minimal --no-self-update
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: build the rig
+        run: cargo build --release --bin zanary-probe --bin zanary-report
+
+      - name: start the throwaway chain
+        run: harness/up.sh
+
+      - name: the grant, four invoices, and the kill switch
+        run: scripts/bounded-payer-demo.sh
+
+      - name: upload the ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zanary-payer-evidence
+          path: data/payer-demo/
+          retention-days: 30
+          if-no-files-found: warn
