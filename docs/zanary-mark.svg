@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="ZANARY mark">
+  <defs>
+    <linearGradient id="z" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="#020617"/>
+  <rect x="4" y="4" width="120" height="120" rx="23" fill="none" stroke="#1e293b" stroke-width="2"/>
+  <!-- the gate: an open boundary the payment passes through -->
+  <path d="M26 34 L26 94" stroke="#fb7185" stroke-width="3" stroke-dasharray="7,6" stroke-linecap="round"/>
+  <path d="M102 34 L102 94" stroke="#fb7185" stroke-width="3" stroke-dasharray="7,6" stroke-linecap="round"/>
+  <!-- the Z: a flow, and the claim it carries -->
+  <path d="M42 42 L86 42 L42 86 L86 86" fill="none" stroke="url(#z)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the anchor point: shielded, and provable -->
+  <circle cx="64" cy="64" r="6" fill="#0d1117" stroke="#34d399" stroke-width="3"/>
+</svg>

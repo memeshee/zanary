@@ -1,3 +1,5 @@
+<img src="docs/zanary-mark.svg" alt="" width="72" align="right">
+
 # ZANARY
 
 **Privacy claims should be falsifiable.** ZANARY is an independent prober for Zcash payment flows: it
@@ -9,6 +11,8 @@ Built for **ZECATHON** (Core & Tooling track), by kiter + Hermes.
 [![privacy gate](https://github.com/memeshee/zanary/actions/workflows/privacy-gate.yml/badge.svg)](https://github.com/memeshee/zanary/actions/workflows/privacy-gate.yml)
 — two flows per push: one that must pass, one that must be **caught**. Both jobs green means the rig
 worked, not that nothing was found; open the control job's summary for the leaks it caught.
+
+![ZANARY — the rig, end to end](docs/rig.svg)
 
 > **On the name:** this project ran as *CANARY* until Oct 15, 2026 and is **ZANARY** since. Evidence
 > recorded before the rename — `crates/report/fixtures/`, the claim rows in `docs/LEAK-MATRIX.md` —
