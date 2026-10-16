@@ -12,6 +12,9 @@
 # draft of this demo leaked (see docs/BOUNDED-PAYER.md).
 set -euo pipefail
 
+# Same reason as scripts/demo-run.sh: the ledger is the output, the wallet's migration log is not.
+export RUST_LOG="${RUST_LOG:-warn}"
+
 BIN="${ZANARY_PROBE:-./target/release/zanary-probe}"
 DIR="${ZANARY_PAYER_DEMO_DIR:-data/payer-demo}"
 BUDGET_ZAT="${ZANARY_PAYER_BUDGET_ZAT:-12000000}"   # 0.12 ZEC

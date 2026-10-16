@@ -20,6 +20,11 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# The recording wants the artifacts, not the wallet's own log: `schemerz` prints a migration line per
+# wallet open at INFO, which is noise on screen and no information for a viewer. Override with
+# ZANARY_LOG=info when debugging the rig itself.
+export RUST_LOG="${ZANARY_LOG:-warn}"
+
 BIN="${ZANARY_PROBE:-./target/release/zanary-probe}"
 REPORT="${ZANARY_REPORT:-./target/release/zanary-report}"
 RUNS="${ZANARY_DEMO_RUNS:-data/runs}"

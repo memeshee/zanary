@@ -51,7 +51,12 @@ authority, unlinkable repeats, verifiable receipts.
 
 > "Every property passes, and the evidence is re-derived from the chain afterwards — the verification
 > lines you can see. Then the evidence root goes into a shielded memo, which gives the claim a
-> timestamp nobody has to be trusted for. That is what 'verified at height 135' means."
+> timestamp nobody has to be trusted for. That is what *verified at height H* means: H is the height
+> the chain had reached when this revision of this flow passed these properties — read it off the
+> screen, never round it."
+>
+> (In CI the same claim lands around height 135, because a runner starts the chain from empty. Read
+> whatever the take prints.)
 
 ## 2:15 — stage 2: the same rig, on a flow that leaks
 
