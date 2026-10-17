@@ -64,7 +64,7 @@ Two things followed, and the second is the one this project cares about:
 2. The **flow runner's** records were deliberately left exactly as they were. Its own definitions are
    Orchard→Orchard and it gates every recipient through `ops::check_policy`, so the finding does not
    apply there — but rewriting how it records would change the bytes of reports whose hashes are in
-   claims already published. It is flagged in `audit/README.md` rather than quietly changed. A tidier
+   claims already published. It is flagged in [`audit/README.md`](../audit/README.md) rather than quietly changed. A tidier
    record is worth less than a re-derivable one.
 
 ## 3. Outside the library's sight (12)
@@ -78,7 +78,7 @@ needed someone reading the code as a tool rather than as a flow.
 | a verifier certifying what it did not check | 1 | verify-receipt certifying claim/body agreement by substring containment — a receipt whose claims state *different figures* passes | the verifier's own test suite | `claims_may_not_merely_embed_the_bodys_figures` |
 | resources a stranger controls | 3 | a FIFO or symlink in the merchant-supplied invoice directory blocking the run · unbounded intake memory before any authority check · a definition requesting up to 2³²−1 mined blocks per payment | bounds taken from metadata, before the work | `invoice_intake_is_type_checked_and_bounded`, `MAX_JITTER_BLOCKS`, `an_unbounded_jitter_range_is_ignored` |
 | the plumbing around the rig | 3 | composite-action inputs expanded into shell script text · the rig that produces every published claim running from mutable `:latest` images · the control plane and indexer published on every interface, gated by credentials the public repository carries | reading the plumbing | inputs travel via `env:`; both images pinned by digest; both services bound to `127.0.0.1` |
-| still open | 1 | the published video's frames are produced by a recorded run but nothing machine-checks what the pixels say | a human, for now | `audit/run-1/NEEDS-VALIDATION.md` |
+| still open | 1 | the published video's frames are produced by a recorded run but nothing machine-checks what the pixels say | a human, for now | [`audit/run-1/NEEDS-VALIDATION.md`](../audit/run-1/NEEDS-VALIDATION.md) |
 
 ## 4. What this says about the product
 
@@ -89,8 +89,9 @@ needed someone reading the code as a tool rather than as a flow.
 - **A checker that shares a definition with the thing it checks cannot find a mistake in the
   definition.** The three rows in §1 and the record finding in §2 are exactly that mistake, which is an
   argument for audits — including of your own repository — rather than against properties.
-- **Every row above is re-checkable.** `audit/run-1/findings.json` carries all 19 records with their
-  evidence; `audit/run-1/coverage-ledger.json` names the 20 coverage units, and the 7 the budget did
-  not fund, with reasons; the fixes are in `1eb0675` and `c4f78e5`; the tests are named after the
-  finding they guard. Nothing here asks to be taken on trust, including the count of findings that a
-  property could not have caught.
+- **Every row above is re-checkable.** [`audit/run-1/findings.json`](../audit/run-1/findings.json)
+  carries all 19 records with their evidence;
+  [`audit/run-1/coverage-ledger.json`](../audit/run-1/coverage-ledger.json) names the 20 coverage
+  units, and the 7 the budget did not fund, with reasons; the fixes are in `1eb0675` and `c4f78e5`;
+  the tests are named after the finding they guard. Nothing here asks to be taken on trust,
+  including the count of findings that a property could not have caught.
