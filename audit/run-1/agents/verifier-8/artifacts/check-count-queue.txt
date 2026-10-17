@@ -1,0 +1,34 @@
+verifier-8 — independent local check (reproduction) for candidate
+  probe/payer.rs:run:unbounded-payment-count  (hunter-invoices, proposed needs_validation)
+target: zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (read-only; worktree clean)
+sandbox copy: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2  (git archive HEAD, rust-toolchain.toml removed)
+  diff of copy vs target: crates/probe/src/{payer.rs,ops.rs,flow.rs,node.rs} identical
+sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v <w2 copy>:/t -v <host cargo registry>:ro -w /t rust:1-slim sh -c '<script>'
+binary: rebuilt inside the sandbox from the copy's own source so the run cannot be an artifact of a stale
+  artifact: CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-probe --bin zanary-probe (24.18 s)
+  pre-existing /t/target/debug/zanary-probe sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+  fresh build          /t/target/debug/zanary-probe sha256 cf54ecd0ec1b9f634f2892c06068022959fea95f6e1571dd7323df82207a8716
+  (hash changed on rebuild; results below are from the fresh build of the pinned source)
+
+fixture: /t/v8fx/inv-zero-5000 = 5000 files v8z00001.json..v8z05000.json, 142 B each, amount_zat 0,
+  receiver "uregtest1noreceivercheck"
+grant:   /t/v8fx/grant-ok.json = {"budget_zat":50000000,"per_payment_cap_zat":10000000,"allowlist":[],
+  "expires_at":"2030-01-01T00:00:00Z","revoked":false}  (default budget / cap)
+command: zanary-probe payer --grant /t/v8fx/grant-ok.json --invoices /t/v8fx/inv-zero-5000 \
+           --out /t/v8fx/out/zero --now 2026-10-17T00:00:00Z
+
+RESULT: exit=1  elapsed_s=1  log_lines=5013
+  5000 ALLOW lines, 0 REFUSE lines
+  header:  "invoices          : 5000 in /t/v8fx/inv-zero-5000"
+  sample:  "ALLOW    v8z00001 — paid: within the cap (10000000 zat) and the budget (0 of 50000000 zat spent after this)"
+  tail:    "Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Caused by: Connection refused (os error 111)"
+
+Read: every invoice file was read, parsed, decided ALLOW and appended to the payment queue (payer.rs:249-260)
+in one run; no cardinality cap exists anywhere on the path (load_invoices collects every *.json, payer.rs:495-520;
+decide() is amount-only, payer.rs:110-128; the payment loop, payer.rs:291-309, has no count bound). With
+amount_zat 0 the spent counter never increases ("0 of 50000000 ... spent after this"), so the budget never binds.
+The run then needs the harness node (NodeRpc::from_env -> block_count(), payer.rs:275-276) and stops in
+--network=none before any payment work: the per-payment cost (proposal ops.rs:884, Orchard proof + sign +
+broadcast ops.rs:360-428, 11 mined blocks + wallet resync ops.rs:59/433-451) and the effect of N sequential
+payments on the shared node are owner-rig observations, out of bounds for this run.

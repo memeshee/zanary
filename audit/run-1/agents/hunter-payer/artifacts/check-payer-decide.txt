@@ -1,0 +1,30 @@
+    Blocking waiting for file lock on build directory
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.78s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 7 tests
+test payer::hunter_payer_checks::hunter_payer_an_unpayable_invoice_is_decided_payable ... H8 allowlisted non-address receiver 'not-an-address' -> allowed=true (paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this))
+H8b 600-byte memo invoice -> allowed=true (paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this))
+ok
+test payer::hunter_payer_checks::hunter_payer_budget_counts_principal_not_the_cost_of_paying ... H3 budget 1000 zat -> up to 1000 allowed payments of 1 zat -> 10000000 zat of fees to top up
+H3 ledger/property report 1000 zat spent; the wallet also spends 10000000 zat in fees
+ok
+test payer::hunter_payer_checks::hunter_payer_expiry_same_instant_two_encodings_two_verdicts ... H1a canonical 2026-11-01T23:00:00Z           -> allowed=false (refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z))
+H1a offset    2026-11-02T13:00:00+14:00      -> allowed=true (paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this))  [same instant]
+ok
+test payer::hunter_payer_checks::hunter_payer_fractional_clock_beats_whole_second_expiry ... H1b now 2026-11-01T00:00:00.300715717Z vs expiry 2026-11-01T00:00:00Z -> allowed=true (paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this))
+ok
+test payer::hunter_payer_checks::hunter_payer_malformed_expiry_never_expires ... H1c expires_at "never" -> allowed=true
+H1c expires_at "2030-99-99T00:00:00Z" -> allowed=true
+H1c expires_at "9999-01-01T00:00:00Z" -> allowed=true
+ok
+test payer::hunter_payer_checks::hunter_payer_same_invoice_id_decided_twice_inside_one_grant ... H2 invoice dup-8301 first  decision: allowed=true (paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this))
+H2 invoice dup-8301 second decision: allowed=true (paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this))
+ok
+test payer::hunter_payer_checks::hunter_payer_unknown_grant_keys_fall_back_to_wider_defaults ... H4 typo'd grant parsed as budget=1000 cap=400 allowlist=[] expires_at=None revoked=false
+H4 stranger under the typo'd grant -> allowed=true (paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this))
+ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.01s
+

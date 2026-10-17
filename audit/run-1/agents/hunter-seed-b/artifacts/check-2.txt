@@ -1,0 +1,51 @@
+# check-2.txt — hunter-seed-b (wave 2)
+# Unit: crates/probe/src/bin/zanary-seed.rs#cli-and-wallet-writes
+# Local check: txid hex-decoding boundary through `zanary-seed tx`, against a dummy loopback
+# fixture (127.0.0.1:19067, accept-and-hold, never answers) inside the sandbox container,
+# reached only via ZANARY_LWD_URL=http://127.0.0.1:19067 (isolated-loopback local fixture).
+# Raw transcript follows (listener log included).
+# fixture (rustc-built in-container, std only):
+#   use std::io::Read; use std::net::TcpListener; use std::thread; use std::time::Duration;
+#   fn main() { let l = TcpListener::bind("127.0.0.1:19067").expect("bind");
+#       eprintln!("LISTENING 19067");
+#       loop { match l.accept() {
+#           Ok((mut s, _)) => { thread::spawn(move || { let mut b = [0u8; 4096];
+#               let _ = s.read(&mut b); thread::sleep(Duration::from_secs(60)); drop(s); }); }
+#           Err(e) => { eprintln!("accept error: {e}"); } } } }
+=== check 2: txid intake against a non-gRPC local endpoint ===
+--- listener log so far ---
+LISTENING 19067
+--- [2a] 64 z-characters (length ok, not hex) ---
+### /t/target/debug/zanary-seed tx --txid zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: bad hex `zz`
+
+Caused by:
+    invalid digit found in string
+
+--- [2b] short input (4 chars) ---
+### /t/target/debug/zanary-seed tx --txid abcd
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: expected 64 hex chars, got 4
+
+--- [2c] odd-length input (63 chars) ---
+### /t/target/debug/zanary-seed tx --txid zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: expected 64 hex chars, got 63
+
+--- [2d] valid 64-hex txid (endpoint accepts but never answers: no-deadline behaviour) ---
+### /t/target/debug/zanary-seed tx --txid 0000000000000000000000000000000000000000000000000000000000000000
+exit_code=124
+--- stdout ---
+--- stderr ---
+
+--- files written under /t/hunter-seed-b-w2/run2 by check 2 ---
+./stderr.txt
+./stdout.txt
+=== end of check 2 ===

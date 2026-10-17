@@ -1,0 +1,44 @@
+zanary run-1 · verifier-1 · local check (approved sandbox, --network=none)
+=======================================================================
+What this establishes: the preconditions the candidate relies on, re-run by the verifier with its
+own module (crates/probe/src/verifier1_check.rs in the disposable copy, wired as
+`#[cfg(test)] mod verifier1_check;`; it only calls target functions — payer::decide, the Invoice
+serde intake, Address::decode, MemoBytes::from_bytes, ops::propose_shielded_payment).
+
+Command (verbatim):
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+    -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe \
+           -- --nocapture verifier1_check'
+
+--- raw output (verbatim) ---
+running 1 test
+== receiver is not an address ==
+   decide(): allowed=true · paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+   Address::decode: NONE — payer.rs:298 would bail here
+== memo of 600 bytes ==
+   decide(): allowed=true · paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+   MemoBytes::from_bytes(600): Err(Memo length 600 is larger than maximum of 512)
+   MemoBytes::from_bytes(512): Ok
+== first wallet-backed step of the payment loop, offline ==
+   ops::propose_shielded_payment: Err(could not propose the payment: Must scan blocks first)
+test verifier1_check::verifier1_decide_admits_what_the_loop_cannot_execute ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.12s
+
+--- what this settles (all re-established by the verifier, not read from the hunter's artifact) ---
+1. With the documented grant shape (empty allowlist = every receiver allowed, cap 10,000,000 zat,
+   budget 50,000,000 zat, unexpired, not revoked) and an amount of 5,000,000 zat, payer::decide
+   returns allowed=true for an invoice whose receiver is the text "not-an-address", and for one
+   whose memo is 600 bytes — decide validates revoked/expiry/allowlist/cap/budget only, never the
+   receiver's address form or the memo length.
+2. Address::decode("not-an-address") returns None, so the payment loop's first fallible step
+   (payer.rs:298) aborts the whole run for that invoice; MemoBytes::from_bytes(600) fails with
+   "Memo length 600 is larger than maximum of 512" at payer.rs:304-305 (512 bytes is accepted).
+3. The loop's first wallet-backed step cannot succeed offline: ops::propose_shielded_payment on an
+   unsynced sandbox wallet fails with "could not propose the payment: Must scan blocks first".
+   This is why the partial run (iteration 1 broadcasts, iteration k aborts) cannot be reproduced
+   without the regtest rig (funded synced wallet + node/indexer).
+
+Not established here (nor locally possible): that a broadcast payment from iteration 1 is mined
+while no ledger/run/report artifact is written afterwards, and the re-run re-payment.

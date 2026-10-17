@@ -1,0 +1,143 @@
+check: rig image references — are the two compose image tags bound to any identity, and who consumes them?
+owner: hunter-images  |  unit: harness/docker-compose.yml#services :: electriccoinco/zcashd:latest and electriccoinco/lightwalletd:latest image references :: local-rig :: SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes
+target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean, no untracked file referenced below)
+date: 2026-10-17T09:51:46Z
+
+sandbox: docker run --rm -i --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+         -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro
+         -w /t rust:1-slim sh -s   (script on stdin; no external network, no image pull, no target code executed,
+         no registry contact, nothing written inside the sandbox copy or to the host except this file)
+scope: the disposable copy is a git-archive of the reviewed revision; the untracked working-tree logs
+       (phase0-warmup.log, build-*.log) and data/ are NOT part of it and are not cited here.
+
+===== 1. every image: reference in the tracked tree =====
+--- grep -rn '^[[:space:]]*image:' --include='*.yml' --include='*.yaml' .
+./harness/docker-compose.yml:9:    image: electriccoinco/zcashd:latest
+./harness/docker-compose.yml:34:    image: electriccoinco/lightwalletd:latest
+--- compose file sha256 (this copy) and the two lines
+7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3  harness/docker-compose.yml
+9:    image: electriccoinco/zcashd:latest
+34:    image: electriccoinco/lightwalletd:latest
+
+===== 2. digest pin / pull policy / image-identity marker scan over the whole tracked tree =====
+pattern @sha256:       files=0
+pattern pull_policy    files=0
+pattern repoDigests    files=0
+pattern image inspect  files=0
+pattern docker pull    files=1
+(files=0 for @sha256: and pull_policy means nothing in the reviewed revision pins or constrains tag resolution)
+
+===== 3. who consumes the rig: every tracked caller of harness/up.sh =====
+./scripts/bounded-payer-demo.sh:4:#   harness/up.sh && scripts/bounded-payer-demo.sh
+./scripts/demo-run.sh:5:#   harness/up.sh && scripts/demo-run.sh
+./docs/FLOW-RUNNER-PLAN.md:162:   for a fresh clone — `harness/up.sh` seeds `data/zcashd/.zcash/zcash.conf` from the tracked
+./docs/SUBMISSION.md:36:**One command:** `harness/up.sh && scripts/demo-run.sh`.
+./docs/SUBMISSION.md:80:harness/up.sh && scripts/demo-run.sh        # private PASS · control CAUGHT · payer ledger · index
+./docs/CI.md:60:can publish. `harness/up.sh` and `zanary-probe test` are the same two pieces, so the action is a
+./docs/CI.md:66:harness/up.sh                                   # seeds the node config, starts the chain, waits until it can be used
+./docs/CI.md:79:  timeout. Every wait in `harness/up.sh` is now bounded (`ZANARY_PROBE_TIMEOUT_SECONDS`, default 20),
+./docs/VIDEO-SCRIPT.md:27:> "One command runs the whole story on a throwaway chain: `harness/up.sh`, then `scripts/demo-run.sh`.
+./docs/VIDEO-SCRIPT.md:104:harness/up.sh                                    # the rig (once)
+./docs/VIDEO-SCRIPT.md:130:answer is one command and a scroll: `harness/up.sh && scripts/demo-run.sh` prints all four stages with
+./.github/workflows/privacy-gate.yml:239:        run: harness/up.sh
+./README.md:111:harness/up.sh && scripts/demo-run.sh
+./README.md:114:harness/up.sh                             # throwaway chain + indexer, and wait until they are usable
+./harness/up.sh:4:#   harness/up.sh            # node + indexer, ready to run a flow against
+./harness/up.sh:5:#   harness/up.sh --clean    # same, but refuse to touch an existing rig (see below)
+./harness/HARNESS.md:17:harness/up.sh                 # config + `docker compose up -d` + wait until the rig is usable
+./action.yml:85:      run: harness/up.sh
+--- the resolution point itself (harness/up.sh)
+11:#   2. `docker compose up -d`;
+60:docker compose up -d
+--- the compose file's own header command
+3:#   docker compose up -d
+13:    # the default keeps a bare `docker compose up` working on the machine this rig was built on.
+
+===== 4. the images as the repo names them: doc version claims next to the floating tag =====
+./scripts/phase0-warmup.sh:29:for img in zfnd/zebra:latest zfnd/zebra:v6.4.2 zfnd/lightwalletd:latest zfnd/zallet:latest electriccoinco/zcashd:latest; do
+./harness/HARNESS.md:54:| `zcashd` | `electriccoinco/zcashd:latest` (v6.20.0) | 18232 RPC · 18233 P2P | Needs `data/zcashd/.zcash/zcash.conf` (mounted). Runs as uid 1000 so the bind mount is writable. |
+./harness/HARNESS.md:55:| `lightwalletd` | `electriccoinco/lightwalletd:latest` (v0.5.5) | 9067 gRPC · 9068 HTTP | `--no-tls-very-insecure` is for this harness only; never expose it. |
+./harness/docker-compose.yml:9:    image: electriccoinco/zcashd:latest
+./harness/docker-compose.yml:34:    image: electriccoinco/lightwalletd:latest
+--- asserted versions (v6.20.0 / v0.5.5) in tracked docs and config
+./docs/WALLET-NOTES.md:76:   Verified live via `getblockchaininfo.upgrades`: zcashd v6.20.0 knows exactly 7 upgrades
+./docs/WALLET-NOTES.md:88:   fetches Ironwood subtree roots; lightwalletd v0.5.5 forwards `z_getsubtreesbyindex "ironwood"`
+./docs/WALLET-NOTES.md:89:   to zcashd v6.20.0, which has no Ironwood pool (Zebra-era), and fails with:
+./docs/WALLET-SEND-NOTES.md:17:`zanary-zcashd` (regtest, RPC `127.0.0.1:18232`) + `zanary-lwd` (lightwalletd v0.5.5,
+./docs/WALLET-SEND-NOTES.md:349:- Both spellings exist in lightwalletd v0.5.5 (`GetTaddressTxids`, deprecated, and
+./README.md:75:| Disposable chain + indexer (`harness/`) | **works** — zcashd v6.20.0 regtest + lightwalletd v0.5.5, one `docker compose up -d`, 140 blocks in ~2 s |
+./harness/HARNESS.md:9:zcashd (regtest, v6.20.0)  ──RPC :18232──▶  lightwalletd (v0.5.5)  ──gRPC :9067──▶  zanary-probe (our Rust code)
+./harness/HARNESS.md:54:| `zcashd` | `electriccoinco/zcashd:latest` (v6.20.0) | 18232 RPC · 18233 P2P | Needs `data/zcashd/.zcash/zcash.conf` (mounted). Runs as uid 1000 so the bind mount is writable. |
+./harness/HARNESS.md:55:| `lightwalletd` | `electriccoinco/lightwalletd:latest` (v0.5.5) | 9067 gRPC · 9068 HTTP | `--no-tls-very-insecure` is for this harness only; never expose it. |
+./harness/HARNESS.md:73:Branch ids taken from zcashd v6.20.0 `src/consensus/upgrades.cpp`. Verify with
+./harness/HARNESS.md:94:2. **API drift is real.** `z_getnewaddress` is disabled in v6.20.0 in favour of
+./harness/HARNESS.md:118:  available on v6.20.0, else a tiny getblocktemplate/submitblock miner). Coinbase pays our Rust
+./harness/HARNESS.md:137:`ECC LightWalletD v0.5.5`, `sapling at 1`, plus the tip hash from `GetLatestBlock`.
+
+===== 5. does any recorded claim carry the identity of the containers that produced it? =====
+--- tracked claim fixtures mentioning an image / version identity:
+files=0
+--- what a published claim binds (crates/report/src/lib.rs Report struct verbatim)
+pub const REPORT_VERSION: u32 = 1;
+
+/// Default claim lifetime: 30 days (docs/CLAIMS.md).
+pub const DEFAULT_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Report {
+    pub version: u32,
+    pub flow_id: String,
+    pub flow_commit: String,
+    pub chain: String,
+    /// Chain height the run was made against: the clock a claim's TTL starts from.
+    pub verified_at_height: u32,
+    /// RFC3339 UTC wall-clock time the run finished. The claim's TTL clock starts here; a
+    /// report without it is still checkable evidence, but it cannot expire (and the index
+    /// says so rather than guessing a date).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verified_at: Option<String>,
+    /// Claim lifetime in seconds. `None` means [`DEFAULT_TTL_SECONDS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl_seconds: Option<u64>,
+    pub findings: Vec<Finding>,
+    /// Facts a verifier re-checks against the chain.
+    pub evidence: Vec<Evidence>,
+    /// True when the merchant side was simulated by the rig (stated, never implied).
+    pub merchant_is_simulated: bool,
+    /// sha256 over the canonical JSON of everything above.
+    pub report_hash: String,
+}
+
+--- the gate summary's own identity/verification fields (crates/probe/src/gate.rs)
+165:    let chain_verified = verification.verified();
+169:        if chain_verified { "PASS" } else { "FAIL" },
+244:    let exit_code = if !chain_verified {
+261:        report.verified_at_height,
+279:        &outcome.report_hash[..16.min(outcome.report_hash.len())]
+297:    let verdict = if !chain_verified {
+342:            "report_hash": outcome.report_hash,
+344:            "chain": report.chain,
+345:            "verified_at_height": report.verified_at_height,
+348:            "chain_verified": chain_verified,
+
+===== 6. bounded conclusion =====
+In the reviewed revision, the rig's two containers are selected by mutable tags (docker-compose.yml:9 and :34).
+Nothing in the tree pins a digest, sets a pull policy, checks a repo digest, or otherwise binds the running
+container to a reviewed artifact; the only inspect call in the rig checks .State.Running, not identity.
+The only two tracked callers of harness/up.sh are action.yml:85 (the composite action third parties run) and
+.github/workflows/privacy-gate.yml:239 (this repo's own payer job); the gate job reaches it through uses: ./ at
+:87. Recorded claims bind flow_id/flow_commit/chain/height and a report hash, and carry no image, digest or
+container identity, so a published claim cannot be tied to the container content that produced it.
+
+===== 7. revision binding: same files hashed in the target checkout (host, read-only) =====
+7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3  harness/docker-compose.yml
+0958b05d7280c25ec0e03eee0274c279557e976fb6f725bfb8026ad325f71444  harness/up.sh
+ad14f80e64444a2a9501080acb9354d463c8d21d52718a1e5d4110ce339072b8  harness/HARNESS.md
+1c58ef4994e322ff0b222943132de8744dbdb35f6af59c842c595f8db43acde3  action.yml
+f7886764d6d739ce3ba18926c7be4a60fe76172e7eada18e804a9e3475653793  .github/workflows/privacy-gate.yml
+b1ac3ac34229b2a99b0796749b0b5e48ec2fa321c8d6ae5040484350dc8656cf  README.md
+89a829a09ec662cad0b8cf0f63bafd8499db3755fc1613a2934542bca2062a3b  docs/CI.md
+66df5b6564208c98c1b03a57d5ec494125e4b1e120df89ab95bbdf4ff980e3ea  scripts/phase0-warmup.sh
+365028e494d14657b8734acbbc2402f68a2fc1b5ae1ed635cd2d11a17e0a9b66  crates/report/src/lib.rs
+git rev-parse HEAD: 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+git status --porcelain (empty = clean): []

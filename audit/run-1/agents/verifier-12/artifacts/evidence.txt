@@ -1,0 +1,59 @@
+verifier-12 evidence — candidate zanary/payer-budget-excludes-fees (hunter-payer), zanary run-1
+Verified 2026-10-17. Target /home/kiter/hackathon/zanary @ 7058406, worktree clean.
+
+SOURCE VERIFICATION (all cited lines re-read at commit 7058406):
+- crates/probe/src/payer.rs:495 fn load_invoices — reads every *.json in the directory, sorts by
+  name, parses; no count cap, no size cap, no minimum amount per invoice (495-520).
+- payer.rs:119-128 budget rule: after = spent.saturating_add(invoice.amount_zat) (119); refuses only
+  when after > budget_zat (120). Fees never enter the comparison.
+- payer.rs:278-287 funding: shortfall(&payer, &to_pay) (278) then flow::top_up_for_target(profile,
+  missing) (286) — funded from the payer's coinbase / node wallet, outside the grant.
+- payer.rs:291-310 payment loop: per allowed invoice — propose_shielded_payment (307),
+  build_sign_broadcast (308), mine_and_resync(CONFIRM_BLOCKS) (309); CONFIRM_BLOCKS = 11
+  (ops.rs:59); then mined_height_of.
+- payer.rs:523-533 shortfall: needed = sum(amounts) + 10_000 * to_pay.len() (530); comment "one
+  ZIP-317 fee per payment at 2 actions".
+- payer.rs:428-440 ledger summary: "{} paid · {} refused · {} spent of {}" summing paid decision
+  amounts.
+- crates/properties/src/properties/payer_policy.rs:77-90 re-derives spent from decision.amount_zat
+  (77) and re-checks cap (78-83) and budget (84-90); summary "N of M zat spent" (105-116).
+- crates/observation/src/lib.rs:232 impl PayerRun {; doc "Zatoshis actually spent under this grant"
+  (233); spent_zat() sums paid decision amounts only (234-241). Hunter cited 232; the fn is at 234
+  — corrected in the record.
+- crates/probe/src/flow.rs:1542-1548 Invoice { amount_zat: u64 } bare (1544), no minimum.
+- docs/BOUNDED-PAYER.md:28 "budget — the most the run may spend in total, checked cumulatively in
+  ledger order".
+- scripts/bounded-payer-demo.sh: BUDGET_ZAT default 12000000, CAP_ZAT default 10000000.
+- flow.rs:1165-1177 fee_budget_zat: per-invoice settlement "10_000 zatoshis each" — the runner's
+  own model matches the payer's per-payment figure.
+
+EXECUTION (approved sandbox: docker run --rm --network=none --cpus=6 --memory=3500m
+--memory-swap=5g --pids-limit=1024 -v .../zanary-sandbox-w2:/t -v ~/.cargo/registry:...:ro
+-w /t rust:1-slim; CARGO_BUILD_JOBS=6):
+Verifier-authored module crates/probe/src/verifier12_check.rs + `#[cfg(test)] mod verifier12_check;`
+in crates/probe/src/main.rs of the disposable copy. The module only CALLS the target's own
+payer::decide and PayerPolicy::check; no production line changed.
+Command: cargo test --offline -p zanary-probe --bin zanary-probe -- verifier12 --nocapture --test-threads=1
+Result (see check-verifier12-tests.txt):
+- V12-1 real decide(): 1000 x 1-zat invoices allowed under budget=1000/cap=400; spent == 1000;
+  1001st refused: "refused: paying 1 zat would take this run to 1001 of a 1000 zat budget";
+  the payer's own fee model => 10,000,000 zat of fee headroom.
+- V12-2 real payer-policy property: verdict Pass, summary "1000 paid · 0 refused · 1000 of 1000
+  zat spent"; PayerRun::spent_zat() == 1000.
+Reproduces the hunter's H3 minimum observed result on the decision layer (their artifact
+agents/hunter-payer/artifacts/check-payer-decide.txt shows the same numbers: 1000 allowed, 10000000
+fees, "1000 zat spent"). The fee magnitude is the payer's own constant, not a chain observation;
+measuring the real chain fee needs the regtest rig (out of sandbox bounds) and is not claimed.
+
+REFUTATION ATTEMPTS (all failed):
+1. Upstream/count bound: none — load_invoices has no cap; decide has no count rule; PayerGrant has
+   fields budget_zat, per_payment_cap_zat, allowlist, expires_at, revoked only — no max_payments;
+   invoice issuance enforces no minimum.
+2. Fee counted in the budget comparison: no (executed).
+3. Detector catches the gap: no — payer-policy re-derives principal only and PASSes (executed).
+4. Fee is not really spent: payer itself budgets 10_000/payment (530); runner models 10_000/invoice
+   (flow.rs:1170); funding top-up exists to cover it, from outside the grant.
+5. Doc intent narrower than claimed: no — docs:28 defines budget as "the most the run may spend in
+   total"; the model sums "actually spent".
+Calibration: the flow runner funds fees the same way but holds no grant, so only the payer's
+authority claim is contradicted. Regtest + minted money bounds impact (medium).

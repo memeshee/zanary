@@ -1,0 +1,69 @@
+# verifier-9 — independent verification log for
+# candidate video/zanary-demo.mp4:publish-video-unverifiable-media-content (proposed needs_validation by hunter-video)
+# date(UTC): 2026-10-17 · target /home/kiter/hackathon/zanary read-only (HEAD 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean)
+# method: read-only source review + one bounded in-sandbox re-check (see check-video-container.txt). No network, no host media tooling.
+
+== 1. trace re-verification (every file/line read directly) ==
+entrypoint video/zanary-demo.mp4:1  — real: git ls-files video/ -> exactly this one file; committed blob df469b5a..., 3717435 B;
+  in-sandbox: sha256 38a6b73f..., ISO-BMFF ftyp isom/iso2/avc1/mp41, avc1 + mp4a tracks only, 112.13 s. OK.
+propagation docs/VIDEO-SCRIPT.md:9 — line 9 is "`~/hackathon/zanary-rehearsal.log`, a real take that exited 0." (claim sentence
+  starts at :8 "Nothing is staged: every line below is verbatim from"); the source log is outside the revision. OK.
+propagation .github/workflows/privacy-gate.yml:170 — comment text on :170: "The recording pipeline itself stays out of the
+  repository (docs/VIDEO-SCRIPT.md)." OK.
+sink :172 — "cp video/*.mp4 public/video/ 2>/dev/null || echo \"no video in the tree — skipping\"" — verbatim, unconditional. OK.
+sink :215 — publish job :110-113 (needs: gate; if: github.ref == 'refs/heads/main'), upload-pages-artifact :209-211, deploy :213-215;
+  triggers :16-23 include push(main) and weekly schedule (cron 17 4 * * 1). OK.
+(First entry is the committed media asset itself — the right lower-trust input for a published-evidence unit; last entry is the
+Pages deploy, the claimed boundary effect.)
+
+== 2. evidence re-verification ==
+- privacy-gate.yml:172 — copied verbatim; NO hash pin of the asset anywhere in the tree (grep 38a6b73f -> 0 hits), no scan, no
+  transform, no step reads the media bytes; the "|| echo" fallback would silently deploy a 404ing player. OK (noted).
+- privacy-gate.yml:170 — as above. OK.
+- docs/VIDEO-SCRIPT.md:8 — quote verified at :8-9 ("Nothing is staged: every line below is verbatim from ~/hackathon/
+  zanary-rehearsal.log, a real take that exited 0"). OK.
+- docs/VIDEO-SCRIPT.md:34 — intended on-screen block list starts at :34 (typed command; ~10 s run; payment lines; property table;
+  "verification summary PASS 12 pass · 0 fail · 6 skip"; claim block :38-46); payer block :55-68; control "caught" :76-82;
+  index/Actions shots :90. OK (ranges re-checked).
+- privacy-gate.yml:198 — page text :198-200: "What is on screen comes from a real run: ... Every number in the narration is in
+  the artifacts."; player src hardcodes 'zanary-demo.mp4' (:196). OK.
+- report_leak.rs:7 — CORRECTED: :7 is the doc header; the operative scope is receipts-only at :82-89 (skip when
+  run.receipts is empty) and the inspection loop :107-139 (key-material tokens :26-39, addresses :125-132, emails :133-138).
+  The video never enters this check; docs/THREAT-MODEL.md:43-46 says report-leak covers "every artifact the flow exports" —
+  the recording is not a flow export, and no other in-tree rule or CI step inspects the media.
+- video/zanary-demo.mp4:1 — RE-ESTABLISHED by verifier-9 in-sandbox (check-video-container.txt): byte-identical to the committed
+  blob (git-blob sha1 df469b5a...), sha256 38a6b73f..., two tracks only, no text/subtitle/chapter box, 0 trailing bytes,
+  creation/mod 0, only ©too=Lavf63.1.101 metadata, raw-byte token scan 0 hits.
+- wallet.rs:38 — REFINED: the CLI does print the dev seed phrase by design, but the value is the canonical BIP-39 English test
+  vector (crates/probe/src/core.rs:63), already committed in-tree (docs/WALLET-NOTES.md), and neither demo script invokes
+  `wallet` (scripts/demo-run.sh:107-125 runs test/test/payer/index only; scripts/bounded-payer-demo.sh:59-64 runs payer only).
+  So source eliminates this specific example; the decisive residual is any OTHER value the manual take captured.
+- docs/SUBMISSION.md:99,:111 (added) — the ship checklist marks the video built and served (112 s, "frames verbatim from a real
+  run"), direct file URL .../video/zanary-demo.mp4; README.md:15-18 advertises the same player. Publication is deliberate.
+- in-tree media references inventory (grep -rIn, incl. dotdirs): ONLY README.md:15, docs/SUBMISSION.md:15/99/111,
+  docs/VIDEO-SCRIPT.md, and the publish step in privacy-gate.yml. No test, script, action.yml step or property touches the media.
+- producer pipeline: grep for ffmpeg/TTS/frame-render/narration across the tree -> no pipeline code (only prose mentions of
+  "narration" in docs and a property name); the pipeline is out of tree as the workflow comment states.
+
+== 3. refutation attempts (all failed to refute; two narrowed the claim) ==
+(a) "An in-tree control constrains the media content." — none found: no hash pin, no scan, no test, no CI check; report-leak
+    filters run.receipts only. NOT refuted.
+(b) "The decisive fact (decoded frames/audio) is answerable locally." — no: approved sandbox (rust:1-slim, --network=none, no
+    pulls) has no decoder and its read-only offline registry (418 crates) has no media-capable crate; the audit's own rules bar
+    host-side processing of the fixture; the published copy must not be fetched. NOT refuted — blocker is real.
+(c) "Source establishes the asset is harmless." — only PARTIALLY: it eliminates the sharpest single example (the seed phrase is a
+    public test vector; rpcuser/rpcpassword committed on purpose; chain is throwaway). But a manual screen recording's pixel/audio
+    surface (operator paths/usernames, anything on screen or spoken beyond the cut sheet) is exactly the class no in-tree artifact
+    constrains — narrowing, not refuting.
+(d) "The published bytes differ from the reviewed revision (LFS/substitution)." — no .gitattributes/LFS; git blob df469b5a... ==
+    in-sandbox content hash of the copy; the real 3.7 MB file is what the cp step serves. NOT refuted.
+(e) "The glob matches more than one file / other media could be served." — git ls-files video/ and the in-sandbox listing:
+    exactly one file. NOT refuted.
+
+== 4. verdict ==
+needs_validation sustained, fingerprint kept (video/zanary-demo.mp4:publish-video-unverifiable-media-content). The trace and
+evidence hold with two corrections (report_leak.rs anchor -> :82; wallet.rs entry refined) and one added evidence line
+(SUBMISSION.md:111). Blocker remains genuinely decisive and outside source/local observation: whether the world-readable
+112 s shows only the intended-public run data is settleable only by decoding the pixels/audio, which is impossible in the
+approved sandbox and out of policy on the host. Owner-side offline decode/OCR/transcribe plan and owner-observed published-bytes
+check are stated in the record; both are non-destructive (work on a copy / observation only).

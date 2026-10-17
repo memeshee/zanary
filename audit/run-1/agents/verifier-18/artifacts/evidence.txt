@@ -1,0 +1,78 @@
+verifier-18 — independent verification record
+candidate: zanary/rig-ports-published-all-interfaces (proposed needs_validation by hunter-rig)
+target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean; read-only)
+
+WHAT I DID
+- Read the candidate and its linked coverage unit's checks (run dir ledger entry 17).
+- Read the hunter's promoted artifact agents/hunter-rig/artifacts/check-rig-ports.json.
+- Re-read every cited file/line in the target: harness/docker-compose.yml, harness/zcash.conf,
+  harness/up.sh, harness/seed.sh, harness/HARNESS.md, docs/THREAT-MODEL.md, docs/CI.md, README.md,
+  action.yml, crates/probe/src/node.rs, crates/probe/src/core.rs, crates/report/src/node.rs,
+  crates/report/src/verify.rs.
+- Re-derived the mechanical claims myself in the approved OS-enforced sandbox (no external network,
+  bounded cpu/mem/pids, /t = disposable copy of the reviewed revision, read-only cargo registry):
+  see check-rig-ports-verify.txt / .json in this scratch.
+- Did not contact the rig, its ports 18232/18233/9067/9068, any service, URL or host docker daemon.
+
+TRACE / EVIDENCE VERIFICATION (all positive lines are real and say what is claimed)
+- docker-compose.yml:20 "18232:18232" (bare), :21 "18233:18233", :46 "9067:9067", :47 "9068:9068":
+  4 publish specs, all host-IP-unqualified. Mechanically re-derived: publish_spec_count=4,
+  hostip_qualified_spec_count=0, loopback occurrences in compose=0, host_ip key=0.
+  Only dotted-quads in the file are the in-container binds 0.0.0.0:9067/9068 (lines 50-51).
+- zcash.conf:15 rpcbind=0.0.0.0, :16 rpcallowip=0.0.0.0/0 — re-derived.
+- up.sh:47-52 seeds $ROOT/data/zcashd/.zcash/zcash.conf from the tracked conf, never overwrites
+  (cp at :50); compose command line carries the credential pair (docker-compose.yml:24-25), the
+  healthcheck reuses it (:28), lightwalletd reuses it (:54-55). Credential equality conf == compose
+  == probe default re-derived by comparison, values never printed: all "yes".
+- node.rs:26 DEFAULT_RPC_URL loopback; :64-66 probe user/pass defaults; :79 HTTP Basic header;
+  :9-12 module doc plain http + basic auth. core.rs:101, report/src/node.rs:186,
+  report/src/verify.rs:127, up.sh:25-26 all loopback defaults. No tracked consumer of either port
+  defaults to, or documents, a non-loopback endpoint (checked crates/, scripts/, harness/, docs/,
+  README); no doc tells users to reach the rig from another host.
+- HARNESS.md:55 "...never expose it" (indexer), :60 "RPC open to the docker bridge";
+  HARNESS.md:3 "no network beyond this machine"; THREAT-MODEL.md:113 "the harness runs everything on
+  localhost"; README.md:111/114, docs/CI.md:66, action.yml:85 are the documented entry paths that
+  create the binding (action.yml runs up.sh inside a third-party caller's CI job).
+- Revision pinning: sha256(harness/docker-compose.yml)=7d6e6470…, sha256(harness/zcash.conf)=
+  b635374b… match between the target checkout and the sandbox copy; every file this record cites
+  hash-matches both trees.
+
+CORRECTIONS TO THE CANDIDATE MADE IN MY RECORD
+- evidence for docker-compose.yml:46 said "9068 is referenced nowhere else in the repository":
+  precisely, 9068 has no in-repo consumer; its tracked references are the spec itself (:47, :51) and
+  the HARNESS.md port table (:55). Corrected.
+- Trace entry 1 and the sink description now mark the all-interface binding as the Docker default
+  for an unqualified publish, pending confirmation on the operator's engine (it was written as
+  settled fact).
+- Impact framing kept strictly bounded: regtest only, no real value, no mainnet material, only host
+  write path is data/zcashd (compose :17-18; lightwalletd mounts nothing).
+
+REFUTATION ATTEMPTS (none succeeded)
+1. "Some in-repo consumer needs off-host reachability" — no: every consumer default is loopback.
+2. "A controlling in-repo restriction exists" — no: zero host-IP specs, zero loopback qualifiers,
+   zero host_ip keys; rpcbind/rpcallowip are wide open; auth is one shared public credential over
+   plain HTTP (proxy has no credential/TLS at all).
+3. "Documented usage pins the rig to localhost" — docs assert it as a premise, but nothing in the
+   stack enforces it and the composite action runs the rig on third-party runners.
+4. "Boundary not crossed" — judged explicitly (see below); the source-visible exposure mechanism
+   holds; only its deployment realization (engine bind + who can reach it) is unobserved.
+
+BOUNDARY JUDGMENT (why not rejected)
+A lower-trust principal can exist in the documented deployments: the rig is started by the composite
+action inside third-party CI jobs (action.yml:85) on shared runner infrastructure, and by any reader
+on their own networked machine (README:111-114). On a standard Docker engine an unqualified publish
+binds all host interfaces, so any second host that can reach the port and has read the public
+repository becomes the node operator. That is not refuted by source; it is unobserved here only
+because the effective bind and off-host reachability are deployment facts (the rig's containers and
+ports are out of bounds for this validation). Per the unit's CLOUD-AND-DEPLOYMENT validation rules
+(establish the effective deployment object; do not assume reachability; return needs_validation with
+the exact observation needed), the correct state is needs_validation, not rejection. The asset value
+argument (throwaway regtest, published credential) bounds severity - it does not refute the trace -
+so the record keeps the lead with its impact explicitly bounded and its decisive facts made
+owner-observable in one command.
+
+PROCESS NOTE
+The approved sandbox copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 contains extra files
+not in the reviewed revision (e.g. crates/probe/src/bin/verifier2_check.rs, hunter-intake-checks/,
+atomdump.rs) - drift introduced by earlier agents in this run. All files this verification relies on
+were hash-compared against the target checkout and match; the drift does not touch this result.

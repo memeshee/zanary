@@ -1,0 +1,85 @@
+== staged record payload ==
+3de493e91e2e1fc2fbfe78401c0b043775132e0906e3b8a26f37b8394c03aa14  /t/verifier/record-payload.json
+== source state before probe ==
+f26dbc615c3ddd6a4ee4779f0eb38554abddd23e6167e3d70d42396c4bc97dac  /t/crates/report/src/receipt.rs
+== build ==
+   Compiling zanary-report v0.0.1 (/t/crates/report)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.21s
+== integration probe ==
+   Compiling zanary-report v0.0.1 (/t/crates/report)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.72s
+     Running tests/verifier5_probe.rs (target/debug/deps/verifier5_probe-6fd28a77f73a5c1c)
+
+running 4 tests
+V5-D states(embedding claim, needle 9120 (body id)) = false
+V5-D states(embedding claim, needle 250000 (body amount)) = false
+V5-D states(embedding claim, needle txid) = true
+V5-D states(clean claim, needle 9120) = true
+V5-D states(clean claim, needle 250000) = true
+V5-D states(clean claim, needle txid) = true
+test v5_d_proposed_fix_refuses_the_demonstrated_claims ... ok
+V5-A body invoice 9120 / 250000 zatoshis; claim states invoice 91207 / 2500000
+V5-A validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+V5-A verify_signature OK (signer a11032f8472dac59c147446a31e9d5216ad3633d23fea457c09687ed20de4e30)
+test v5_a_contradicting_but_embedding_claim_is_accepted ... ok
+V5-C(absent figures) validate_claim refused: the receipt's claims never state the amount in zatoshis (250000) that its body carries
+V5-B(a) claim invoice 91207 / 2500000 -> validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+V5-C(clean) validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+test v5_c_documented_refusal_direction_and_clean_control ... ok
+V5-B(b) claim invoice 9120 / 2500000 -> validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+V5-B(g) claim invoice 19120 / 250000 -> validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+V5-B(c) claim invoice 9121 / 2500000 -> validate_claim refused: the receipt's claims never state the invoice id (9120) that its body carries
+V5-B(d) claim invoice 91207 / 250019 -> validate_claim refused: the receipt's claims never state the amount in zatoshis (250000) that its body carries
+V5-B(e) claim invoice 9120 / 250000 -> validate_claim ACCEPTED ["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00", "claims: state the body's invoice id, amount and transaction"]
+test v5_b_acceptance_is_substring_containment_not_the_absence_of_a_check ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+== CLI: my contradicting fixture ==
+receipt   : /t/verifier/probe-superstring.json
+format    : zanary-receipt-v1
+claim     : invoice 91207 was paid 2500000 zatoshis in transaction c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : a11032f8472dac59c147446a31e9d5216ad3633d23fea457c09687ed20de4e30
+claim ok  : body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+== CLI: the record payload verbatim ==
+receipt   : /t/verifier/record-payload.json
+format    : zanary-receipt-v1
+claim     : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+== CLI: absent-figures control ==
+receipt   : /t/verifier/probe-absent-figures.json
+format    : zanary-receipt-v1
+claim     : invoice 7777 was paid 888888 zatoshis in transaction c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : a4aa0f7b2546093acba70eb72a3c7944127d21476aa852bff8898a66cd0b1801
+claim     : INVALID — the receipt's claims never state the amount in zatoshis (250000) that its body carries
+
+  FAIL — the receipt does not check out (see the lines above)
+exit=1
+== CLI: clean control ==
+receipt   : /t/verifier/probe-clean.json
+format    : zanary-receipt-v1
+claim     : invoice 9120 was paid 250000 zatoshis in transaction c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : c2d83f5dfe3e19156a1ee7a57d457004844eda20f99009bc2ad4e99cb5b6c129
+claim ok  : body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+== binary hash ==
+2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60  /t/target/debug/zanary-report

@@ -1,0 +1,25 @@
+hunter-intake local check B — matrix renderer byte-slices run.json flow_commit
+Same sandbox, same binary and limits as check A (--network=none --cpus=6 --memory=3500m
+--memory-swap=5g --pids-limit=1024, rust:1-slim, registry read-only, writes only in the copy).
+Layout: `matrix --runs <dir>` expects <dir>/<run-dir>/{run.json,findings.json} (matrix::collect).
+
+  runs2-benign/run-1/run.json   flow_commit "deadbeefcafebabe00112233"   findings.json []
+  runs2-hostile/run-1/run.json  flow_commit "abcdefgé" (7 ASCII + U+00E9 = 9 bytes; byte 8 is the
+                                continuation byte of 'é', i.e. inside the character)
+
+  m0  zanary-report matrix --runs runs2-benign  --out out2/m0.md
+      exit=0, stdout:
+        "  checkout-ascii @ deadbeef — 0 pass · 0 fail · 0 skip"
+        "  matrix: out2/m0.md — 1 run(s) × 0 property(ies)"
+  m1  zanary-report matrix --runs runs2-hostile --out out2/m1.md
+      exit=101. stdout EMPTY, out2/m1.md NOT written.
+      stderr: thread 'main' (16) panicked at crates/report/src/matrix.rs:109:27:
+              end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+
+Sink: crates/report/src/matrix.rs:109 `&column.commit[..8.min(column.commit.len())]` in
+render_markdown (also matrix.rs:148); `commit` is copied straight from the parsed run.json at
+matrix.rs:69 (`commit: run.flow_commit`, FlowRun.flow_commit at crates/observation/src/lib.rs:157).
+The same expression appears in the CLI's own summary print at crates/report/src/main.rs:226.
+Effect: safe process termination (exit 101) of `zanary-report matrix` — the LEAK-MATRIX artifact
+is not produced; a benign run directory renders normally (m0 exit 0).
+Scratch file check-matrix-panic.txt — 64 KiB/256 KiB limits respected.

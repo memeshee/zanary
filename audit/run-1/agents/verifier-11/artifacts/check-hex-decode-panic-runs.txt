@@ -1,0 +1,61 @@
+6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782  /home/kiter/hackathon/zanary/crates/probe/src/flow.rs
+6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782  /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2/v11-pristine/crates/probe/src/flow.rs
+8c01e6f31f8c5b6f4f08f0426c58287c977910b1e6ace3d83ac09665a2bdd370  /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2/v11-pristine/target/debug/zanary-probe
+### payload: --txid aéb  (UTF-8 bytes 61 c3 a9 62)
+ 61 c3 a9 62
+
+thread 'main' (10) panicked at crates/probe/src/flow.rs:1785:36:
+end byte index 2 is not a char boundary; it is inside 'é' (bytes 1..3 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=101
+
+### control 1: --txid é (2 bytes, even length, non-hex)
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: invalid digit found in string
+EXIT=1
+
+### control 2: --txid 64 x z
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: invalid digit found in string
+EXIT=1
+
+### control 3: --txid zzzz (4 ASCII non-hex, even length)
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: invalid digit found in string
+EXIT=1
+### payload 2: --txid a«b (UTF-8 61 c2 ab 62, even, 2-byte char straddles index 2)
+ 61 c2 ab 62
+
+thread 'main' (10) panicked at crates/probe/src/flow.rs:1785:36:
+end byte index 2 is not a char boundary; it is inside '«' (bytes 1..3 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=101
+
+### case check: --txid a—b (UTF-8 61 e2 80 94 62 = 5 bytes, odd -> length guard)
+ 61 e2 80 94 62
+Error: decoding the txid
+
+Caused by:
+    hex string has an odd length
+EXIT=1
+
+### case check: --txid —a (UTF-8 e2 80 94 61 = 4 bytes, even, 3-byte char straddles index 2)
+
+thread 'main' (28) panicked at crates/probe/src/flow.rs:1785:36:
+end byte index 2 is not a char boundary; it is inside '—' (bytes 0..3 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=101
+
+### case check: --txid a🦀b (5 bytes U+1F980 crab = f0 9f a6 80? total 6 bytes even)
+ 61 f0 9f a6 80 62
+
+thread 'main' (38) panicked at crates/probe/src/flow.rs:1785:36:
+end byte index 2 is not a char boundary; it is inside '🦀' (bytes 1..5 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=101

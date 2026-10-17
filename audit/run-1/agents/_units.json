@@ -1,0 +1,7 @@
+{
+  "hunter-ci": "action.yml%23inputs-and-steps::.github%2Fworkflows%2Fprivacy-gate.yml%23jobs::ci-and-release::ATTACK-CLASSES.md%23Injection",
+  "hunter-evidence": "crates%2Freport%2Fsrc%2Flib.rs%23index-renderer::.github%2Fworkflows%2Fprivacy-gate.yml%23publish::published-evidence::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+  "hunter-payer": "crates%2Fprobe%2Fsrc%2Fpayer.rs%23decide::crates%2Fproperties%2Fsrc%2Fproperties%2Fpayer_policy.rs%23evaluate::bounded-payer::ATTACK-CLASSES.md%23Business%20logic",
+  "hunter-rig": "harness%2Fdocker-compose.yml%23services::harness%2Fzcash.conf%23rpc-credentials::local-rig::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+  "hunter-inputs": "crates%2Fprobe%2Fsrc%2Fflow.rs%23parse-args-and-flow-load::crates%2Fprobe%2Fsrc%2Frecord.rs%23write-artifacts::cli-inputs::ATTACK-CLASSES.md%23Resource%20and%20file%20handling"
+}

@@ -1,0 +1,24 @@
+VERIFIER-33 unit reproduction (real decide() from crates/probe/src/payer.rs at 7058406, appended test module, sandbox rust:1-slim --network=none)
+command: docker run ... -w /t/verifier33-src rust:1-slim sh -c 'cargo test --offline -p zanary-probe --bin zanary-probe -- verifier33 --nocapture --test-threads=1'
+
+running 4 tests
+test payer::verifier33::v33_equal_instants_two_encodings_opposite_verdicts ... canonical -> allowed=false reason=refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)
+offset    -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+ok
+test payer::verifier33::v33_fix_refuses_every_bad_encoding_and_pays_a_future_canonical ... fix expires_at="2026-11-01T23:00:00Z" -> allowed=false reason=refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)
+fix expires_at="2026-11-02T13:00:00+14:00" -> allowed=false reason=refused: the grant expired at 2026-11-02T13:00:00+14:00 (this invoice was shown at 2026-11-02T00:00:00Z)
+fix expires_at="never" -> allowed=false reason=refused: the grant's expires_at never is not RFC3339 (the 'year' component could not be parsed); refusing rather than treating it as unexpired
+fix expires_at="2030-99-99T00:00:00Z" -> allowed=false reason=refused: the grant's expires_at 2030-99-99T00:00:00Z is not RFC3339 (month was not in range); refusing rather than treating it as unexpired
+fix expires_at="" -> allowed=false reason=refused: the grant's expires_at  is not RFC3339 (the 'year' component could not be parsed); refusing rather than treating it as unexpired
+fix future "2026-12-01T00:00:00Z" -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+fix future "9999-01-01T00:00:00Z" -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+ok
+test payer::verifier33::v33_fractional_clock_at_the_expiry_second ... frac clock -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+ok
+test payer::verifier33::v33_unparsable_and_far_future_text_pay ... expires_at="never" -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+expires_at="9999-01-01T00:00:00Z" -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+expires_at="2030-99-99T00:00:00Z" -> allowed=true reason=paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+expires_at="" -> allowed=false reason=refused: the grant expired at  (this invoice was shown at 2026-11-02T00:00:00Z)
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s

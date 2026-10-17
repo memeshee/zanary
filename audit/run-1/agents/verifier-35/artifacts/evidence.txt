@@ -1,0 +1,43 @@
+verifier-35 — Phase-5 (final record) verification of zanary/published-summary-carries-invocation-paths
+Target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean; READ-ONLY, nothing written)
+No target code executed; no network; no URL/artifact fetched; evidence is source reading + the recorded run outputs in the tree.
+Record checked: findings.json[14] — byte-identical to the prompt copy and to agents/verifier-16/scratch/check-v16-record.json's record.
+
+TRACE — every cited line re-read in the target:
+  action.yml:103  OUT="${{ github.workspace }}/${{ inputs.out }}"                                    VERIFIED
+  action.yml:96   candidates "${{ github.workspace }}/$FLOW" first, then action_path, then "$FLOW"   VERIFIED
+  action.yml:113  zanary-probe test --definition "$FLOW" (114) --out "$OUT" (115) --summary "$OUT/test.json" (119)  VERIFIED
+  gate.rs:92      PathBuf::from(args.require("--definition")?); :102 --out value; :105-108 out_dir as given         VERIFIED
+  gate.rs:331-368 summary block; :336 flow_definition=definition.display(); :337 run_dir=outcome.out_dir.display();
+  gate.rs:343 report_file=outcome.report_path.display(); :365 std::fs::write(path, to_string_pretty(&summary)?)      VERIFIED
+  privacy-gate.yml:161 cp "$dir"report.json "$dir"anchor.json "$dir"test.json "public/claims/$name/"                 VERIFIED
+  privacy-gate.yml:209-211 upload-pages-artifact; :213-215 deploy-pages                                               VERIFIED
+
+EVIDENCE re-established by me:
+  privacy-gate.yml:95-104  artifact zanary-<id>-evidence, path runs/${{ matrix.id }}/ (100), retention-days 30 (103)
+  privacy-gate.yml:137-141 download-artifact pattern zanary-*-evidence (140) -> claim-input (141);
+                           loop 158-162 takes basename($dir) -> public/claims/zanary-<id>-evidence/
+  gate.rs:133 run_recording -> :156 verify_report -> :331-368 summary write is the LAST step, all prior fallible
+    chain steps propagate with ?  => no offline path to the writer (blocker 3 accurate)
+  data/runs/{ci-checkout, ci-checkout-control, demo/demo-private, demo/demo-control, lint-smoke}/test.json — all five
+    carry RELATIVE invocation strings (ci-checkout: :17 flow_definition "flows/ci-checkout.json", :20 report_file,
+    :22 run_dir); docs/CI.md:69 documents the same relative local form
+  grep -rn canonicalize crates/ -> 0 hits; grep -rn strip_prefix crates/ -> http:// / memo prefixes only;
+  grep GITHUB_WORKSPACE over tree -> 0; grep -rn "test.json" crates/ -> 0 (renderer never reads it);
+  index reads report.json (main.rs:682-684) + flat *.json (688-689) + anchor.json (707-711)
+  git grep home/runner + untracked grep (excl target/.git) -> 0; no test.json ever tracked (git log --diff-filter=A);
+  git ls-files data/ -> empty (.gitignore:6 = /data); data/ carries no absolute-path strings
+  scripts/ci-summary.py:50 (definition row), :68 (run_dir row), :74-75 (report_file in a verify command)
+  verifier-16 baseline (own reading): published report.json has no path fields; recorded published pages have no path strings
+CHECKS (prompt list): 1 source path real, supports only the stated root cause — OK
+  2 all three blockers decisive and outside source/local observation (workspace value = provider behaviour; published
+    bytes = out of bounds; no offline path to the writer) — OK
+  3 boundary .github/workflows/privacy-gate.yml#publish + concrete result — OK
+  4 both validation_plan fields present and exact; deployment is owner-observed read-only (no audit traffic) — OK
+  5 fingerprint unique to this root cause; consistent with coverage-ledger.json and the verifier-16 copy — OK
+DECISION: verified.
+Non-material (wording/line only, reported in notes): record.rs join("report.json") is :60 not :76-79;
+  validation_plan.local Part 2 "touches no existing ... wallet state" is loose (a flow run also writes new
+  receivers/notes into the rig's disposable wallet DBs and advances the regtest height; no existing run dir,
+  claim file or published artifact is touched).
+Boundary compliance: read-only target, no target execution, no network, writes only inside this scratch dir.

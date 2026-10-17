@@ -1,0 +1,50 @@
+verifier-16 — independent verification of zanary/published-summary-carries-invocation-paths
+Target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (read-only; worktree clean for tracked files)
+No target code executed; no network; evidence is source reading + recorded local run outputs in the tree.
+
+TRACE — every line re-read by me in the read-only target:
+  action.yml:103  OUT="${{ github.workspace }}/${{ inputs.out }}"                       VERIFIED
+  action.yml:96   flow candidates: "${{ github.workspace }}/$FLOW" first, then action_path, then "$FLOW"  VERIFIED
+  action.yml:113  timeout "$GATE_TIMEOUT" ./target/release/zanary-probe test \
+  action.yml:114  --definition "$FLOW"   :115 --out "$OUT"  :119 --summary "$OUT/test.json"  VERIFIED
+  gate.rs:336     "flow_definition": definition.display().to_string()
+  gate.rs:337     "run_dir": outcome.out_dir.display().to_string()
+  gate.rs:343     "report_file": outcome.report_path.display().to_string()               VERIFIED
+  gate.rs:365     std::fs::write(path, serde_json::to_string_pretty(&summary)?)  (verbatim) VERIFIED
+  privacy-gate.yml:161  cp "$dir"report.json "$dir"anchor.json "$dir"test.json "public/claims/$name/"  VERIFIED
+  privacy-gate.yml:209-215 upload-pages-artifact@v3 + deploy-pages@v4                     VERIFIED
+fingerprint kept.
+
+EVIDENCE re-established by me:
+  privacy-gate.yml:95-104  gate job uploads path: runs/${{ matrix.id }}/ (100) retention-days: 30 (103)
+  privacy-gate.yml:137-141 publish job download-artifact pattern zanary-*-evidence -> claim-input/<artifact>/
+  privacy-gate.yml:151-163 index render (154) then copy loop (158-162) -> public/claims/zanary-<id>-evidence/
+  data/runs/ci-checkout/test.json:17,20,22  flow_definition "flows/ci-checkout.json", report_file
+    "data/runs/ci-checkout/report.json", run_dir "data/runs/ci-checkout" — raw invocation strings; the
+    recording used RELATIVE args (same for all 5 data/runs/*/test.json). File is untracked: /data is
+    gitignored (.gitignore:6, `git ls-files data/` = 0 files; `git check-ignore -v` confirms).
+  scripts/ci-summary.py:50,68  job summary renders flow_definition and run_dir (GITHUB_STEP_SUMMARY)
+  gate.rs:114-115  probe prints "flow definition"/"run directory" to stdout, tee'd to gate.log (action.yml:120)
+
+NORMALIZATION CONTROLS (strongest source-visible): none.
+  grep canonicalize crates/ -> 0 hits; grep 'strip_prefix|relativ|current_dir' crates/probe/src -> only
+  URL prep stripping (gate.rs:375, node.rs:52, zanary-seed.rs:372). gate.rs:92 PathBuf::from(arg) verbatim;
+  gate.rs:102/105-108 --out used as given; record.rs:76-79 out_dir.to_path_buf() / out_dir.join("report.json").
+  crates/report/src never reads test.json (grep test.json in crates/**.rs -> 0 hits); index reads only
+  report.json per run dir (main.rs:682) and flat *.json (main.rs:684-686) + anchor.json.
+  Containment: publish allowlist is exactly report.json/anchor.json/test.json (161) — test.json is deliberately
+  in it; .gitignore keeps /data, public/, claim-input/ out of the repo.
+  Baseline calibration: published report.json carries NO path fields (keys of data/runs/ci-checkout/report.json:
+  chain, evidence, findings, flow_commit, flow_id, merchant_is_simulated, report_hash, ttl_seconds, verified_at,
+  verified_at_height, version); the recorded published pages (data/claims/index.html, data/runs/index.html,
+  data/runs/demo/index.html) contain zero path strings. So test.json is the only published path carrier.
+
+UNRESOLVED (decisive, outside source/local observation):
+  B1 the runtime value of ${{ github.workspace }} is GitHub provider behaviour; action.yml only shows it is
+     always prefixed. No local artifact records a CI invocation: grep -rIl home/runner over the whole tree
+     (tracked + untracked, excl. target/.git) -> 0 files; all recorded test.json instances replay relative args.
+  B2 the published bytes (Pages claim file, 30-day artifact) are out of bounds for this review; the copy step
+     itself is source-verified as verbatim (161), so what is missing is exactly B1's value, not the channel.
+
+Not executed: the field-replay run with absolute args needs the regtest rig (loops back ports 18232/18233/
+9067/9068, harness/up.sh), which is out of bounds for the sandbox and for this review.

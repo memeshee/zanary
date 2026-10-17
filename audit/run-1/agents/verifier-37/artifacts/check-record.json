@@ -1,0 +1,27 @@
+{
+  "verifier": "verifier-37",
+  "fingerprint": "zanary/rig-ports-published-all-interfaces",
+  "target_revision": "7058406 (worktree clean)",
+  "method": "read-only source re-derivation on target + bounded offline parse; no rig, no ports, no network touched",
+  "re_derived": {
+    "compose_publish_specs": ["18232:18232", "18233:18233", "9067:9067", "9068:9068"],
+    "host_ip_qualified_specs": 0,
+    "loopback_in_compose": false,
+    "host_ip_key_in_compose": false,
+    "other_compose_files_in_repo": 0,
+    "conf_lines_15_16": ["rpcbind=0.0.0.0", "rpcallowip=0.0.0.0/0"],
+    "credential_conf_eq_compose_eq_probe_default": true,
+    "credential_values_printed": false,
+    "consumer_defaults_all_loopback": ["node.rs:26", "core.rs:101", "up.sh:25-26", "report/node.rs:186", "report/verify.rs:127", "zanary-seed.rs:129,368", "probe/main.rs:80"],
+    "hash_pins_match": {"harness/docker-compose.yml": "7d6e6470", "harness/zcash.conf": "b635374b"},
+    "sandbox_copy_key_files_still_match_target": true,
+    "cited_lines_exact": ["compose:18,20,21,24,46,47,49,51", "conf:13-16", "up.sh:25-26,33,50", "node.rs:10-12,26,64-66,79", "README:111,114", "docs/CI.md:66", "THREAT-MODEL:113", "HARNESS:3,55,60", "action.yml:85"],
+    "9068_tracked_refs": ["compose:47", "compose:51", "HARNESS.md:55"],
+    "schema_branch": "needs_validation — keys/required/additionalProperties all pass; trace/evidence items valid and unique"
+  },
+  "boundary_questions": {
+    "overstatement": "no — engine-default bind and off-host reachability are declared unobserved in description ('to be confirmed or refuted on the operator's engine') and blockers 1-2; deployment plan observes exactly those",
+    "lower_trust_principal": "correct — the marginal exposure of the missing host-IP qualifier is off-host reachability (same-host processes reach loopback regardless; same-bridge containers reach container ports directly), so 'a peer that can reach the port holding the public repo credential' is the right principal"
+  },
+  "completion": "verified — record holds as written; fingerprint unique in findings.json; no prior runs"
+}

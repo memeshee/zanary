@@ -1,0 +1,105 @@
+BUILD_EXIT=0
+############ 1. CONTROL clean receipt, no flags
+receipt   : /t/hunter/clean.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+############ 2. receipt whose signer is 4 bytes: a<euro>  (PROBE-A input)
+receipt   : /t/hunter/bad-hex-signer.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+
+thread 'main' (23) panicked at crates/report/src/receipt.rs:359:36:
+end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+exit=101
+############ 3. clean signed receipt + grafted bogus attestation, no --fvk (PROBE-B input)
+receipt   : /t/hunter/grafted-attestation.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+
+thread 'main' (30) panicked at crates/report/src/receipt.rs:190:30:
+end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+exit=101
+############ 4. claims state invoice 44710 / 12345678 for header 4471 / 1234567
+receipt   : /t/hunter/claim-superstring.json
+format    : zanary-receipt-v1
+claim     : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+############ 5. signer = 32 zero bytes (identity), signature r=B s=1
+receipt   : /t/hunter/identity-signer.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 0000000000000000000000000000000000000000000000000000000000000000
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+############ 6. uppercase txid body (schema says lowercase)
+receipt   : /t/hunter/uppercase-txid.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44F216CC11EB88F67D9976F8BA91F2AC5A981CC8A2F8A648F75887580F57337E
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44F216CC11EB88F67D9976F8BA91F2AC5A981CC8A2F8A648F75887580F57337E
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+############ 7. control: --fvk with no value is silently dropped
+receipt   : /t/hunter/clean.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+############ 8. control: --fvk with the dev merchant ufvk, receipt carries no attestation
+receipt   : /t/hunter/clean.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+from --fvk: 6cb31f4dac3d1c8a4ba98ab750a3d592ddd69e1a7ad14f2ad34f144e346cdb3e
+
+  FAIL — nothing binds this receipt to that wallet: this receipt carries no attestation, so nothing binds its receipt key to a wallet — a dedicated-key receipt proves only which receipt key issued it
+exit=1
+############ 9. control: --fvk with an unreadable/garbage value
+receipt   : /t/hunter/clean.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+error: decoding the unified full viewing key: Address is not Bech32m encoded
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+exit=2

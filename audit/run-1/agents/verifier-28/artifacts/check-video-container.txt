@@ -1,0 +1,79 @@
+# verifier-28 (Phase-5 record verifier) — independent re-check: media identity, container, decoder, and record fitness
+# record: video/zanary-demo.mp4:publish-video-unverifiable-media-content (verdict needs_validation) — DECISION: verified
+# date(UTC): 2026-10-17T12:07Z
+# target /home/kiter/hackathon/zanary (read-only): HEAD 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean
+# sandbox: rust:1-slim (local, rustc 1.99.0), --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+# mounts: approved disposable copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 at /t (rw); host registry ro (unused)
+# all checks below are verifier-28's own; the record's facts were re-derived, not copied from prior artifacts.
+
+== A. decoder/tool probe (re-proves the record's blocker 1) ==
+ABSENT: ffmpeg ffprobe avconv gst-launch-1.0 vlc mpv python3 python convert magick exiftool mediainfo tesseract sox MP4Box
+ldconfig -p: 0 entries matching libav|libswscale|libx264|libopenh264|gstreamer
+dpkg -l: 0 packages matching ffmpeg|libav|gstreamer|python3
+host cargo registry (ro): 418 cached crates (src=cache=418); media-ish grep hits only rustls-webpki-0.103.15, webpki-roots-0.26.11/1.0.9 (TLS crates via substring "webp")
+=> decoding the pixels/audio inside the approved sandbox remains impossible; --network=none + no-pulls close the fetch route.
+
+== B. identity of the bytes (in-sandbox) ==
+sha256  38a6b73fb25bab4e3888988639658e603336a8784e5503af7783179cb159ec75   (== record)
+size    3717435                                                          (== record)
+git-blob SHA-1 (over "blob 3717435\0" framing)  df469b5a2077ae94fd86b0ddb44535bd6c4e9f38   (== host index entry / HEAD blob)
+/t/video/ contains exactly one file: zanary-demo.mp4
+host git: ls-files -s 'video/*' -> 100644 df469b5a... 0 video/zanary-demo.mp4 (single tracked match; the publish glob video/*.mp4 matches exactly it)
+=> the inspected bytes are byte-identical to the reviewed revision's committed media.
+
+== C. raw-byte token scan (case-insensitive occurrence counts, in-sandbox) ==
+abandon=0  "seed phrase"=0  mnemonic=0  ufvk=0  uview=0  rpcpassword=0  zanary-rehearsal=0  kiter=0  uregtest=0  allowlist=0
+=> no plaintext key-material / path / username strings in any uncompressed region.
+
+== D. verifier-28 independent ISO-BMFF box walk (v28walk.rs, rustc -O, in-sandbox) ==
+ftyp off=0 size=32; moov off=32 size=124940; free off=124972 size=8; mdat off=124980 size=3592455
+mvhd v0 timescale=48000 duration=5382400 (~112.13s) creation=0 mod=0
+trak 1: tkhd/edts; mdhd v0 ts=15360 dur=1722368 (~112.13s); hdlr vide; stsd entry_count=1 entry[0] avc1
+trak 2: tkhd/edts; mdhd v0 ts=48000 dur=5383424 (~112.15s); hdlr soun; stsd entry_count=1 entry[0] mp4a
+udta > meta (hdlr mdir) > ilst > '.too'  (sole user-data item: encoder tag)
+raw fourcc counts: text=0 tx3g=0 sbtl=0 subt=0 wvtt=0 stpp=0 clcp=0 chap=0 c608=0 c708=0 sthd=0; vide=2 soun=1 avc1=2 mp4a=1 mdat=1 moov=1
+  (avc1 #2 = ftyp brand + stsd entry; "vide" #2 = hdlr + the x264 "videolan.org" SEI string inside mdat)
+top_level_end=3717435  trailing_bytes=0
+=> exactly two tracks (avc1 video + mp4a audio), no text/subtitle/chapter track, no bytes after the last top-level box,
+   creation/mod times 0, no metadata beyond encoder tags; the undecoded pixels/audio are the only unexamined region.
+
+== E. source-side re-verification (read-only host) ==
+- privacy-gate.yml: :16-23 on push/main + schedule cron "17 4 * * 1"; publish job needs: gate, if ref==main (:110-113),
+  :166-172 "publish the two-minute demo next to the claims" -> `cp video/*.mp4 public/video/ 2>/dev/null || echo "no video in the tree — skipping"` (:172);
+  :169-170 comment "The recording pipeline itself stays out of the repository (docs/VIDEO-SCRIPT.md).";
+  player page src hardcoded 'zanary-demo.mp4' (:196); claim "What is on screen comes from a real run ..." (:198-200);
+  actions/upload-pages-artifact@v3 (:209) + actions/deploy-pages@v4 (:215). No step reads/hashes/scans/transforms the bytes.
+- docs/VIDEO-SCRIPT.md:8-9 "Nothing is staged: every line below is verbatim from ~/hackathon/zanary-rehearsal.log, a real take
+  that exited 0"; intended on-screen blocks enumerated :34-99 (command, run output, txids/heights, property table, claim
+  block, payer ledger + kill switch, control 'caught' block, index/Actions shots).
+- README.md:15-18 and docs/SUBMISSION.md:99/111 surface the same claims ("112 s", direct file URL .../video/zanary-demo.mp4).
+- No in-tree control over media content: 0 hits for the asset's sha256 (38a6b73f) or blob sha (df469b5a) anywhere tracked;
+  only one workflow file (.github/workflows/privacy-gate.yml); no .gitattributes/pre-commit; report-leak inspects
+  run.receipts only (report_leak.rs:82-89 skip when empty, :107 loop; key-material tokens :26-39, unknown addresses/emails
+  :125-138) and never reaches the asset; no ffmpeg/TTS/frame-render step in any text file (git grep: the only match for
+  ffmpeg|libx264|Lavf is inside the binary video itself, as its encoder tags); scripts/demo-run.sh and
+  scripts/bounded-payer-demo.sh never invoke `wallet` (only comments mention the wallet log); demo-run.sh:19 states the
+  take is "the single take" that "prints no path a viewer has to be told about" — a statement, not a control.
+- wallet.rs:38 prints the dev seed phrase by design = the canonical BIP-39 English test vector, committed at core.rs:63-64
+  and printed again in docs/WALLET-NOTES.md; wallet.rs:45 also prints the dev UFVK derived from that same public constant.
+- In-tree references to the media: privacy-gate.yml:172/:196, README.md:15, docs/SUBMISSION.md:99/111 (git grep zanary-demo /
+  video/) — matching the record's evidence.
+- findings.json: exactly one current record with this fingerprint (needs_validation); verifier-9's prompt shows the hunter
+  proposal carried the same fingerprint — hunter-video -> verifier-9 -> finished record are consistent.
+
+== F. Phase-5 checklist ==
+1. Source path real and supports only the claimed root cause — yes; every cited file/line verified above.
+2. Blockers decisive, outside source/local observation — yes: decode impossible in the approved sandbox (re-proved), producer
+   out of tree (proved: no render/TTS/ffmpeg in tree; source take is ~/hackathon/zanary-rehearsal.log per :8-9), rig out of
+   bounds by audit policy (its containers/ports are excluded) so the take cannot be re-recorded for comparison.
+3. Boundary + concrete result — verbatim copy of video/*.mp4 into a world-readable Pages site with no content review;
+   concrete result = any frame/audio value outside the intended-public list (operator paths/usernames, or any other value
+   the take captured) becomes world-readable — a decidable, disclosure-boundary question, not a generic concern.
+4. validation_plan exact — local: owner-side bounded single pass over a copy of the committed file (decode frames fps=2,
+   OCR, decode audio + transcribe, diff vs docs/VIDEO-SCRIPT.md:34-99, explicit fail classes incl. report-leak tokens,
+   host paths/usernames, unknown addresses/hex); deployment: owner-observed identity check of the served bytes
+   (observation only, not a probe). Both applicable; no audit traffic directed at the deployment.
+5. Fingerprint stable and format-valid; single current record; matches prior state.
+
+DECISION: verified — the record holds as written. (Non-material note: wallet.rs:45 also prints the dev UFVK, derived from the
+same committed public test vector; the demo scripts never invoke `wallet`, so the record's elimination argument is unaffected.)

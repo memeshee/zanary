@@ -1,0 +1,129 @@
+{
+  "decision": "confirmed",
+  "record": {
+    "verdict": "confirmed",
+    "fingerprint": "probe/payer.rs:load_invoices:unbounded-intake-memory",
+    "title": "Bounded payer ingests a merchant-supplied invoice directory into memory with no size or count cap, before and independent of grant authority",
+    "description": "load_invoices (crates/probe/src/payer.rs:495-520) enumerates every *.json entry under the --invoices path, reads each file whole with std::fs::read_to_string (payer.rs:513) and parses it with serde_json::from_str (payer.rs:515), retaining every parsed Invoice in one Vec (payer.rs:517). There is no per-file size cap, no invoice-count cap and no memory budget anywhere in 495-520; the only accounting in the payer is decide()'s monetary budget over amount_zat (payer.rs:119-128). The whole intake runs before the first decide() call (payer.rs:201 vs 249-250) and is not conditional on the grant state computed at payer.rs:187-199, so it is performed even when the grant is revoked or the kill file exists: the kill switch limits payments, not intake work. Re-established locally against the reviewed revision in the approved sandbox: a 256 MiB invoice completes intake at about 525 MiB peak RSS (read buffer plus parsed copy, about 2x the file) under a revoked grant, which prints 'REFUSE v7big - refused: the grant was revoked (kill switch)'; the same file under a 256 MiB or a 700 MB address-space budget aborts inside intake with 'Error: reading the invoice ... Caused by: out of memory' and zero decision lines; 5000 tiny invoice files are all read, accepted (ALLOW) and queued in one run. Each allowed invoice is additionally cloned into to_pay (payer.rs:259) for the payment phase.",
+    "root_cause": "The invoice directory is an untrusted merchant channel, but intake is unbounded and unconditional: read_dir collects an unlimited number of *.json entries (payer.rs:498-506), read_to_string reads each one whole with the file's own size hint deciding the allocation (payer.rs:513), every parsed Invoice is retained in one Vec (payer.rs:511-517) and each allowed one is cloned into the payment queue (payer.rs:259) - with no size cap, no count cap, no metadata size or regular-file check, and no consideration of the grant or kill-switch state (payer.rs:187-199) before the work.",
+    "intended_behavior": "A payer given 'authority, not a key' should bound what an untrusted merchant channel can make it ingest: a per-invoice byte cap and an invoice-count cap (or streaming/deferred parsing under a total memory budget) enforced from file metadata before any read, and enforced for a revoked grant and a tripped kill file too, so the kill switch also caps intake work. An entry over a cap should become a named refusal line rather than a read.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "crates/probe/src/payer.rs",
+        "line": 498,
+        "scope": "load_invoices",
+        "description": "read_dir enumerates every *.json entry under the operator-designated --invoices path (payer.rs:150, handed to load_invoices at payer.rs:201): the first touch of merchant-controlled entries, with no cap on how many (payer.rs:498-506)"
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/probe/src/payer.rs",
+        "line": 513,
+        "scope": "load_invoices",
+        "description": "std::fs::read_to_string reads each entry whole - the merchant-controlled file size sizes the allocation, with no size check and no regular-file check before the read"
+      },
+      {
+        "kind": "sink",
+        "file": "crates/probe/src/payer.rs",
+        "line": 515,
+        "scope": "load_invoices",
+        "description": "serde_json::from_str materialises the whole Invoice (a second copy of every String field, memo included), payer.rs:517 retains it in one Vec that lives for the run, and the entire intake completes before the first decide() call (payer.rs:249-250) unconditionally, because the revoked/kill-switch state from payer.rs:187-199 is never consulted here; each allowed invoice is then cloned again into to_pay at payer.rs:259"
+      }
+    ],
+    "evidence": [
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 150,
+        "description": "the merchant channel enters as the operator-supplied --invoices path (args.require) whose contents the merchant controls"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 187,
+        "description": "the revoked/kill-switch state is computed here (187-191) and is never consulted by load_invoices (201) or by anything in 495-520"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 201,
+        "description": "load_invoices runs before the decide loop (249-250) and before all wallet/node work (275-277): a revoked or killed grant still pays the full intake cost"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 244,
+        "description": "comment 'Decide everything first, then pay': the complete invoice directory is materialised in memory before any decision or payment"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 259,
+        "description": "every allowed invoice is cloned (memo String included) into to_pay before payments begin, so the payment queue holds a second copy of each allowed invoice"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 495,
+        "description": "load_invoices: static extension filter only, files.sort(), read_to_string + serde_json::from_str per file, Vec<Invoice> returned - no count cap, no size cap, no memory budget in 495-520"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 513,
+        "description": "std::fs::read_to_string reads each file whole; nothing checks the file's size or type before the read"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 119,
+        "description": "decide()'s only accounting is the monetary budget over amount_zat (119-128): no notion of invoice count or intake bytes"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "the operator points --invoices at a directory a merchant or any less-trusted party can write to - the channel the bounded payer is designed around ('the merchant side of an agent payment ... no channel other than the file', crates/probe/src/flow.rs:1554-1555). The repo's own recorded runs, scripts/bounded-payer-demo.sh and the CI payer job author the directory themselves, so the shipped demo does not trigger it."
+      },
+      {
+        "kind": "environmental_dependency",
+        "description": "the payer process has a finite memory budget (systemd MemoryMax, container memory limit, small host) or the directory's files approach the available memory: measured, a 256 MiB invoice aborts intake under RLIMIT_AS 262144 kB or 700000 kB ('out of memory', zero decisions) and completes with no limit at about 525-532 MiB peak RSS; the debug binary's own VmPeak is already about 547 MiB on a 3-invoice run, so intake spends the operator's budget before any decision."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A merchant who can write files into the directory the operator passes as --invoices; no wallet, key, network access or payment participation is needed - one file is enough. Because intake precedes every decision, that one file also denies every other invoice in the run and the run's ledger.",
+      "payloads": [
+        "grant-revoked.json (129 B): {\"budget_zat\":50000000,\"per_payment_cap_zat\":10000000,\"allowlist\":[],\"expires_at\":\"2030-01-01T00:00:00Z\",\"revoked\":true}",
+        "inv-big/big.json (268435546 B): {\"invoice_id\":\"v7big\",\"amount_zat\":1,\"receiver\":\"uregtest1noreceivercheck\",\"memo\":\"<268435400 bytes of the byte a>\",\"uri\":\"zcash:test\",\"issued_at_height\":1,\"merchant_account\":0}",
+        "inv-count/: 5000 files c00001.json..c05000.json, 161 B each, amount_zat 0, receiver uregtest1noreceivercheck",
+        "inv-mix/: big.json plus the 5000 files copied together (5001 entries, 282284 KiB)",
+        "kill-file variant: any existing path passed as --kill-file (path.exists() at payer.rs:188-191)",
+        "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v <disposable copy of the reviewed revision>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'env -i PATH=/usr/bin:/bin sh /t/v7-fx/checks.sh'"
+      ],
+      "instructions": [
+        "Rebuild the disposable copy from the reviewed revision (git archive HEAD | tar -x, rust-toolchain.toml removed) and build inside the approved sandbox: docker run ... sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-probe --bin zanary-probe'. The resulting binary hashes 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416, identical to the hash the hunter recorded.",
+        "Write the fixtures under /t/v7-fx (two grants, 3 tiny invoices, the one 256 MiB invoice, the 5000-file directory); the memo padding is what sizes the big file.",
+        "Run the payer with --now 2026-10-17T00:00:00Z and --out under /t, sampling /proc/<pid>/status VmHWM every 50 ms and counting ALLOW/REFUSE lines; the fatal cases add 'ulimit -v 262144' or 'ulimit -v 700000' in the child subshell so the memory effect stays bounded.",
+        "No payment path is exercised and nothing leaves the sandbox: --network=none and no zcashd/lightwalletd, so every run stops after intake at 'connecting to the zcashd RPC at 127.0.0.1:18232 ... Connection refused'. No wallet, key, external endpoint or host state is touched.",
+        "Stop at the first observed effect: the fatal intake is shown with the 256 MiB fixture under a 256 MiB address-space cap; no larger fixture is needed."
+      ],
+      "observed_result": "Sandbox, --network=none: control (3 tiny invoices, full grant) prints 'invoices : 3' and 3 ALLOW lines then exits 1 at the node connect - intake and decisions precede all wallet/node work. Revoked grant + 256 MiB invoice: intake completes (peak RSS 525 MiB; header 'invoices : 1') and prints 'REFUSE v7big - refused: the grant was revoked (kill switch)' before the same node error; the kill-file run refuses all 3 tiny invoices the same way, after reading them. Same 256 MiB invoice under RLIMIT_AS 262144 kB: exit 1 in under 1 s with the whole log 'Error: reading the invoice /t/v7-fx/inv-big/big.json / Caused by: out of memory' - zero decisions, no header: the run aborts inside intake; under RLIMIT_AS 700000 kB the read of the same file also fails, while with no limit it completes, so the merchant file size decides the required memory. 5000 zero-amount invoices: 5000 ALLOW lines and 'invoices : 5000' in 9 s, peak RSS 19 MiB - nothing caps count; the mixed directory (one 256 MiB + 5000 tiny) ingests 5001 invoices, peak RSS 532 MiB. My independent rebuild of the probe reproduced the hunter's recorded binary sha256."
+    },
+    "remediation": {
+      "strategy": "Bound the intake at the boundary, from file metadata and before any read, regardless of authority state: cap the number of invoice files and each file's size, reject non-regular entries and turn an over-cap entry into a named refusal/error line instead of a read. If large invoices must be supported, stream or defer parsing under a total memory budget. Apply the caps for a revoked grant and a tripped kill file too, so the kill switch also caps intake work.",
+      "code_changes": [
+        {
+          "file_name": "crates/probe/src/payer.rs",
+          "fixed_code": "/// Invoices from a directory (`*.json`) or from a single file, sorted by name so a run is reproducible.\n/// Bounded: a merchant channel may not decide how much this process reads.\nconst MAX_INVOICE_FILES: usize = 1000;\nconst MAX_INVOICE_BYTES: u64 = 262_144; // far above any real invoice\n\nfn load_invoices(path: &Path) -> Result<Vec<Invoice>> {\n    let mut files: Vec<PathBuf> = Vec::new();\n    if path.is_dir() {\n        for entry in std::fs::read_dir(path)\n            .with_context(|| format!(\"reading the invoice directory {}\", path.display()))?\n        {\n            let entry = entry?;\n            let candidate = entry.path();\n            if candidate.extension().is_some_and(|e| e == \"json\") {\n                files.push(candidate);\n            }\n        }\n    } else {\n        files.push(path.to_path_buf());\n    }\n    files.sort();\n    if files.len() > MAX_INVOICE_FILES {\n        bail!(\n            \"{} invoice files in {} exceeds the cap of {MAX_INVOICE_FILES} - refusing to read a merchant directory this large\",\n            files.len(),\n            path.display()\n        );\n    }\n    let mut invoices = Vec::new();\n    for file in &files {\n        let meta = std::fs::symlink_metadata(file)\n            .with_context(|| format!(\"statting the invoice {}\", file.display()))?;\n        if !meta.file_type().is_file() {\n            bail!(\n                \"{} is not a regular file - refusing to read it as an invoice\",\n                file.display()\n            );\n        }\n        if meta.len() > MAX_INVOICE_BYTES {\n            bail!(\n                \"invoice {} is {} bytes, above the {MAX_INVOICE_BYTES}-byte cap\",\n                file.display(),\n                meta.len()\n            );\n        }\n        let text = std::fs::read_to_string(file)\n            .with_context(|| format!(\"reading the invoice {}\", file.display()))?;\n        let invoice: Invoice = serde_json::from_str(&text)\n            .with_context(|| format!(\"parsing the invoice {}\", file.display()))?;\n        invoices.push(invoice);\n    }\n    Ok(invoices)\n}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires the operator to point --invoices at a directory a hostile or buggy party can write to (the documented merchant-invoice channel): the repo's own recorded runs, scripts/bounded-payer-demo.sh and the CI payer job author the directory themselves, so the shipped and demo configurations do not trigger it."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Availability of the operator's own payer run: under a finite memory budget the intake aborts with exit 1 ('out of memory') before any decision, or the process is OOM-killed by whatever enforces the budget; without one it merely consumes about 2x the merchant file size of RSS (measured 525-532 MiB for a 256 MiB invoice). No payment is made, nothing is corrupted, one run and its ledger are lost, and recovery is deleting the entry or raising the limit. The blast radius inside the run is the whole run - one merchant's file denies every other invoice in it - but the affected principal is the operator's single local process, so there is no cross-tenant or network-visible effect."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The missing bound is fully source-visible (495-520 has no cap of any kind and no knob anywhere in the tree caps it) and was independently reproduced against the reviewed revision in the approved sandbox: about 2x-file-size intake RSS, completion under a revoked grant and under a tripped kill file, fatal ENOMEM at intake under a bounded address space, and 5000 files accepted in one run; no preventing layer exists on the path (the only accounting, the monetary budget at 119-128, does not bound intake)."
+    }
+  }
+}

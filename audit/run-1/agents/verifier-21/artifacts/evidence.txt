@@ -1,0 +1,65 @@
+verifier-21 · Phase-5 record check · zanary run-1
+Record  : crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction (needs_validation)
+Target  : /home/kiter/hackathon/zanary @ 7058406, worktree clean (read-only; only reads performed)
+Sandbox : /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (relevant files byte-identical to the
+          worktree, cmp: payer.rs/ops.rs/flow.rs/core.rs/observation lib.rs/policy_downgrade.rs/
+          fixtures.rs/Cargo.toml = SAME). Own checks run under the approved docker isolation.
+
+WHAT I VERIFIED MYSELF (source, target worktree):
+1. Sink literals: payer.rs:349-352 pool_in Pool::Orchard / pool_out Pool::Orchard /
+   kind PaymentKind::Shielded / policy Some("FullPrivacy") — verbatim; Payment literal spans
+   339-362; payer.rs contains 0 x proposal.steps / payment_pools / decrypt / check_policy /
+   required_policy_for_recipient (grep counts).
+2. Guard exists and is called everywhere else: ops.rs:216 check_policy, 237-262
+   required_policy_for_recipient (Sapling -> AllowRevealedAmounts "the amount (Orchard -> Sapling
+   pool crossing)" at 243-246; UA sapling-only at 250-254); call sites ops.rs:563-566 (anchor),
+   777 (shield), 1019-1020 (pay), flow.rs:633-634, 826-827. payer.rs: 0 call sites.
+3. SpendPolicy is sources-only: zcash_client_backend-0.24.0 input_selection.rs 476-489 (doc: the
+   sources of funds the selector may draw upon), and the only policy uses in the file are input
+   selection (1023/1039/1084...); payment delivery pools are set from the recipient type at
+   966-968 (Address::Sapling -> PoolType::SAPLING) and 999-1003 (sapling-only UA -> SAPLING).
+   ops.rs:929 (SpendPolicy::shielded_pools([Orchard])), 930-936 (selector/change), 937-961.
+4. Definitions the record cites: observation/src/lib.rs 29 ("Shielded source and shielded
+   destination, same pool"), 56-60 (pool_in/pool_out/kind and policy = "the privacy policy ...
+   argument the flow passed to its wallet layer, verbatim"); policy_downgrade.rs severity
+   Disqualifying at 54-56, implicit signal at 92-94 (pool_out Transparent|CrossPool only),
+   explicit fragments 24-36 (none match "FullPrivacy"); fixtures.rs:243-246 cross-pool control.
+5. Flow-runner calibration: flow.rs:687-690 and 984-987 write the same pool constants but record
+   Some(policy.name()) and gate at 633-634 / 826-827; flow.rs:1740-1768 is the ZIP-321 cross-check
+   the payer's intake (payer.rs:495-519, serde at 515-516) does not have; decide allowlist compare
+   at payer.rs:100, empty-allowlist print at payer.rs:223.
+6. report crate: 0 occurrences of pool_in/pool_out (grep); verify.rs re-derives height/receiver/
+   memo/pool-totals evidence only.
+7. core.rs:81-96 regtest_network: sapling height 1 (85), nu6_1/2/3 None (93-95).
+8. pay decrypts the mined tx at ops.rs:1076-1126 (decrypt_transaction in the cited range).
+
+MY OWN SANDBOX REPRODUCTIONS (raw in check-v21-*.txt):
+A. policy-downgrade over the payer's constant record = PASS (Disqualifying), fixtures' honest
+   cross-pool record = FAIL (positive control) — check-v21-properties.txt (exit 0). Also: an
+   Orchard->Sapling record with pool_out Sapling + "FullPrivacy" passes (the property's implicit
+   signal does not cover Sapling — the record's calibration holds); with AllowRevealedAmounts it
+   fails (explicit token).
+B. Receivers derived here from the dev USK: bare zregtestsapling1... and a sapling-only UA are
+   REFUSED by required_policy_for_recipient + check_policy(FullPrivacy) ("would reveal the amount
+   (Orchard -> Sapling pool crossing)") while the payer's own call
+   ops::propose_shielded_payments reaches the wallet layer for both ("Must scan blocks first",
+   identical to the Orchard control) — check-v21-intake.txt (exit 0).
+C. Blocker mechanism: offline resolution of zcash_client_backend 0.24 with `test-dependencies`
+   fails at `ambassador` against the read-only registry cache (proptest/assert_matches likewise
+   absent; zcash_client_sqlite's testing module is gated on the same feature) —
+   check-v21-blocker.txt. Regtest rig (containers, ports 18232/18233/9067/9068) untouched.
+
+CHECKLIST: (1) source path real, supports exactly the claimed_root_cause — yes; (2) blockers
+decisive: the proposal/broadcast/report end needs a funded wallet (none offline; feature set
+unbuildable, verified) or the rig (out of bounds) — yes; (3) boundary + concrete result named —
+yes (decide -> transaction built/broadcast; run.json constants + policy-downgrade PASS on a
+Sapling-crossing payment); (4) validation_plan present and exact (local: propose_transfer with the
+payer's arguments, expected payment_pools {0: SAPLING}; deployment: owner's throwaway regtest run
+with a self-consistent Sapling invoice + the non-destructive `pay --invoice` control, both CLI
+forms exist); (5) fingerprint unique among findings.json records, no duplicate/conflicting record.
+
+Non-material note: blockers[0] says the cache "holds only incrementalmerkletree/rand_chacha/tempfile
+of that set" — rand 0.8.8/0.10.3 and jubjub 0.10.0 are also present; the decisive missing crates
+(proptest, ambassador, assert_matches) are absent as stated, so the conclusion is unaffected.
+
+DECISION: verified (record holds as written).

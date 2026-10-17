@@ -1,0 +1,66 @@
+verifier-39 phase-5 check — dev-panic / release-wrap split (zanary/unchecked-zat-sum-overflow)
+===============================================================================================
+
+Sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+  -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t
+  -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim
+  sh -c 'CARGO_BUILD_JOBS=6 sh /t/run-check-39.sh'
+Builds: cargo build --offline -p zanary-probe --bin zanary-probe  (dev)
+        cargo build --offline --release -p zanary-probe --bin zanary-probe
+        -> "Finished `release` profile [optimized] target(s) in 18m 56s"
+
+Fixtures inside container:
+  144 evil-sum.json
+  sha256 6bf0d8114fbb4420359bc81dc498e7a5006ef469f1ec84e91a003e7fded89b5b  evil-sum.json
+
+--- dev run: ./target/debug/zanary-probe flow --definition evil-sum.json ---
+exit: 101
+stdout:
+  zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+    flow              : hostile-sum
+    flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+    settlement        : per_invoice — one transaction per invoice
+    settlement timing : fixed 3 block(s) between payments
+    chain             : regtest (throwaway harness chain)
+stderr:
+  thread 'main' (4804) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:206:1:
+  attempt to add with overflow
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+--- dev run with RUST_BACKTRACE=1 (frames of interest) ---
+exit: 101
+  ...
+    9: zanary_probe::flow::run_recording::{closure#0}
+               at ./crates/probe/src/flow.rs:336:18
+   10: zanary_probe::flow::run::{closure#0}
+               at ./crates/probe/src/flow.rs:230:38
+   11: zanary_probe::main::{closure#0}
+               at ./crates/probe/src/main.rs:46:41
+The panic is in <u64 as Sum>::sum over Map<Iter<InvoiceSpec>, closure#6> — the header sum at
+flow.rs:336. It happens BEFORE NodeRpc::from_env() (flow.rs:357) and before any wallet work.
+
+--- release run: ./target/release/zanary-probe flow --definition evil-sum.json ---
+exit: 1
+stdout:
+  zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+    flow              : hostile-sum
+    flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+    settlement        : per_invoice — one transaction per invoice
+    settlement timing : fixed 3 block(s) between payments
+    chain             : regtest (throwaway harness chain)
+    invoices          : 2 (184467440737.09551614 ZEC total)      <-- WRAPPED 2^64-2 total
+    receiver strategy : fresh diversified receiver per invoice
+    memo              : one ZIP-302 memo per payment
+    policy            : FullPrivacy
+stderr:
+  Error: connecting to the zcashd RPC at 127.0.0.1:18232
+  Caused by:
+      Connection refused (os error 111)
+The release build does NOT panic or reject the definition; it prints the wrapped total and
+proceeds to the node step (no node in the network-off sandbox -> connection refused).
+
+Independent cross-check of the flow commit: sha256 of the serde-canonical JSON of the definition
+(flow.rs:216-218 canonical(); field/order per the struct at flow.rs:88-153):
+  {"flow_id":"hostile-sum","invoices":[{"invoice_id":"1","amount_zat":18446744073709551615,
+   "memo_template":null},...],"receiver_strategy":"fresh","memo":true,"policy":null,"funding_zat":0}
+  -> 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c  = the value both binaries print.

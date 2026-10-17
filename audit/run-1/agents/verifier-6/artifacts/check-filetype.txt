@@ -1,0 +1,125 @@
+verifier-6 — independent reproduction: non-regular *.json entries in the invoice directory
+target: /home/kiter/hackathon/zanary @ 7058406 (worktree clean) · fingerprint: probe/payer.rs:load_invoices:nonregular-entry
+date (UTC): 2026-10-17T11:03Z
+
+BINARY PROVENANCE
+- copy: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (git archive HEAD, rust-toolchain.toml removed)
+- per-file blob compare (git hash-object) target HEAD vs copy, all tracked *.rs/*.toml/Cargo.lock:
+  only crates/probe/src/main.rs and crates/report/src/receipt.rs differ, each by an appended #[cfg(test)] module
+  (test-only; not compiled into the normal-profile binary). Every other source file is blob-identical.
+- payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 on BOTH sides (target HEAD == copy).
+- built inside the sandbox: `touch crates/probe/src/payer.rs && cargo build --offline -p zanary-probe`
+  -> "Compiling zanary-probe v0.0.1 (/t/crates/probe)"; binary sha256 82b22239f0b03e4cc015455340de0493d4669dd12e7d4cc8623e1164d54e3604.
+  Dev-profile binaries are not bit-reproducible (two builds of the same sources: 82b2... and cf54...), so the result
+  is bound to the fresh compile from the verified sources, not to any prebuilt artifact in the copy.
+- no .cargo/config.toml, no build.rs, no rust-toolchain, no RUSTFLAGS in the copy; container env is the image default
+  (no ZANARY_* vars), --network=none.
+
+SANDBOX COMMAND
+docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro \
+  -w /t rust:1-slim sh -c 'sh verifier6-fx/check.sh'
+
+FIXTURES (created in the copy; all plain filesystem operations, no privileges beyond directory write)
+- verifier6-fx/grants/grant-revoked.json   {"revoked": true}
+- verifier6-fx/grants/grant-ok.json        {}  (defaults: budget 50000000 zat, cap 10000000 zat, empty allowlist)
+- verifier6-fx/inv-plain/plain.json        valid regular invoice (control)
+- verifier6-fx/inv-fifo/afterfifo.json     valid regular invoice (name sorts before hang.json)
+- verifier6-fx/inv-fifo/hang.json          FIFO created with mkfifo
+- verifier6-fx/inv-link/link.json          symlink -> ../outside/outside.json
+- verifier6-fx/outside/outside.json        valid invoice, invoice_id "outside", 7 zat, OUTSIDE the --invoices dir
+- verifier6-fx/inv-copy/copy.json          copy of outside.json placed inside a plain directory (control)
+
+RESULTS
+- A control (regular file, revoked grant): banner + "REFUSE inplace - refused: the grant was revoked (kill switch)";
+  exit 1 only at the offline node connect ("Connection refused"). The fixture and grant are sound.
+- B FIFO (revoked grant): process ALIVE and sleeping at 5 s and 10 s; /proc state=S, wchan=wait_for_partner
+  (blocked in open() on the FIFO; no fd for hang.json has been returned); 0 bytes of output (even the kill-switch
+  banner/refusal never printed because intake at payer.rs:201 precedes all printing/decisions); harness SIGKILL at
+  ~10 s -> exit 137 (elapsed 11 s).
+- C symlink (permissive grant): "ALLOW outside - paid: within the cap (10000000 zat) and the budget (7 of 50000000
+  zat spent after this)" and "invoices : 1 in verifier6-fx/inv-link" - the invoice actually read is
+  verifier6-fx/outside/outside.json, outside the supplied directory; the run then meets the offline node connect
+  (expected in --network=none; no payment attempt beyond the decision). outside.json is unmodified (sha256
+  107e3f585b235c726ff0f0979b44420383298e45b97bf7566c1f659aace1f208).
+- D control (same bytes copied inside a directory): identical ALLOW line - the symlink case behaves exactly as if
+  the outside file lived in the directory, i.e. the directory scoping was not enforced.
+Both effects match the hunter's independently recorded run (agents/hunter-invoices/artifacts/check-filetype.txt).
+
+--- raw transcript (stdout+stderr of the sandbox run, fresh binary 82b22239...) ---
+binary_sha256=82b22239f0b03e4cc015455340de0493d4669dd12e7d4cc8623e1164d54e3604
+source payer.rs sha256=22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720
+
+===== A: control - regular plain.json, revoked grant =====
+[A] exit=1 elapsed_s=0
+[A] log bytes=575
+[A] log:
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : verifier6-fx/grants/grant-revoked.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2026-11-16T00:00:00Z
+  kill switch       : TRIPPED — every invoice will be refused
+  invoices          : 1 in verifier6-fx/inv-plain
+
+  REFUSE   inplace — refused: the grant was revoked (kill switch)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+===== B: FIFO named hang.json (+ valid afterfifo.json), revoked grant =====
+[B] after 5s: alive=yes
+[B] state=S wchan=wait_for_partner
+[B] syscall=
+[B] open fds:
+       total 0
+       lr-x------ 1 root root 64 Oct 17 11:03 0 -> /dev/null
+       l-wx------ 1 root root 64 Oct 17 11:03 1 -> /t/verifier6-fx/out/chkB.log
+       l-wx------ 1 root root 64 Oct 17 11:03 2 -> /t/verifier6-fx/out/chkB.log
+       lrwx------ 1 root root 64 Oct 17 11:03 3 -> anon_inode:[eventpoll]
+       lrwx------ 1 root root 64 Oct 17 11:03 4 -> anon_inode:[eventfd]
+       lrwx------ 1 root root 64 Oct 17 11:03 5 -> anon_inode:[eventpoll]
+       lrwx------ 1 root root 64 Oct 17 11:03 6 -> socket:[348385765]
+       lrwx------ 1 root root 64 Oct 17 11:03 7 -> socket:[348385766]
+       lrwx------ 1 root root 64 Oct 17 11:03 8 -> socket:[348385765]
+[B] fd targets:
+       /dev/null
+       /t/verifier6-fx/out/chkB.log
+       anon_inode:[eventfd]
+       anon_inode:[eventpoll]
+       socket:[348385765]
+       socket:[348385766]
+[B] after 10s: alive=yes
+Killed
+[B] harness_kill(9) exit=137 elapsed_s=11
+[B] log bytes=0
+[B] log (if any):
+
+===== C: symlink link.json -> ../outside/outside.json, full (non-revoked) grant =====
+[C] exit=1 elapsed_s=0
+[C] log bytes=585
+[C] log:
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : verifier6-fx/grants/grant-ok.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2026-11-16T00:00:00Z
+  kill switch       : not configured
+  invoices          : 1 in verifier6-fx/inv-link
+
+  ALLOW    outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+[C] outside.json untouched: sha256=107e3f585b235c726ff0f0979b44420383298e45b97bf7566c1f659aace1f208
+[C] chkC out dir:
+
+===== D: control - same outside.json copied INSIDE a directory (plain file) =====
+[D] exit=1
+    invoices          : 1 in verifier6-fx/inv-copy
+    ALLOW    outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)
+TOTAL_S=12

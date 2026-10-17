@@ -1,0 +1,10 @@
+   Compiling zanary-properties v0.0.1 (/t/crates/properties)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.13s
+     Running unittests src/lib.rs (target/debug/deps/zanary_properties-3bb996db3db41b35)
+
+running 1 test
+test properties::payer_policy::verifier14_blindspot::v14_past_expiry_paid_row_passes ... V14-6 grant.expires_at=2020-01-01T00:00:00Z, one paid row -> verdict=Pass; evidence: 1 paid · 0 refused · 10 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2020-01-01T00:00:00Z) ~ grant: budget 1000 zat · cap 400 zat · allowlist [uregtest1merchant] · expires 2020-01-01T00:00:00Z · revoked false ~ paid v14-1 10 zat tx aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa — paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.01s
+

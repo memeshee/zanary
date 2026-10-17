@@ -1,0 +1,111 @@
+verifier-3 — raw captures of target-controlled runs (zanary-report, sandboxed --network=none)
+binary sha256: f4c2e2eb5d9e4370b5eac9bc684a368d64676b10af158e89ba13d73f7d492fad  /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2/target/debug/zanary-report
+sandbox command: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v .../zanary-sandbox-w2:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-report; sh /t/verifier3-checks/run.sh'
+build: exit 0, Finished dev profile [unoptimized + debuginfo] in 40.38s
+captures copied verbatim from /t/verifier3-checks/out/ (.out stdout, .err stderr, .code exit)
+
+--- fixtures (written by verifier-3; e-acute stored as JSON \u00e9) ---
+v0_benign_report.json: {"version":1,"flow_id":"regtest-checkout","flow_commit":"deadbeefcafebabe00112233","chain":"regtest","verified_at_height":100,"findings":[],"evidence":[],"merchant_is_simulated":true,"report_hash":"0000000000000000000000000000000000000000000000000000000000000000"}
+v1_hostile_commit_report.json: {"version":1,"flow_id":"regtest-checkout","flow_commit":"aaaaaaaaaaa\u00e9","chain":"regtest","verified_at_height":100,"findings":[],"evidence":[],"merchant_is_simulated":true,"report_hash":"0000000000000000000000000000000000000000000000000000000000000000"}
+v2_hostile_hash_report.json: {"version":1,"flow_id":"regtest-checkout","flow_commit":"deadbeefcafebabe00112233","chain":"regtest","verified_at_height":100,"findings":[],"evidence":[],"merchant_is_simulated":true,"report_hash":"bbbbbbbbbbb\u00e9"}
+hostile_run_build.json: {"flow_id":"regtest-checkout","flow_commit":"aaaaaaaaaaa\u00e9","chain":"regtest","started_at_height":100,"ended_at_height":101}
+benign_run_build.json: {"flow_id":"regtest-checkout","flow_commit":"deadbeefcafebabe00112233","chain":"regtest","started_at_height":100,"ended_at_height":101}
+benign_report_for_anchor.json: {"version":1,"flow_id":"regtest-checkout","flow_commit":"deadbeefcafebabe00112233","chain":"regtest","verified_at_height":100,"findings":[],"evidence":[],"merchant_is_simulated":true,"report_hash":"0000000000000000000000000000000000000000000000000000000000000000"}
+runs2-hostile/run-1/run.json: {"flow_id":"regtest-checkout","flow_commit":"abcdefg\u00e9","chain":"regtest","started_at_height":100,"ended_at_height":101}
+runs2-benign/run-1/run.json: {"flow_id":"regtest-checkout","flow_commit":"deadbeefcafebabe00112233","chain":"regtest","started_at_height":100,"ended_at_height":101}
+
+===== v0 exit=1 =====
+--- stdout ---
+zanary-report verify — regtest-checkout @ deadbeefcafe…
+  chain regtest · verified at height 100 · 0 evidence entries
+
+  report hash                                    FAIL  stored 000000000000… but the canonical JSON hashes to 6874eff3b90c…
+  evidence root                                  PASS  merkle root over 0 evidence leaves recomputes: a4ea62484e6e…
+  chain                                          FAIL  cannot read the node: connecting to the node at 127.0.0.1:18232: Connection refused (os error 111)
+  claim height                                   FAIL  cannot read the node tip: connecting to the node at 127.0.0.1:18232: Connection refused (os error 111)
+
+  summary: 1 pass · 3 fail · 0 skip · 0 warn → NOT VERIFIED
+--- stderr ---
+
+===== v1 exit=101 =====
+--- stdout ---
+--- stderr ---
+
+thread 'main' (30) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+===== v2 exit=101 =====
+--- stdout ---
+zanary-report verify — regtest-checkout @ deadbeefcafe…
+  chain regtest · verified at height 100 · 0 evidence entries
+
+--- stderr ---
+
+thread 'main' (38) panicked at crates/report/src/verify.rs:851:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+===== vx exit=2 =====
+--- stdout ---
+--- stderr ---
+error: reading /nonexistent-report.json: No such file or directory (os error 2)
+
+===== b0 exit=0 =====
+--- stdout ---
+built out/b0_report.json
+  flow        : regtest-checkout @ deadbeefcafe…
+  chain       : regtest (verified at height 101)
+  verified_at : 2026-10-17T11:00:35.276781089Z
+  ttl         : 30d
+  findings    : 13
+  evidence    : 0 entries
+  report_hash : 902cfe0de83d143720d4e846388f05affd10b93a897d956b2728b87d3c561fb6
+  evidence_root: a4ea62484e6e5733670d50a469d14cd6996f7796ad14258895e81cd6dcd0b129
+--- stderr ---
+
+===== b1 exit=101 =====
+--- stdout ---
+built out/b1_report.json
+--- stderr ---
+
+thread 'main' (62) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+===== a1 exit=101 =====
+--- stdout ---
+--- stderr ---
+
+thread 'main' (70) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+===== a2 exit=101 =====
+--- stdout ---
+--- stderr ---
+
+thread 'main' (78) panicked at crates/report/src/main.rs:287:28:
+end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+===== m0 exit=0 =====
+--- stdout ---
+  regtest-checkout @ deadbeef — 0 pass · 0 fail · 0 skip
+
+  matrix: out2/m0.md — 1 run(s) × 0 property(ies)
+--- stderr ---
+
+===== m1 exit=101 =====
+--- stdout ---
+--- stderr ---
+
+thread 'main' (94) panicked at crates/report/src/matrix.rs:109:27:
+end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+--- artifact existence (host-side, after sandbox exit) ---
+EXISTS out/b0_report.json size=4133
+EXISTS out/b1_report.json size=4122
+EXISTS out2/m0.md size=654
+ABSENT out2/m1.md

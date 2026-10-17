@@ -1,0 +1,23 @@
+hunter-invoices — local check: invoice-count intake / payment queue cardinality
+target: zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+binary: /t/target/debug/zanary-probe sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v <w2 copy>:/t -v <registry>:ro -w /t rust:1-slim sh -c 'sh w2fs/check.sh'
+
+fixture: /t/w2-invoices-fx/inv-count/ = 5000 files c00001.json..c05000.json, 155 B each, amount_zat 0,
+  same receiver, grant-ok.json (budget 50000000 zat, cap 10000000 zat, allowlist empty)
+command: ./target/debug/zanary-probe payer --grant .../grant-ok.json --invoices .../inv-count \
+         --out .../out/chk3 --now 2026-10-17T00:00:00Z
+
+===== CHK3 5000 tiny zero-amount invoices, full-authority grant (payment queue) =====
+[chk3-count] exit=1 elapsed_s=1 peak_RSS_MB=16 harness_killed=no
+[chk3] ALLOW lines: 5000
+  invoices          : 5000 in /t/w2-invoices-fx/inv-count
+[chk3 tail] Caused by:
+[chk3 tail]     Connection refused (os error 111)
+
+Read: all 5000 files were read, parsed, accepted ("ALLOW") and pushed into to_pay in one run — nothing
+caps count. decide() (payer.rs:119-128) charged 0 zat against the 50,000,000-zat budget for each, so the
+budget never binds; each queued entry is one proposal + broadcast + 11 mined blocks + wallet resync
+(payer.rs:291-309, ops.rs:59, ops.rs:433-447) in the payment loop that follows the node connection.
+The payment loop itself could not run here: --network=none, no zcashd/lightwalletd (out of bounds).

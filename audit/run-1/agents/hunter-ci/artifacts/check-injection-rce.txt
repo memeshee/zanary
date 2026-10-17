@@ -1,0 +1,195 @@
+check id: check-injection-rce
+agent: hunter-ci
+unit: action.yml%23inputs-and-steps::.github/workflows/privacy-gate.yml%23jobs::ci-and-release::ATTACK-CLASSES.md%23Injection
+claim: a caller-supplied composite-action input value is expanded into the script text of the
+       action's run: steps and is executed by the shell (script injection via `with:` values).
+sandbox: docker run --rm --network=none, local rust:1-slim image, disposable copy mounted at /t,
+         scratch-only writes, no rig/ports/network touched, stub probe instead of the real binary.
+source: /home/kiter/hackathon/zanary/action.yml sha256=6e58f6bb7b4fe5a17faf7dc6f6c6187665ed6d647393336153542442afd1599e
+        (the parent's correction re rust-toolchain.toml applies only to cargo checks; this check
+         runs bash only -- rust-toolchain.toml was still removed from the disposable copy.)
+
+== source lines this check depends on (as read this run) ==
+  OK L95: 'FLOW="${{ inputs.flow }}"'
+  OK L96: 'for candidate in "${{ github.workspace }}/$FLOW" "${{ github.action_path }}/$FLOW" "$FLOW"; do'
+  OK L100: 'echo "::error::ZANARY gate: no flow definition at ${{ inputs.flow }}"'
+  OK L103: 'OUT="${{ github.workspace }}/${{ inputs.out }}"'
+  OK L106: '[ "${{ inputs.anchor }}" = "true" ] && anchor_flag="--anchor"'
+  OK L107: 'echo "out=$OUT" >> "$GITHUB_OUTPUT"'
+  OK L116: '--expect "${{ inputs.expect }}" \\'
+  OK L117: '--ttl-days "${{ inputs.ttl-days }}" \\'
+  OK L136: 'OUT="${{ steps.gate.outputs.out }}"'
+  OK L140: '--title "${{ inputs.flow }} (expect ${{ inputs.expect }})" || true'
+  OK L153: 'OUT="${{ steps.gate.outputs.out }}"'
+  OK L175: 'code="${{ steps.gate.outputs.exit_code }}"'
+  OK L177: '0) echo "ZANARY gate: the run matched its expectation (--expect ${{ inputs.expect }})."; exit 0 ;;'
+
+== extraction ==
+  gate script   = action.yml lines 92..129 (verbatim text of the `run the gate` step's run: block)
+  summary script= action.yml lines 136..147 (rendered for reference, not executed)
+
+== expression substitution applied (what the Actions runner does before bash parses) ==
+  ${{ inputs.flow }} -> {payload A | 'flows/stub.json'}
+  ${{ inputs.out }}  -> {'z' | payload B}
+  ${{ inputs.expect }}, ${{ inputs.anchor }}, ${{ inputs.ttl-days }} -> 'pass', 'true', '30'
+  ${{ github.workspace }} -> /t/ci-check/ws    ${{ github.action_path }} -> /t/ci-check/action
+
+== payload A (inputs.flow, run A) ==
+  x"; printf 'ZANARY-INPUT-INJECTION: flow value executed as shell code\n'; printf 'injected-by-flow\n' > /t/ci-check/marker-flow.txt; #
+== rendered line (run A, gate script line 95) ==
+  FLOW="x"; printf 'ZANARY-INPUT-INJECTION: flow value executed as shell code\n'; printf 'injected-by-flow\n' > /t/ci-check/marker-flow.txt; #"
+== payload B (inputs.out, run B) ==
+  z"; printf 'ZANARY-INPUT-INJECTION: out value executed as shell code\n'; printf 'injected-by-out\n' > /t/ci-check/marker-out.txt; #
+== rendered line (run B, gate script line 11 -> action.yml line 103) ==
+  OUT="/t/ci-check/ws/z"; printf 'ZANARY-INPUT-INJECTION: out value executed as shell code\n'; printf 'injected-by-out\n' > /t/ci-check/marker-out.txt; #"
+
+== rendered gate script, run A (executed) ==
+        set -o pipefail
+        # The flow and the run directory belong to the calling repository, not to this action: a
+        # caller reads their own evidence and uploads it as their own artifact.
+        FLOW="x"; printf 'ZANARY-INPUT-INJECTION: flow value executed as shell code\n'; printf 'injected-by-flow\n' > /t/ci-check/marker-flow.txt; #"
+        for candidate in "/t/ci-check/ws/$FLOW" "/t/ci-check/action/$FLOW" "$FLOW"; do
+          if [ -f "$candidate" ]; then FLOW="$candidate"; break; fi
+        done
+        if [ ! -f "$FLOW" ]; then
+          echo "::error::ZANARY gate: no flow definition at x"; printf 'ZANARY-INPUT-INJECTION: flow value executed as shell code\n'; printf 'injected-by-flow\n' > /t/ci-check/marker-flow.txt; #"
+          exit 2
+        fi
+        OUT="/t/ci-check/ws/z"
+        mkdir -p "$OUT"
+        anchor_flag=""
+        [ "true" = "true" ] && anchor_flag="--anchor"
+        echo "out=$OUT" >> "$GITHUB_OUTPUT"
+        # Bounded: a rig that stops answering must fail this job in minutes with a reason, not hold a
+        # runner for the job's whole timeout. `timeout` reports 124, which is a rig failure (2), never
+        # a verdict about the flow.
+        GATE_TIMEOUT="${ZANARY_GATE_TIMEOUT_SECONDS:-2700}"
+        set +e
+        timeout "$GATE_TIMEOUT" ./target/release/zanary-probe test \
+          --definition "$FLOW" \
+          --out "$OUT" \
+          --expect "pass" \
+          --ttl-days "30" \
+          $anchor_flag \
+          --summary "$OUT/test.json" \
+          2>&1 | tee "$OUT/gate.log"
+        code=${PIPESTATUS[0]}
+        if [ "$code" = "124" ]; then
+          echo "::warning::the gate did not finish within ${GATE_TIMEOUT}s — treating it as a rig failure"
+          code=2
+        fi
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        # The step itself stays green so the summary and the artifacts are always written; the
+        # verdict step below is what fails the job, with the gate's own reason for it.
+        exit 0
+
+== rendered gate script, run B (executed) ==
+        set -o pipefail
+        # The flow and the run directory belong to the calling repository, not to this action: a
+        # caller reads their own evidence and uploads it as their own artifact.
+        FLOW="flows/stub.json"
+        for candidate in "/t/ci-check/ws/$FLOW" "/t/ci-check/action/$FLOW" "$FLOW"; do
+          if [ -f "$candidate" ]; then FLOW="$candidate"; break; fi
+        done
+        if [ ! -f "$FLOW" ]; then
+          echo "::error::ZANARY gate: no flow definition at flows/stub.json"
+          exit 2
+        fi
+        OUT="/t/ci-check/ws/z"; printf 'ZANARY-INPUT-INJECTION: out value executed as shell code\n'; printf 'injected-by-out\n' > /t/ci-check/marker-out.txt; #"
+        mkdir -p "$OUT"
+        anchor_flag=""
+        [ "true" = "true" ] && anchor_flag="--anchor"
+        echo "out=$OUT" >> "$GITHUB_OUTPUT"
+        # Bounded: a rig that stops answering must fail this job in minutes with a reason, not hold a
+        # runner for the job's whole timeout. `timeout` reports 124, which is a rig failure (2), never
+        # a verdict about the flow.
+        GATE_TIMEOUT="${ZANARY_GATE_TIMEOUT_SECONDS:-2700}"
+        set +e
+        timeout "$GATE_TIMEOUT" ./target/release/zanary-probe test \
+          --definition "$FLOW" \
+          --out "$OUT" \
+          --expect "pass" \
+          --ttl-days "30" \
+          $anchor_flag \
+          --summary "$OUT/test.json" \
+          2>&1 | tee "$OUT/gate.log"
+        code=${PIPESTATUS[0]}
+        if [ "$code" = "124" ]; then
+          echo "::warning::the gate did not finish within ${GATE_TIMEOUT}s — treating it as a rig failure"
+          code=2
+        fi
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        # The step itself stays green so the summary and the artifacts are always written; the
+        # verdict step below is what fails the job, with the gate's own reason for it.
+        exit 0
+
+== exact command ==
+$ docker run --rm --network=none --user 1000:1000 -e GITHUB_OUTPUT=/t/ci-check/out.txt -e GITHUB_WORKSPACE=/t/ci-check/ws -e GITHUB_ACTION_PATH=/t/ci-check/action -v /home/kiter/.hermes/cache/scratch/zanary-sandbox:/t -w /t/ci-check/action rust:1-slim bash -c 
+set -x
+echo "container user: $(id -un) uid=$(id -u)"
+echo "== run A: payload in inputs.flow =="
+bash /t/ci-check/render/gate-A.sh
+echo "run-A-exit=$?"
+echo "== run B: payload in inputs.out =="
+bash /t/ci-check/render/gate-B.sh
+echo "run-B-exit=$?"
+echo "== marker files created by the injected commands =="
+ls -l /t/ci-check/marker-flow.txt /t/ci-check/marker-out.txt
+cat /t/ci-check/marker-flow.txt /t/ci-check/marker-out.txt
+echo "== step outputs written to the GITHUB_OUTPUT file =="
+cat /t/ci-check/out.txt
+
+
+== container stdout ==
+container user: 1000 uid=1000
+== run A: payload in inputs.flow ==
+ZANARY-INPUT-INJECTION: flow value executed as shell code
+::error::ZANARY gate: no flow definition at x
+ZANARY-INPUT-INJECTION: flow value executed as shell code
+run-A-exit=2
+== run B: payload in inputs.out ==
+ZANARY-INPUT-INJECTION: out value executed as shell code
+STUB zanary-probe (sandbox placeholder; no rig, no network)
+run-B-exit=0
+== marker files created by the injected commands ==
+-rw-r--r-- 1 1000 1000 17 Oct 16 18:10 /t/ci-check/marker-flow.txt
+-rw-r--r-- 1 1000 1000 16 Oct 16 18:10 /t/ci-check/marker-out.txt
+injected-by-flow
+injected-by-out
+== step outputs written to the GITHUB_OUTPUT file ==
+out=/t/ci-check/ws/z
+exit_code=0
+
+== container stderr ==
+++ id -un
+id: cannot find name for user ID 1000
+++ id -u
++ echo 'container user: 1000 uid=1000'
++ echo '== run A: payload in inputs.flow =='
++ bash /t/ci-check/render/gate-A.sh
++ echo run-A-exit=2
++ echo '== run B: payload in inputs.out =='
++ bash /t/ci-check/render/gate-B.sh
++ echo run-B-exit=0
++ echo '== marker files created by the injected commands =='
++ ls -l /t/ci-check/marker-flow.txt /t/ci-check/marker-out.txt
++ cat /t/ci-check/marker-flow.txt /t/ci-check/marker-out.txt
++ echo '== step outputs written to the GITHUB_OUTPUT file =='
++ cat /t/ci-check/out.txt
+
+== container exit code: 0 ==
+
+== host-side marker verification ==
+  /t/ci-check/marker-flow.txt (in sandbox copy) contents: injected-by-flow
+  /t/ci-check/marker-out.txt  (in sandbox copy) contents: injected-by-out
+
+== observed result ==
+  - flow payload executed (marker-flow.txt) -- the caller's value became shell code
+  - out payload executed (marker-out.txt) -- the caller's value became shell code
+
+== secondary sites of the same class (not executed here; a fix must cover them too) ==
+  action.yml:136 and :153  OUT="${{ steps.gate.outputs.out }}"   (value re-enters script text)
+  action.yml:175           code="${{ steps.gate.outputs.exit_code }}" (verdict step)
+  action.yml:107           echo "out=$OUT" >> "$GITHUB_OUTPUT"   (raw, newline-unescaped write)
+  action.yml:140           --title "${{ inputs.flow }} (expect ${{ inputs.expect }})" (always() step)
+  action.yml:177,178       ${{ inputs.expect }} inside the verdict case branches

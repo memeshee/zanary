@@ -1,0 +1,52 @@
+{
+  "check": "rig published-port specs vs in-repo consumers (mechanical re-derivation)",
+  "owner": "hunter-rig",
+  "target_revision": {
+    "harness/docker-compose.yml": "sha256:7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3",
+    "harness/zcash.conf": "sha256:b635374be07b159cc1df0c9f02fd634134b3f8b66ac1cbb197690c528345461b",
+    "note": "hashes computed on the disposable git-archive copy inside the sandbox and independently on the target checkout; they match, so the citations in the unit refer to this revision"
+  },
+  "sandbox": {
+    "command_shape": "docker run -i --rm --network=none --memory=256m --cpus=1 -v <disposable-copy>:/t -w /t rust:1-slim bash -c <script>",
+    "limits": "no external network, 256 MiB, 1 CPU, wall-clock bounded by the caller (150 s timeout)",
+    "environment": "empty; no target code executed — file parsing only"
+  },
+  "observations": {
+    "published_ports_without_host_ip": [
+      "harness/docker-compose.yml:20  - \"18232:18232\"  # JSON-RPC (zcashd)",
+      "harness/docker-compose.yml:21  - \"18233:18233\"  # P2P, labeled unused by the file itself",
+      "harness/docker-compose.yml:46  - \"9067:9067\"    # gRPC CompactTxStreamer (lightwalletd)",
+      "harness/docker-compose.yml:47  - \"9068:9068\"    # HTTP (lightwalletd)"
+    ],
+    "port_specs_with_explicit_host_ip": 0,
+    "occurrences_of_loopback_qualifier_anywhere_in_compose": 0,
+    "conf_bind_and_allow": [
+      "harness/zcash.conf:15  rpcbind=0.0.0.0",
+      "harness/zcash.conf:16  rpcallowip=0.0.0.0/0"
+    ],
+    "conf_credential_lines": 2,
+    "compose_lines_carrying_rpc_credential_args": 6,
+    "credential_equal_conf_vs_compose_command_line": true,
+    "credential_equal_probe_client_default": true,
+    "credential_values_reproduced": false,
+    "consumer_loopback_default_references": {
+      "crates/probe/src/node.rs": 3,
+      "crates/probe/src/core.rs": 2,
+      "harness/up.sh": 3,
+      "crates/report/src/node.rs": 1,
+      "crates/report/src/verify.rs": 1,
+      "crates/probe/src/main.rs": 1
+    },
+    "threat_model_localhost_premise_present": true,
+    "harness_never_expose_indexer_note_present": true,
+    "documented_entry_paths_that_create_the_binding": [
+      "README.md:111 (harness/up.sh && scripts/demo-run.sh)",
+      "README.md:114 (harness/up.sh)",
+      "docs/CI.md:60-70 (rig locally, same two commands)",
+      "action.yml:85 (composite action runs harness/up.sh on a caller's runner)",
+      ".github/workflows/privacy-gate.yml:239 (rig in CI)",
+      "harness/up.sh:60 and harness/seed.sh:4 (raw docker compose up -d)"
+    ]
+  },
+  "result": "every published port spec is host-IP-unqualified and the file never mentions a loopback qualifier; the node is started with the same repo-published RPC credential pair that the tracked conf seed carries and that the probe client defaults to; every in-repo consumer of both ports defaults to 127.0.0.1, so no documented use requires off-host reachability. What the Docker daemon then binds (all interfaces by default) and whether a second host can reach it were NOT observed here — host ports and the running rig are out of bounds; that part is the operator-observed deployment step."
+}

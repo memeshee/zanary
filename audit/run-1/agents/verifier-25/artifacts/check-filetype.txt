@@ -1,0 +1,37 @@
+verifier-25 — check: non-regular *.json entries (FIFO hang, symlink follow)
+sandbox driver: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 sh verifier25-fx/check.sh'
+fixtures: /t/verifier25-fx/{grants/{grant-revoked.json={"revoked":true},grant-ok.json={}}, inv-fifo/{afterfifo.json,hang.json(FIFO)}, inv-link/link.json->../outside/outside.json, outside/outside.json (id "outside", 7 zat), inv-plain/inplace.json, inv-copy/copy.json}
+binary sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 (== HEAD)
+
+===== A: control - plain inplace.json, revoked grant =====
+[A] exit=1 elapsed_s=0  log bytes=577
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : verifier25-fx/grants/grant-revoked.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  kill switch       : TRIPPED — every invoice will be refused
+  invoices          : 1 in verifier25-fx/inv-plain
+  REFUSE   inplace — refused: the grant was revoked (kill switch)
+Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Caused by: Connection refused (os error 111)
+
+===== B: FIFO hang.json (+ valid afterfifo.json), revoked grant =====
+[B] after 5s: alive=yes  state=S wchan=wait_for_partner
+[B] open fds: 0 -> /dev/null; 1,2 -> /t/verifier25-fx/out/chkB.log; 3,5 eventpoll; 4 eventfd; 6,7,8 sockets
+    (no fd for hang.json — blocked inside open() before an fd is returned)
+[B] output bytes so far=0
+[B] after 10s: alive=yes  state=S wchan=wait_for_partner
+[B] SIGKILL exit=137 elapsed_s=10  log bytes=0  (log empty)
+
+===== C: symlink link.json -> ../outside/outside.json, permissive grant =====
+[C] exit=1 elapsed_s=0  log bytes=587
+  invoices          : 1 in verifier25-fx/inv-link
+  ALLOW    outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)
+Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused (no payment attempted)
+[C] outside.json sha256=2753321e0ec3cfa604b404703d14bd2e66962c396d546a5ff2effdc55ad7cef9 (unmodified)
+
+===== D: control - same outside.json bytes copied INSIDE a directory (plain file) =====
+[D] exit=1; "invoices : 1 in verifier25-fx/inv-copy"; "ALLOW outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)"
+
+Read: identical to the record's observed_result in every material number (FIFO: S/wait_for_partner, 0 bytes,
+exit 137 at ~10s; control REFUSE line; symlink ALLOW line with the same grant defaults). Nothing new, nothing stronger.

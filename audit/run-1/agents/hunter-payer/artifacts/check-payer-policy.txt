@@ -1,0 +1,14 @@
+   Compiling zanary-properties v0.0.1 (/t/crates/properties)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.06s
+     Running unittests src/lib.rs (target/debug/deps/zanary_properties-3bb996db3db41b35)
+
+running 3 tests
+test properties::payer_policy::hunter_payer_checks::hunter_payer_a_paid_row_with_no_backing_payment_passes ... H6 paid row, zero run.payments entries -> verdict Pass
+ok
+test properties::payer_policy::hunter_payer_checks::hunter_payer_the_property_cannot_check_expiry ... H7 grant expires 2020-01-01T00:00:00Z, paid row has no timestamp -> verdict Pass, expiry echoed=true
+ok
+test properties::payer_policy::hunter_payer_checks::hunter_payer_two_paid_rows_for_one_invoice_id_pass ... H5 duplicate paid rows (one txid, one without) -> verdict Pass
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+

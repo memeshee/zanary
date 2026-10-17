@@ -1,0 +1,36 @@
+{
+  "verifier": "verifier-16",
+  "candidate": "zanary/published-summary-carries-invocation-paths",
+  "target": "/home/kiter/hackathon/zanary",
+  "commit": "70584064b8d5d4a2c96c49ad16ad531573cdc5ef",
+  "executed_target_code": false,
+  "network_used": false,
+  "trace_checks": [
+    {"file": "action.yml", "line": 103, "ok": true, "saw": "OUT=\"${{ github.workspace }}/${{ inputs.out }}\""},
+    {"file": "action.yml", "line": 96, "ok": true, "saw": "for candidate in \"${{ github.workspace }}/$FLOW\" \"${{ github.action_path }}/$FLOW\" \"$FLOW\""},
+    {"file": "action.yml", "line": 113, "ok": true, "saw": "timeout \"$GATE_TIMEOUT\" ./target/release/zanary-probe test \\ (args at 114 --definition \"$FLOW\", 115 --out \"$OUT\", 119 --summary \"$OUT/test.json\")"},
+    {"file": "crates/probe/src/gate.rs", "line": 336, "ok": true, "saw": "\"flow_definition\": definition.display().to_string()"},
+    {"file": "crates/probe/src/gate.rs", "line": 337, "ok": true, "saw": "\"run_dir\": outcome.out_dir.display().to_string()"},
+    {"file": "crates/probe/src/gate.rs", "line": 343, "ok": true, "saw": "\"report_file\": outcome.report_path.display().to_string()"},
+    {"file": ".github/workflows/privacy-gate.yml", "line": 161, "ok": true, "saw": "cp \"$dir\"report.json \"$dir\"anchor.json \"$dir\"test.json \"public/claims/$name/\" 2>/dev/null || true"}
+  ],
+  "evidence_checks": [
+    {"file": ".github/workflows/privacy-gate.yml", "line": 154, "ok": true, "saw": "zanary-report index --reports claim-input --out public/index.html; copy loop 158-162"},
+    {"file": ".github/workflows/privacy-gate.yml", "line": 97, "ok": true, "saw": "upload-artifact@v4, path runs/${{ matrix.id }}/ (100), retention-days: 30 (103)"},
+    {"file": ".github/workflows/privacy-gate.yml", "line": 138, "ok": true, "saw": "download-artifact@v4 pattern zanary-*-evidence -> claim-input (140-141)"},
+    {"file": "data/runs/ci-checkout/test.json", "line": 17, "ok": true, "saw": "flow_definition \"flows/ci-checkout.json\" (relative; file untracked, /data gitignored)"},
+    {"file": "crates/probe/src/gate.rs", "line": 365, "ok": true, "saw": "std::fs::write(path, serde_json::to_string_pretty(&summary)?) — no sanitisation"},
+    {"file": "scripts/ci-summary.py", "line": 50, "ok": true, "saw": "print definition row; run_dir row at 68"}
+  ],
+  "controls": {
+    "path_normalization": "none found (grep canonicalize crates/ = 0; record.rs:76-79 raw; gate.rs:92/102/105-108 raw)",
+    "test_json_consumers": "no .rs file references test.json; index reads report.json/anchor.json only (main.rs:682-711)",
+    "publish_allowlist": "report.json/anchor.json/test.json (privacy-gate.yml:161) + flat fixture reports (163)",
+    "baseline": "published report.json has no path fields; recorded published pages contain no path strings"
+  },
+  "unresolved": [
+    "runtime value of ${{ github.workspace }} (provider behaviour); zero local records of a CI invocation (grep home/runner = 0 files)",
+    "published bytes themselves (Pages claim file / 30-day artifact) out of bounds for this review"
+  ],
+  "decision": "needs_validation"
+}

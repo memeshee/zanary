@@ -1,0 +1,120 @@
+##### v1h rc=101
+--stdout:
+
+--stderr:
+
+thread 'main' (9) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### v2h rc=101
+--stdout:
+zanary-report verify — regtest-checkout @ aabbccddeeff…
+  chain regtest · verified at height 100 · 0 evidence entries
+
+
+--stderr:
+
+thread 'main' (17) panicked at crates/report/src/verify.rs:851:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### v0b rc=1
+--stdout:
+zanary-report verify — regtest-checkout @ aabbccddeeff…
+  chain regtest · verified at height 100 · 0 evidence entries
+
+  report hash                                    FAIL  stored 000000000000… but the canonical JSON hashes to af577259121e…
+  evidence root                                  PASS  merkle root over 0 evidence leaves recomputes: a4ea62484e6e…
+  chain                                          FAIL  cannot read the node: connecting to the node at 127.0.0.1:18232: Connection refused (os error 111)
+  claim height                                   FAIL  cannot read the node tip: connecting to the node at 127.0.0.1:18232: Connection refused (os error 111)
+
+  summary: 1 pass · 3 fail · 0 skip · 0 warn → NOT VERIFIED
+
+--stderr:
+
+
+##### vmiss rc=2
+--stdout:
+
+--stderr:
+error: reading does-not-exist.json: No such file or directory (os error 2)
+
+
+##### b1h rc=101
+--stdout:
+built out22/b1_report.json
+
+--stderr:
+
+thread 'main' (41) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### b0b rc=0
+--stdout:
+built out22/b0_report.json
+  flow        : h22-flow @ aabbccddeeff…
+  chain       : regtest (verified at height 110)
+  verified_at : 2026-10-17T12:01:29.572689002Z
+  ttl         : 30d
+  findings    : 13
+  evidence    : 0 entries
+  report_hash : a3cbcb20078ef0c8c3c94d9730d375a231c7b210c6ce4ee6e03d9da69338bdc9
+  evidence_root: a4ea62484e6e5733670d50a469d14cd6996f7796ad14258895e81cd6dcd0b129
+
+--stderr:
+
+
+##### m1h rc=101
+--stdout:
+
+--stderr:
+
+thread 'main' (9) panicked at crates/report/src/matrix.rs:109:27:
+end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### m0b rc=0
+--stdout:
+  h22-mflow @ aabbccdd — 0 pass · 0 fail · 0 skip
+
+  matrix: out22/m0.md — 1 run(s) × 0 property(ies)
+
+--stderr:
+
+
+##### a1h rc=101
+--stdout:
+
+--stderr:
+
+thread 'main' (74) panicked at crates/report/src/main.rs:762:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### a2h rc=101
+--stdout:
+
+--stderr:
+
+thread 'main' (83) panicked at crates/report/src/main.rs:287:28:
+end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+##### a0b rc=2
+--stdout:
+zanary-report verify-anchor — evidence root aabbccddeeff…
+  chain             : regtest (scanning from height 1)
+
+
+--stderr:
+error: scanning the chain for anchor memos with the beacon's viewing key: the beacon's viewing key is not a UFVK for regtest: Address is not Bech32m encoded
+
+

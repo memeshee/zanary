@@ -1,0 +1,5 @@
+rustc 1.99.0 (b940084d7 2026-09-28)
+   Compiling zanary-properties v0.0.1 (/t/crates/properties)
+   Compiling zanary-report v0.0.1 (/t/crates/report)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.81s
+2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60  target/debug/zanary-report

@@ -1,0 +1,26 @@
+verifier-21 own check: can zcash_client_backend's test-dependencies feature be resolved offline?
+(a fresh crate /t/v21feat depending on zcash_client_backend = { version = "0.24", features =
+["test-dependencies"] }, checked with --network=none and the read-only registry cache)
+
+Command: docker run ... -w /t/v21feat rust:1-slim sh -c 'cargo check --offline'
+Result (exit=101):
+
+error: no matching package named `ambassador` found
+location searched: crates.io index
+required by package `zcash_client_backend v0.24.0`
+    ... which satisfies dependency `zcash_client_backend = "^0.24"` of package `featprobe v0.0.0 (/t/v21feat)`
+note: offline mode (via `--offline`) can sometimes cause surprising resolution failures
+help: if this error is too confusing you may wish to retry without `--offline`
+EXIT=101
+
+Supporting facts (read-only registry cache on this host):
+  zcash_client_backend-0.24.0/Cargo.toml:98-112 test-dependencies = [ dep:ambassador,
+    dep:assert_matches, dep:proptest, dep:jubjub, dep:rand, dep:rand_chacha,
+    incrementalmerkletree/test-dependencies, ... ]
+  present : incrementalmerkletree-0.8.2, rand_chacha-0.3.1, tempfile-3.27.0, rand-0.8.8,
+            rand-0.10.3, jubjub-0.10.0
+  absent  : proptest, ambassador, assert_matches
+  zcash_client_sqlite-0.22.0/src/lib.rs:174 #[cfg(any(test, feature = "test-dependencies"))]
+            pub mod testing;  (its test-dependencies feature pulls zcash_client_backend's)
+So the record's blocker 1 mechanism holds: with --network=none the test-wallet framework cannot
+be built, and no wallet holding a spendable Orchard note exists offline.

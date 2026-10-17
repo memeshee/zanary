@@ -1,0 +1,50 @@
+Phase-5 record verification — verifier-29 on zanary/composite-action-input-shell-expansion
+Target: /home/kiter/hackathon/zanary @ 7058406 (worktree clean). Evidence read-only + sandbox only.
+
+== source re-read (all sites verified verbatim at 7058406) ==
+action.yml sha256 1c58ef4994e322ff0b222943132de8744dbdb35f6af59c842c595f8db43acde3
+  head -c -1 sha256 = 6e58f6bb7b4fe5a17faf7dc6f6c6187665ed6d647393336153542442afd1599e (matches the
+  hunter's recorded hash; record's parenthetical is exactly right).
+inputs block lines 23-46. grep -n 'inputs\.' action.yml -> 95, 100, 103, 106, 116, 117, 140,
+177, 178 (= eight site-claims, 177/178 counted once, exactly as the record states).
+grep -n 'env:' action.yml -> (empty); no env:/argv pass-through anywhere in the file.
+grep -n 'steps\.gate\.outputs' -> 136, 150, 153, 175 as recorded. :107 raw GITHUB_OUTPUT write.
+docs/CI.md:49 `- uses: memeshee/zanary@main`, :51 `flow: flows/my-checkout.json` literal (49-55 block).
+.github/workflows/privacy-gate.yml: matrix include at 71-80; `uses: ./` at 87 with static
+matrix values at 88-93; only workflow in the repo; no templated caller in-repo.
+
+== independent sandbox reproduction (verifier-29, own payloads) ==
+Frame: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+  -v .../zanary-sandbox-w2:/t -w /t rust:1-slim ; rendered run-blocks (action.yml 92-129, 136-147,
+  153-170, 175-181) with literal expression substitution; placeholder probe; bash --noprofile
+  --norc -eo pipefail; cwd = action path; GITHUB_OUTPUT/WORKSPACE/ACTION_PATH/STEP_SUMMARY set.
+Observed (drive1.log / drive2.log under verifier29/ in the sandbox copy):
+  control (all literals): exit 0, out=/t/verifier29/ws/z, exit_code=0, NO counter files.
+  flow payload valid  : executed at :95 (count-flow 1 byte), step exit 0, outputs normal.
+  flow payload invalid: executed 2x (:95 + :100 error echo, count-flow 2 bytes), exit 2.
+  out payload         : executed at :103 (count-out 1 byte), exit 0, GITHUB_OUTPUT line
+    out=/t/verifier29/ws/x$(printf y >> /t/verifier29/counts/count-roundtrip.txt)  + exit_code=0.
+  newline out payload : GITHUB_OUTPUT = 'out=/t/verifier29/ws/x', 'payload=owned', 'exit_code=0'
+    -> forged output key, exactly the record's claim.
+  summary step with that recorded value: :136 executed the embedded fragment (roundtrip 1 byte);
+    literal-value control executed nothing (0 bytes).
+  summary step, flow payload in --title: executed at :140 (count-title 1 byte).
+  rig diagnostics step with recorded value: executed at :153 (roundtrip 2 bytes total).
+  verdict step with recorded numeric exit_code 0: matched branch, exit 0 (nothing to execute).
+Nothing written outside /t (disposable copy); no network; rust-toolchain.toml untouched by this
+check (bash only, no cargo needed). The only element not executed is the runner's own expression
+substitution (a live workflow runner is out of bounds) — the record says so explicitly.
+
+== judgement ==
+- Every trace/evidence path, line, scope and described operation re-read in the target: correct.
+- Entry interface (caller with: into a composite action; five free-form inputs, no validation):
+  correct; conditions third_party_dependency and the "no in-repo caller templated" claim correct.
+- Impact demonstrated = shell execution in the action's steps with marker writes, step-output
+  round trip, forged output key. Nothing claimed beyond that.
+- Severity split: likelihood low (needs a consumer that templates a value; none in-repo),
+  impact high (arbitrary command execution in a consumer's CI job), overall medium
+  (<= impact, per hunter-protocol.md:31). Confirmed as written, not inflated.
+- Remediation: env: pass-through (canonical fix, does not merely move trust), shape validation,
+  multiline-safe GITHUB_OUTPUT write, later steps via env. Satisfies the invariant.
+- findings.json[8] validates against the confirmed branch of report-schema.json (jsonschema OK).
+=> decision: verified.

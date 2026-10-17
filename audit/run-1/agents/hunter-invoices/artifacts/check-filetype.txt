@@ -1,0 +1,36 @@
+hunter-invoices — local check: non-regular *.json entries in the invoice directory (FIFO hang, symlink follow)
+target: zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+binary: /t/target/debug/zanary-probe sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v <w2 copy>:/t -v <registry>:ro -w /t rust:1-slim sh -c 'sh w2fs/check.sh'
+note: CHK4 deliberately uses grant-revoked.json — authority fully void, kill switch equivalent tripped —
+      so nothing in the observed effect can be attributed to a payment or to grant work.
+
+fixture CHK4 (FIFO): /t/w2-invoices-fx/inv-fifo/{afterfifo.json (161 B, valid invoice), hang.json (FIFO)}
+  created with: mkfifo /t/w2-invoices-fx/inv-fifo/hang.json
+  command: ./target/debug/zanary-probe payer --grant grant-revoked.json --invoices inv-fifo \
+           --out out/chk4 --now 2026-10-17T00:00:00Z
+  harness: killed the process after 15 s (the only bound applied)
+
+===== CHK4 FIFO named *.json + revoked grant: intake blocks before any decision =====
+[chk4-fifo] exit=137 elapsed_s=15 peak_RSS_MB=15 harness_killed=yes
+[chk4] log bytes: 0
+
+Read: zero bytes of output for 15 s — not even the "REFUSE ... kill switch" line — because read_to_string
+(payer.rs:513) blocks in open() on the FIFO. The process never reached payer.rs:249 (decide). With a
+revoked grant the result is identical: the kill switch cannot stop intake work. (Sorted order: the valid
+afterfifo.json is read first; hang.json then blocks.)
+
+fixture CHK5 (symlink): /t/w2-invoices-fx/inv-link/link.json -> /t/w2-invoices-fx/outside/outside.json
+  (outside.json is a valid invoice with invoice_id "outside", amount 7, located outside the --invoices dir)
+  command: ./target/debug/zanary-probe payer --grant grant-ok.json --invoices inv-link --out out/chk5 \
+           --now 2026-10-17T00:00:00Z
+
+===== CHK5 symlink named *.json pointing outside the invoice directory =====
+[chk5-symlink] exit=1 elapsed_s=0 peak_RSS_MB=6 harness_killed=no
+[chk5]   ALLOW    outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)
+  invoices          : 1 in /t/w2-invoices-fx/inv-link
+
+Read: selection is by extension only (payer.rs:503) and read_to_string follows symlinks; the file was read
+from outside the supplied directory and decided/queued like any invoice. No regular-file check, no
+O_NOFOLLOW, no read deadline in payer.rs:495-520.

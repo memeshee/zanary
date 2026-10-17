@@ -1,0 +1,12 @@
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 40.40s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 2 tests
+test verifier12_check::verifier12_budget_bounds_principal_not_payment_cost ... V12-1 decide-loop (real payer::decide): allowed=1000 payments x 1 zat · spent=1000 of 1000 zat · 1001st: refused: paying 1 zat would take this run to 1001 of a 1000 zat budget · payer's own fee model would top up 10000000 zat (10_000/payment, payer.rs:528-530)
+ok
+test verifier12_check::verifier12_payer_policy_passes_the_fee_multiplied_ledger ... V12-2 payer-policy (real property): verdict=Pass · 1000 paid · 0 refused · 1000 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2026-11-01T00:00:00Z) · observation model spent_zat()=1000
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.01s
+

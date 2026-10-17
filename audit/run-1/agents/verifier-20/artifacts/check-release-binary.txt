@@ -1,0 +1,53 @@
+=== release binary identity ===
+b1396fcea9b9e54a9f744622bdc2999584e377f8e7fa9ea99228704f6122291d  target/release/zanary-probe
+74274544 target/release/zanary-probe
+=== RUN R1: hostile payload (release build) ===
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : hostile-sum
+  flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+  invoices          : 2 (184467440737.09551614 ZEC total)
+  receiver strategy : fresh diversified receiver per invoice
+  memo              : one ZIP-302 memo per payment
+  policy            : FullPrivacy
+EXIT=1
+
+=== RUN R2: control benign (release build) ===
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : benign-control
+  flow commit       : 7e00166ec349a6405485d1edaab3261af418f80a766c5cf025fb9e52d99279d2
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+  invoices          : 2 (0.00200000 ZEC total)
+  receiver strategy : fresh diversified receiver per invoice
+  memo              : one ZIP-302 memo per payment
+  policy            : FullPrivacy
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1
+
+=== solo re-run of R1 (release binary, hostile payload) with isolated capture ===
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : hostile-sum
+  flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+  invoices          : 2 (184467440737.09551614 ZEC total)
+  receiver strategy : fresh diversified receiver per invoice
+  memo              : one ZIP-302 memo per payment
+  policy            : FullPrivacy
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1

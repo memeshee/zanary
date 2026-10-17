@@ -1,0 +1,30 @@
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v32-scratch/grant.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 2 in /t/v32-scratch/invoices
+
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v32-scratch/grant.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 2 in /t/v32-scratch/invoices
+
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)

@@ -1,0 +1,67 @@
+zanary run-1 · verifier-13 · real-binary check (approved sandbox, --network=none)
+==============================================================================
+What this establishes: through the target's own CLI, with a real merchant-style invoice
+directory holding two files that carry the same invoice_id (v13-8301, 300 zat each), the real
+intake and the real decision loop print ALLOW for BOTH — "300 of 1000" then "600 of 1000" of the
+grant budget — and the second, identical invocation repeats the same 300→600 sequence (spent
+resets to 0 per invocation; payer.rs:247). The run then aborts at the node-RPC bootstrap
+(payer.rs:276) because the sandbox has no rig: exit 1, and --out is never created, so the two
+shielded broadcasts (payer.rs:291-363) were NOT executed here — they need the rig's funded synced
+wallet + node/indexer (out of bounds). Inputs (written by the verifier):
+  grant.json    {"budget_zat":1000,"per_payment_cap_zat":400,"allowlist":["uregtest1merchant"],
+                 "expires_at":"2030-01-01T00:00:00Z","revoked":false}
+  invoices/inv-a.json and invoices/inv-b.json — byte-identical:
+                 {"invoice_id":"v13-8301","amount_zat":300,"receiver":"uregtest1merchant",
+                  "memo":"zanary: invoice v13-8301","uri":"zcash:?address=uregtest1merchant&amount=0.000003",
+                  "issued_at_height":1,"merchant_account":0}
+Command (verbatim): ./target/debug/zanary-probe payer --grant /t/v13-scratch/grant.json \
+                    --invoices /t/v13-scratch/invoices --out /t/v13-scratch/out
+--- raw output (verbatim) ---
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 25.53s
+=== RUN 1 (duplicate invoice_id files) ===
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v13-scratch/grant.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 2 in /t/v13-scratch/invoices
+
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1
+=== RUN 2 (same command again, fresh process) ===
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v13-scratch/grant.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 2 in /t/v13-scratch/invoices
+
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+  ALLOW    v13-8301 — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1
+=== out dir ===
+total 48
+drwxrwxr-x  4 1000 1000  4096 Oct 17 11:35 .
+drwxrwxr-x 34 1000 1000  4096 Oct 17 11:33 ..
+-rw-rw-r--  1 1000 1000   132 Oct 17 11:34 grant.json
+drwxrwxr-x  2 1000 1000  4096 Oct 17 11:34 invoices
+-rw-rw-r--  1 1000 1000 12612 Oct 17 11:33 module.rs.txt
+-rw-rw-r--  1 1000 1000  1563 Oct 17 11:36 out-cli.txt
+-rw-r--r--  1 root root   787 Oct 17 11:34 out-unit-build.txt
+-rw-r--r--  1 root root  3035 Oct 17 11:34 out-unit.txt
+drwxr-xr-x  2 root root  4096 Oct 17 11:34 unit-invoices
+ls: cannot access '/t/v13-scratch/out': No such file or directory

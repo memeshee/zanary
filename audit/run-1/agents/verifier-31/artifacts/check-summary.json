@@ -1,0 +1,33 @@
+{
+  "verifier": "verifier-31",
+  "phase": "phase-5 record verification",
+  "fingerprint": "zanary/payer-budget-excludes-fees",
+  "target": {"repo": "/home/kiter/hackathon/zanary", "commit": "70584064b8d5d4a2c96c49ad16ad531573cdc5ef", "worktree_clean": true},
+  "record_source": "run-1/findings.json[10]; equal to the prompt copy (checked programmatically)",
+  "independence": {"hunted": false, "phase3_validated": false},
+  "checks": {
+    "trace_evidence_paths_reread": "all 10 cited file:line references verified as described (payer.rs 119-128/278/286/291-310/428-440/495-520/528-530; payer_policy.rs 77-90; observation/src/lib.rs 233-234; flow.rs 1165-1177/1544/1202; ops.rs 59; docs/BOUNDED-PAYER.md:28; scripts/bounded-payer-demo.sh:20-21)",
+    "preventing_layer_search": "none found: no min amount / max count / max payments anywhere (grep); budget rule and payer-policy both principal-only; observation model has no fee field",
+    "sandbox_reproduction": {
+      "copy": "/home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (only additions: this verifier's verifier31_check.rs + cfg(test) mod line in main.rs)",
+      "command": "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v .../zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe -- verifier31 --nocapture --test-threads=1'",
+      "result": {
+        "decide": "real decide() admitted 1000 x 1-zat invoices under {budget 1000, cap 400}, spent 1000; 1,001st refused verbatim \"refused: paying 1 zat would take this run to 1001 of a 1000 zat budget\"",
+        "payer_policy": "real property verdict=Pass; summary \"1000 paid · 0 refused · 1000 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2026-11-01T00:00:00Z)\"",
+        "spent_zat": "PayerRun::spent_zat() = 1000 zat; payer's own fee model for the same run = 10000000 zat (10_000/payment, payer.rs:530)",
+        "tests": "2 passed; 0 failed (run twice, identical)"
+      }
+    },
+    "severity": {
+      "likelihood": "high confirmed (merchant-controlled invoice directory is the payer's normal unbounded input; 1-zat invoices issuable via the target's own invoice command)",
+      "impact": "medium confirmed (real boundary violation, loss bounded to operator-owned regtest/demo spend)",
+      "overall": "medium = impact, not greater — no inflation needed"
+    },
+    "fee_magnitude_provenance": "payer's own funding constant (payer.rs:530), corroborated by flow.rs:1176 — not a chain observation; record already labels this in confidence/observed_result"
+  },
+  "non_material_notes": [
+    "execution.observed_result's pointer '(matching flow.rs:1170)' should be 1167/1176 (per-invoice 10_000 rate) — same already-cited 1165-1177 range; substance unchanged",
+    "the payer's own ledger line renders amounts as ZEC via format_zats_signed; the verbatim '1000 of 1000 zat spent' text is the payer-policy summary, reproduced exactly"
+  ],
+  "decision": "verified"
+}

@@ -1,0 +1,31 @@
+VERIFIER-33 source re-read at /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (git status --porcelain = clean, 0 lines)
+md5 crates/probe/src/payer.rs                     = 54d121450a61b6fb35395a40c94ee710  (record: same)
+md5 crates/properties/src/properties/payer_policy.rs = 0000a14d897c48f6fec7c39dd58929bc  (record: same)
+
+trace entrypoint  payer.rs:149  `let grant_path = PathBuf::from(args.require("--grant")?);`                       OK
+trace propagation payer.rs:173  `let expires_at = match grant_file.expires_at.clone() { Some(ts) => ts, None => {`  OK
+                  payer.rs:176-183 parse/format ONLY in the None branch; a file-supplied expires_at is verbatim     OK
+trace propagation payer.rs:250  `let decision = decide(&grant, spent, invoice, &now);` per invoice; now at 169-172 OK
+trace sink        payer.rs:91   `if now >= grant.expires_at.as_str() {`  -- &str comparison, no parse either side OK
+                  payer.rs:258-259 spent += / to_pay.push; payment loop 291-308 (propose/build/mine)               OK
+evidence payer.rs:173  Grant (49-62) `pub expires_at: Option<String>` serde-defaulted, no validator               OK
+evidence record.rs:132 `pub(crate) fn utc_now_rfc3339()`; record.rs:53 `let verified_at = utc_now_rfc3339()?;`
+         data/runs/payer-pass/report.json verified_at = "2026-10-16T10:57:34.300715717Z" (fractional seconds)     OK
+evidence observation/src/lib.rs:194 `pub expires_at: String` (doc: "RFC3339 UTC instant after which the authority is void")
+evidence observation/src/lib.rs:202-214 PayerDecision fields: invoice_id, amount_zat, receiver, decision, reason,
+         txid, height -- NO decision timestamp (cannot re-derive expiry after the fact)                          OK
+evidence payer_policy.rs:114 `grant.expires_at,` echoed into summary only; rules 78-102 = cap/budget/allowlist/revoked,
+         line 68 keys on the literal prefix "error:"; no expiry comparison anywhere in the file                  OK
+
+docs/BOUNDED-PAYER.md:31 "**expiry** -- the instant after which the authority is void"                          OK
+docs/BOUNDED-PAYER.md:43 "now >= expires_at?           -> refuse (authority expired)"                           OK
+docs/BOUNDED-PAYER.md:60-63 the property's own doc says it detects payments "after the grant expired"; the code has no
+         expiry rule -> the control that should have caught this cannot                                     OK (blind spot)
+schemas/ contains only zanary-receipt-v1.json -- no grant schema                                             OK
+grep expires_at crates/probe/src: payer.rs:91 is the ONLY grant-expiry comparison (other hits are the report-claim
+         expiry via zanary_report::expires_at_rfc3339, a different mechanism)                                OK
+data/grants/*.json all "2026-11-15T00:00:00Z" (whole-second canonical Z); properties fixtures whole-second Z
+         (2026-12-01/2026-01-01T00:00:00Z); scripts/bounded-payer-demo.sh writes 2030-01-01T00:00:00Z        OK
+run-dir architecture.md boundary 3 (line 36-37): "Untrusted data <-> the probe CLI. Flow definitions, invoices,
+         grants and reports are JSON files that a user (or a judge, or CI) supplies; --out/--definition/--grant
+         are caller-controlled paths." -> the named lower-trust principal (grant supplier) is correct          OK

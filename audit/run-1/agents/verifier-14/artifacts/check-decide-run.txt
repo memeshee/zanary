@@ -1,0 +1,23 @@
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 23s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 5 tests
+test payer::verifier14_checks::v14_canonical_encoding_works ... V14-4 past   -> allowed=false [refused: the grant expired at 2026-11-01T23:59:59Z (this invoice was shown at 2026-11-02T00:00:00Z)]
+V14-4 future -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+ok
+test payer::verifier14_checks::v14_fractional_clock_current_second ... V14-2 now 2026-11-01T00:00:00.300715717Z vs expires 2026-11-01T00:00:00Z -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+ok
+test payer::verifier14_checks::v14_malformed_expiry_never_expires ... V14-3 expires_at "never" -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+V14-3 expires_at "2030-99-99T00:00:00Z" -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+V14-3 expires_at "9999-01-01T00:00:00Z" -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+V14-3 expires_at "" -> allowed=false [refused: the grant expired at  (this invoice was shown at 2026-11-02T00:00:00Z)]
+ok
+test payer::verifier14_checks::v14_ordering_facts ... V14-5 str-ordering facts hold ('.' < 'Z', '0' < '1')
+ok
+test payer::verifier14_checks::v14_same_instant_two_encodings ... V14-1 canonical 2026-11-01T23:00:00Z -> allowed=false [refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)]
+V14-1 offset    2026-11-02T13:00:00+14:00 -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.01s
+

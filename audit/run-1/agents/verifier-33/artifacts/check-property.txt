@@ -1,0 +1,13 @@
+VERIFIER-33 property reproduction (real zanary-properties lib at 7058406; appended test in payer_policy.rs tests module; a paid row under a grant whose expires_at is 2020-01-01T00:00:00Z)
+command: docker run ... -w /t/verifier33-src rust:1-slim sh -c 'cargo test --offline -p zanary-properties --lib -- v33_paid_row_under_a_2020_grant_is_a_pass --nocapture --test-threads=1'
+
+running 1 test
+test properties::payer_policy::tests::v33_paid_row_under_a_2020_grant_is_a_pass ... verdict=Pass
+evidence=[
+    "1 paid · 0 refused · 300 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2020-01-01T00:00:00Z)",
+    "grant: budget 1000 zat · cap 400 zat · allowlist [uregtest1allowed] · expires 2020-01-01T00:00:00Z · revoked false",
+    "paid v33-8301 300 zat tx aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa — within cap and budget; uregtest1allowed is on the allowlist",
+]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s

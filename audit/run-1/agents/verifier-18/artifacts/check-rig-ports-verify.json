@@ -1,0 +1,79 @@
+{
+  "check": "independent re-derivation of zanary/rig-ports-published-all-interfaces source claims",
+  "verifier": "verifier-18",
+  "target_revision": {
+    "commit": "70584064b8d5d4a2c96c49ad16ad531573cdc5ef",
+    "harness/docker-compose.yml": "sha256:7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3",
+    "harness/zcash.conf": "sha256:b635374be07b159cc1df0c9f02fd634134b3f8b66ac1cbb197690c528345461b",
+    "note": "hashes identical in the target checkout and in the approved disposable copy; every file cited by the candidate/record sha256-compared between the two trees and matches"
+  },
+  "sandbox": {
+    "command_shape": "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v <disposable-copy>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c <script>",
+    "limits": "no external network, 6 cpus, 3500 MiB, pids 1024; no host ports contacted; no writes in the sandbox",
+    "method": "file parsing only; no target code executed"
+  },
+  "observations": {
+    "publish_specs": [
+      "harness/docker-compose.yml:20  \"18232:18232\"  # JSON-RPC (zcashd)",
+      "harness/docker-compose.yml:21  \"18233:18233\"  # P2P (unused: regtest has no peers)",
+      "harness/docker-compose.yml:46  \"9067:9067\"    # gRPC CompactTxStreamer (lightwalletd)",
+      "harness/docker-compose.yml:47  \"9068:9068\"    # HTTP (lightwalletd)"
+    ],
+    "publish_spec_count": 4,
+    "hostip_qualified_spec_count": 0,
+    "loopback_occurrences_in_compose": 0,
+    "host_ip_key_occurrences": 0,
+    "in_container_wildcard_binds": [
+      "harness/docker-compose.yml:50  --grpc-bind-addr=0.0.0.0:9067",
+      "harness/docker-compose.yml:51  --http-bind-addr=0.0.0.0:9068"
+    ],
+    "conf_bind_and_allow": [
+      "harness/zcash.conf:15  rpcbind=0.0.0.0",
+      "harness/zcash.conf:16  rpcallowip=0.0.0.0/0"
+    ],
+    "seed_step": "harness/up.sh:50 copies harness/zcash.conf to $ROOT/data/zcashd/.zcash/zcash.conf when absent and never overwrites (up.sh:27-28, 47-52)",
+    "credential_equality": {
+      "conf_vs_compose_command_line_user": true,
+      "conf_vs_compose_command_line_pass": true,
+      "conf_vs_probe_default_user": true,
+      "conf_vs_probe_default_pass": true,
+      "values_reproduced": false
+    },
+    "reused_credential_sites": [
+      "harness/docker-compose.yml:24-25 (zcashd command)",
+      "harness/docker-compose.yml:28 (healthcheck)",
+      "harness/docker-compose.yml:54-55 (lightwalletd -> node)"
+    ],
+    "consumer_defaults_all_loopback": [
+      "crates/probe/src/node.rs:26 (and module doc :9-12, defaults :64-66, Basic header :79)",
+      "crates/probe/src/core.rs:101",
+      "harness/up.sh:25-26",
+      "crates/report/src/node.rs:186",
+      "crates/report/src/verify.rs:127",
+      "no tracked consumer or doc references a non-loopback rig endpoint"
+    ],
+    "port_consumer_audit": {
+      "18233": "no in-repo consumer (label says unused)",
+      "9068": "no in-repo consumer; tracked references only docker-compose.yml:47, :51 and harness/HARNESS.md:55"
+    },
+    "documented_entry_paths_that_create_the_binding": [
+      "README.md:111 and :114",
+      "docs/CI.md:66",
+      "action.yml:85 (composite action on a third-party runner)",
+      "harness/seed.sh:4 (raw docker compose up -d)",
+      "harness/up.sh:60"
+    ],
+    "stated_premises_contradicted": [
+      "docs/THREAT-MODEL.md:113 'the harness runs everything on localhost'",
+      "harness/HARNESS.md:3 'no network beyond this machine'",
+      "harness/HARNESS.md:55 'never expose it' (indexer)"
+    ],
+    "unobserved_decisive_facts": [
+      "the engine's effective host-side binding for each publish (docker port zanary-zcashd / zanary-lwd): all-interfaces default vs loopback",
+      "whether any second host can reach 18232/9067 (host firewall/security group and network position)",
+      "zcashd v6.20.0 command-line-vs-conf precedence (gates only the credential-rotation sub-claim)"
+    ]
+  },
+  "result": "every trace and evidence line of the candidate re-derives from source on the reviewed revision; the exposure mechanism holds as far as source can show (unqualified publishes + node open to any source + one public credential over plain HTTP; indexer with no auth/TLS), and no in-repo consumer needs off-host reachability. The decisive deployment facts (effective bind, off-host reachability) are unobserved and out of bounds here: needs_validation retained, with impact bounded to the throwaway regtest rig (only host write path: data/zcashd) and exact owner-observed steps given. Verifier judgment: rejected not warranted - nothing in source refutes the trace and the boundary question cannot be settled away from the deployment.",
+  "scratch_note": "the approved disposable copy contains extra files added by earlier agents in this run (e.g. verifier*/hunter* probe files); every file cited by this verification sha256-matches the target checkout, so the drift does not affect the result"
+}

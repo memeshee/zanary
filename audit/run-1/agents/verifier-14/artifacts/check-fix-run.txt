@@ -1,0 +1,16 @@
+   Compiling zanary-properties v0.0.1 (/t/crates/properties)
+   Compiling zanary-report v0.0.1 (/t/crates/report)
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 53.43s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 1 test
+test payer::verifier14_fixcheck::v14_fix_refuses_both_encodings_of_a_past_instant ... V14-FIX expires_at       2026-11-01T23:00:00Z -> allowed=false [refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)]
+V14-FIX expires_at  2026-11-02T13:00:00+14:00 -> allowed=false [refused: the grant expired at 2026-11-02T13:00:00+14:00 (this invoice was shown at 2026-11-02T00:00:00Z)]
+V14-FIX expires_at                      never -> allowed=false [refused: the grant's expires_at never is not RFC3339: the 'year' component could not be parsed]
+V14-FIX expires_at       2030-99-99T00:00:00Z -> allowed=false [refused: the grant's expires_at 2030-99-99T00:00:00Z is not RFC3339: month was not in range]
+V14-FIX expires_at       2030-01-01T00:00:00Z -> allowed=true [paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.01s
+

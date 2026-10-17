@@ -1,0 +1,54 @@
+
+// ===========================================================================
+// verifier-14: does the payer-policy boundary notice a paid row whose grant
+// had already expired? (appended to a DISPOSABLE sandbox copy only)
+// ===========================================================================
+#[cfg(test)]
+mod verifier14_blindspot {
+    use super::*;
+    use crate::Verdict;
+    use zanary_observation::{PayerDecision, PayerGrant, PayerRun};
+
+    #[test]
+    fn v14_past_expiry_paid_row_passes() {
+        let run = FlowRun {
+            flow_id: "v14".to_string(),
+            flow_commit: "0".repeat(64),
+            chain: "regtest".to_string(),
+            started_at_height: 1,
+            ended_at_height: 2,
+            funding: vec![],
+            payments: vec![],
+            merchant_events: vec![],
+            receipts: vec![],
+            pool_totals: vec![],
+            merchant_is_simulated: true,
+            payer: Some(PayerRun {
+                label: "v14".to_string(),
+                grant: PayerGrant {
+                    budget_zat: 1000,
+                    per_payment_cap_zat: 400,
+                    allowlist: vec!["uregtest1merchant".to_string()],
+                    expires_at: "2020-01-01T00:00:00Z".to_string(),
+                    revoked: false,
+                },
+                decisions: vec![PayerDecision {
+                    invoice_id: "v14-1".to_string(),
+                    amount_zat: 10,
+                    receiver: "uregtest1merchant".to_string(),
+                    decision: "paid".to_string(),
+                    reason: "paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)".to_string(),
+                    txid: Some("aa".repeat(32)),
+                    height: Some(10),
+                }],
+            }),
+        };
+        let finding = PayerPolicy.check(&run);
+        println!(
+            "V14-6 grant.expires_at=2020-01-01T00:00:00Z, one paid row -> verdict={:?}; evidence: {}",
+            finding.verdict,
+            finding.evidence.join(" ~ ")
+        );
+        assert_eq!(finding.verdict, Verdict::Pass);
+    }
+}

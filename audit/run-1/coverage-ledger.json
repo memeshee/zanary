@@ -1,0 +1,2825 @@
+[
+  {
+    "coverage_id": "action.yml%23inputs-and-steps::.github%2Fworkflows%2Fprivacy-gate.yml%23jobs::ci-and-release::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "action.yml#inputs-and-steps",
+      "boundary": ".github/workflows/privacy-gate.yml#jobs",
+      "subsystem": "ci-and-release",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "action.yml#inputs-and-steps",
+    "boundary": ".github/workflows/privacy-gate.yml#jobs",
+    "subsystem": "ci-and-release",
+    "attack_class": "ATTACK-CLASSES.md#Injection",
+    "starting_paths": [
+      "action.yml",
+      ".github/workflows/privacy-gate.yml",
+      "scripts/demo-run.sh",
+      "scripts/bounded-payer-demo.sh",
+      "harness/up.sh"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#CI and automation attack classes",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Release and update attack classes",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules",
+      "CLOUD-AND-DEPLOYMENT.md#Configuration and secret lifecycle attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-ci",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      "action.yml",
+      "docs/CI.md",
+      "harness/up.sh",
+      "scripts/bounded-payer-demo.sh",
+      "scripts/ci-summary.py",
+      "scripts/demo-run.sh"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-ci",
+        "reviewed_paths": [
+          "action.yml"
+        ],
+        "invariant": "composite-action inputs must stay data: no value from `${{ inputs.* }}` may be placed in the script text of a run: step (pass through env:/argv instead)",
+        "method": "source",
+        "result": "violated at action.yml:95, 100, 103, 106, 116, 117 (step run the gate), :140 (step job summary) and :177-178 (step verdict); the same class re-enters through `${{ steps.gate.outputs.out }}` at :136 and :153 and `${{ steps.gate.outputs.exit_code }}` at :175 because :107 stores the input-derived value raw in `$GITHUB_OUTPUT`",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-ci",
+        "reviewed_paths": [
+          "action.yml"
+        ],
+        "invariant": "an input value containing shell syntax must not execute in the action steps",
+        "method": "local",
+        "result": "violated: the run the gate run-block (lines 92-129) was rendered with literal expression substitution (as the runner does) and executed under bash in `docker run --rm --network=none`; payloads in inputs.flow and inputs.out both executed (marker files created), and run B still finished with the step normal outputs `out=...` and `exit_code=0`",
+        "artifact": "agents/hunter-ci/artifacts/check-injection-rce.txt"
+      },
+      {
+        "agent_id": "hunter-ci",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml"
+        ],
+        "invariant": "no event- or contributor-controlled value may reach shell script text or command arguments in the workflow jobs",
+        "method": "source",
+        "result": "covered, no sink: all run: scripts are built from static matrix values and constants; github.ref appears only in concurrency.group and in an if: predicate, never in script text; artifact names and run directories derive from static matrix ids; the sed-derived rust-toolchain channel is passed quoted to rustup",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-ci",
+        "reviewed_paths": [
+          "scripts/demo-run.sh",
+          "scripts/bounded-payer-demo.sh",
+          "harness/up.sh",
+          "scripts/ci-summary.py"
+        ],
+        "invariant": "caller-tunable env values and file contents are consumed as data (quoted expansions, no eval, no re-entry into shell text)",
+        "method": "source",
+        "result": "covered, no sink: `set -euo pipefail` in the shell scripts, every ZANARY_* caller value used inside quotes and confined to paths/timeouts; quoted python heredocs; ci-summary.py prints gate JSON fields as argv/Markdown into the caller own job summary only",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-10",
+        "reviewed_paths": [
+          "action.yml",
+          "docs/CI.md"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/composite-action-input-shell-expansion",
+        "method": "local",
+        "result": "confirmed: Composite action expands caller-supplied with: inputs into shell script text",
+        "artifact": "agents/verifier-10/artifacts/check-injection-expansion.txt"
+      },
+      {
+        "agent_id": "verifier-29",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "action.yml",
+          "harness/up.sh",
+          "scripts/bounded-payer-demo.sh",
+          "scripts/demo-run.sh"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/composite-action-input-shell-expansion",
+        "method": "local",
+        "result": "verified: fingerprint zanary/composite-action-input-shell-expansion (Phase-5 record verification)",
+        "artifact": "agents/verifier-29/artifacts/check-findings-record.json"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/composite-action-input-shell-expansion"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "`.github/workflows/privacy-gate.yml` and `action.yml` pin every third-party step to a mutable major tag (`Swatinem/rust-cache@v2`, `actions/checkout@v4`, `actions/upload-artifact@v4`, `actions/download-artifact@v4`, `actions/upload-pages-artifact@v3`, `actions/deploy-pages@v4`); pinning by commit SHA would harden the publish job pages: write / id-token: write surface, but no lower-trust writer of those refs is demonstrated in-repo, so this is hardening, not a finding.",
+        "No injection sink exists in `.github/workflows/privacy-gate.yml` itself: every run: script is built from static matrix values and constants; github.ref appears only in concurrency.group and in an if: predicate, never in script text; artifact names and run directories derive from static matrix ids; the sed-derived rust-toolchain channel is passed quoted to rustup.",
+        "The starting-path scripts `harness/up.sh`, `scripts/demo-run.sh` and `scripts/bounded-payer-demo.sh` consume every caller-tunable ZANARY_* value quoted and confine them to paths/timeouts; no eval, `set -euo pipefail` throughout -- no injection sink found there.",
+        "`scripts/ci-summary.py` (run by the action with the flow input as an argv value) prints gate-produced JSON fields as Markdown into the caller own job summary; that is the caller own UI, the values never re-enter a shell, so no boundary crossing.",
+        "The rig diagnostics step prints the regtest RPC credentials into the step log (action.yml:163); they protect only the throwaway local regtest node that harness/zcash.conf documents as disposable, and who can reach that control plane is the rig unit boundary -- not a disclosure finding on this unit.",
+        "The documented consumer integration tracks a mutable ref (uses: memeshee/zanary@main, action.yml:7, docs/CI.md:49): consumers execute whatever the default branch later contains. That is the intended hackathon setup, and consumers wanting a fixed revision should pin a tag/SHA themselves -- policy, not a repository-side defect."
+      ],
+      "wave1_agent": "hunter-ci",
+      "note": "wave-1 hunter result recovered by parent on resume from async_delegations.result_json (delivery was dropped when the orchestrator session stalled)",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-10",
+          "decision": "confirmed"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-29",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fbin%2Fzanary-seed.rs%23cli-and-wallet-writes::crates%2Fprobe%2Fsrc%2Fbin%2Fzanary-seed.rs%23seed-db-and-chain-intake::cli-inputs::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "crates/probe/src/bin/zanary-seed.rs#cli-and-wallet-writes",
+      "boundary": "crates/probe/src/bin/zanary-seed.rs#seed-db-and-chain-intake",
+      "subsystem": "cli-inputs",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "crates/probe/src/bin/zanary-seed.rs#cli-and-wallet-writes",
+    "boundary": "crates/probe/src/bin/zanary-seed.rs#seed-db-and-chain-intake",
+    "subsystem": "cli-inputs",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "crates/probe/src/bin/zanary-seed.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "covered",
+    "agent_id": "hunter-seed-b",
+    "reviewed_paths": [
+      "crates/probe/Cargo.toml",
+      "crates/probe/src/bin/zanary-seed.rs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-seed-b",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs",
+          "crates/probe/Cargo.toml"
+        ],
+        "invariant": "Every accepted CLI value on the seed binary (--from, --to, --limit, --txid, --memo, --to) is validated by a checked conversion with no unwrap or unchecked index on the value, and no malformed value can reach a filesystem or network sink unvalidated or drive unbounded work.",
+        "method": "source",
+        "result": "Source trace: argv dispatch main 106-119; arg_value position scan 121-126 (no panic, first occurrence wins); u32 parses plus to<from rejection 425-435; usize parse 567-570; Memo parse 617-620; ZcashAddress::try_from_encoded 576-588; hex length check 714-723 reached only after connect_client (688-693). No unwrap/expect on any accepted value. Package wiring (Cargo.toml) confirms the seed binary is standalone: no [lib] target, so it shares no crate code and its intake surface is exactly this file.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-seed-b",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs"
+        ],
+        "invariant": "The only filesystem writes are create_dir_all(db_path.parent()) plus WalletDb::for_path/init_wallet_db and wallet-API writes into that same DB; db_path derives solely from ZANARY_SEED_DB or the default ./data/wallet-seed/zanary-seed.db; no chain-, node- or indexer-derived value reaches any path or file API, and no temp-file, archive or symlink-controlled path exists.",
+        "method": "source",
+        "result": "Source trace: seed_db_path 132-136; open_wallet 155-166; every other write goes through the wallet API (import 195, update_chain_tip 252/445, put_received_transparent_utxo 303, decrypt_and_store_transaction 501, create_proposed_transactions 631). grep for std::fs/File/OpenOptions/Command/process matches only line 158. The file's eight env reads (106, 122, 129, 134, 368-370) yield only the operator's DB path and rig endpoints; no response data is ever joined into a path.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-seed-b",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs"
+        ],
+        "invariant": "Node- and indexer-supplied bytes and numbers are length/type-checked before use (hex decode, txid/index/height/value conversions), and the learn-coinbase CLI height range cannot exceed the node's tip.",
+        "method": "source",
+        "result": "Source trace: sync UTXO stream conversions 279-302 (txid[..].try_into, try_into index, Zatoshis::from_nonnegative_i64, BlockHeight::try_from); hex_decode 518-525 and hex_decode_into 714-723 exact-length check before chunks(2) indexing and from_str_radix parsing; learn-coinbase loop 450-504 starts each height with node_rpc(getblockhash) whose RPC error above tip bails at 405-408, so work is bounded by the chain tip and --to up to u32::MAX aborts at the first above-tip height. Bound relies on zcashd getblockhash erroring above tip (source-traced only; the rig is out of bounds for hunters).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-seed-b",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs"
+        ],
+        "invariant": "Rejected CLI input writes nothing to the filesystem; accepted commands open/create only the operator-selected wallet DB path (ZANARY_SEED_DB honoured, otherwise ./data/wallet-seed/zanary-seed.db).",
+        "method": "local",
+        "result": "Sandbox, real binary (sha256 95fbbd8958be39beaeefce48a654c77221453134062995cb327a7d699f02cbbc; cargo freshness re-verified: Finished dev profile in 0.73s). Stage A: 12 argument-validation rejections (bare, unknown subcommand, missing/invalid --from/--to, to<from, out-of-u32 --from, missing --memo, --limit -1, --limit overflow, missing --txid) all exit 1 cleanly and the staged snapshot shows no wallet tree — only my transcripts. Stage B: invocations that pass validation materialise ./data/wallet-seed/zanary-seed.db, and ZANARY_SEED_DB=/t/hunter-seed-b-w2/stage/custom/deep/seed.db creates exactly that file with parent dirs. Ordering recorded: txid validation runs after open_wallet + connect_client (source 688-693), so a bad txid can materialise the DB; the stage-A rejections are the ones that write nothing.",
+        "artifact": "agents/hunter-seed-b/artifacts/check-1.txt"
+      },
+      {
+        "agent_id": "hunter-seed-b",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs"
+        ],
+        "invariant": "Malformed --txid values (wrong length, non-hex) are rejected by the binary's own decoder with a clean error and no panic, and the tx path's behaviour against an endpoint that accepts TCP but never answers is observable.",
+        "method": "local",
+        "result": "Sandbox, dummy loopback fixture 127.0.0.1:19067 (accept-and-hold, never answers gRPC): `tx --txid` 64 z-chars -> Error: bad hex `zz`, exit 1; 4 chars -> Error: expected 64 hex chars, got 4, exit 1; 63 chars -> Error: expected 64 hex chars, got 63, exit 1; no panic, nothing written. With a valid 64-hex txid the process blocked indefinitely on the silent endpoint until an external timeout 15 killed it (exit 124) — the locally observed absence of a client-side RPC deadline (recorded as hardening H1, not a finding).",
+        "artifact": "agents/hunter-seed-b/artifacts/check-2.txt"
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "No client-side RPC deadlines and no stream cap: zanary-seed.rs:339-341 collects a whole block range into a Vec and 396-399 reads a node response with read_to_string, both without hard caps, and the tx path blocked indefinitely against a listening-but-silent endpoint (observed, check-2.txt). Reachable only when the operator points ZANARY_LWD_URL/ZANARY_NODE_URL at a non-serving or hostile endpoint (same principal as the process), so robustness only; consider per-RPC timeouts and a stream-message cap.",
+        "u64-to-u32 truncation of the indexer-reported chain tip: zanary-seed.rs:252 (and 445) uses tip.height as u32, silently wrapping a malformed height above u32::MAX instead of rejecting it (u32::try_from would error cleanly). Same-principal indexer; robustness note.",
+        "Parity gap with the sibling the file claims to mirror: core::sync_wallet skips already-known transparent outputs before put_received_transparent_utxo (crates/probe/src/core.rs:533-547, where the comment notes each call regenerates the account gap window), while zanary-seed.rs:303-304 stores every re-reported UTXO unconditionally. Performance-only on the tiny harness chain; no cross-principal effect.",
+        "env::args() panics on non-UTF-8 argv (zanary-seed.rs:106, 122); the same pattern is workspace-wide (crates/probe/src/main.rs:36, crates/report/src/main.rs:31) and the invoker is the same principal, so hardening rather than a finding."
+      ],
+      "wave2_agent": "hunter-seed-b",
+      "note": "first attempt (hunter-seed) returned a non-conforming record; this unit was reassigned inside the same wave and closed by a fresh owner"
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fcore.rs%23shared-wallet-and-node-plumbing::env-selected%20wallet%20directories%20%28ZANARY_DATA_DIR%20%2F%20ZANARY_MERCHANT_DATA_DIR%20%2F%20ZANARY_BEACON_DATA_DIR%29%20plus%20the%20second%20raw%20SQLite%20connection%20%28annotate_transparent_tx_indices%29%20-%3E%20wallet%20DB%20files::cli-inputs::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "crates/probe/src/core.rs#shared-wallet-and-node-plumbing",
+      "boundary": "env-selected wallet directories (ZANARY_DATA_DIR / ZANARY_MERCHANT_DATA_DIR / ZANARY_BEACON_DATA_DIR) plus the second raw SQLite connection (annotate_transparent_tx_indices) -> wallet DB files",
+      "subsystem": "cli-inputs",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "crates/probe/src/core.rs#shared-wallet-and-node-plumbing",
+    "boundary": "env-selected wallet directories (ZANARY_DATA_DIR / ZANARY_MERCHANT_DATA_DIR / ZANARY_BEACON_DATA_DIR) plus the second raw SQLite connection (annotate_transparent_tx_indices) -> wallet DB files",
+    "subsystem": "cli-inputs",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "crates/probe/src/core.rs",
+      "crates/probe/src/wallet.rs",
+      "crates/probe/src/node.rs",
+      "crates/probe/src/main.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Reached while comparing this unit's binary against the sibling it mirrors (the seed file duplicates core.rs helpers instead of calling them). crates/probe/src/core.rs is on every zanary-probe invocation path — env-driven wallet paths, a raw second SQLite connection that UPDATEs transactions.tx_index with a busy timeout (core.rs:812-899), the shared sync/UTXO loops — yet it, with wallet.rs, node.rs and main.rs, is in no wave-1/wave-2 coverage unit (the unit list covers flow.rs, record.rs, gate.rs, ops.rs, payer.rs and this run's zanary-seed.rs only). No defect is claimed here; the surface needs its own deterministic unit."
+    ],
+    "bookkeeping": {
+      "proposed_by": "hunter-seed-b",
+      "proposal_reason": "Reached while comparing this unit's binary against the sibling it mirrors (the seed file duplicates core.rs helpers instead of calling them). crates/probe/src/core.rs is on every zanary-probe invocation path — env-driven wallet paths, a raw second SQLite connection that UPDATEs transactions.tx_index with a busy timeout (core.rs:812-899), the shared sync/UTXO loops — yet it, with wallet.rs, node.rs and main.rs, is in no wave-1/wave-2 coverage unit (the unit list covers flow.rs, record.rs, gate.rs, ops.rs, payer.rs and this run's zanary-seed.rs only). No defect is claimed here; the surface needs its own deterministic unit."
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fflow.rs%23parse-args-and-flow-load::crates%2Fprobe%2Fsrc%2Frecord.rs%23write-artifacts::cli-inputs::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "crates/probe/src/flow.rs#parse-args-and-flow-load",
+      "boundary": "crates/probe/src/record.rs#write-artifacts",
+      "subsystem": "cli-inputs",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "crates/probe/src/flow.rs#parse-args-and-flow-load",
+    "boundary": "crates/probe/src/record.rs#write-artifacts",
+    "subsystem": "cli-inputs",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/record.rs",
+      "crates/probe/src/main.rs",
+      "crates/probe/src/gate.rs",
+      "flows"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-inputs",
+    "reviewed_paths": [
+      "Cargo.toml",
+      "action.yml",
+      "crates/probe/src/bin/zanary-seed.rs",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/main.rs",
+      "crates/probe/src/node.rs",
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/record.rs",
+      "crates/probe/src/wallet.rs",
+      "crates/properties/src/lib.rs",
+      "crates/properties/src/properties/amount_fingerprint.rs",
+      "crates/properties/src/properties/mod.rs",
+      "crates/properties/src/properties/timing_correlation.rs",
+      "crates/report/src/node.rs",
+      "docs/FLOW-RUNNER-NOTES.md",
+      "flows",
+      "flows/ci-checkout-control.json",
+      "flows/ci-checkout.json"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs"
+        ],
+        "invariant": "A flow definition read from --definition is validated before its values drive work, and every amount it carries reaches only checked arithmetic",
+        "method": "source",
+        "result": "Validation is shape-only: non-empty invoice list, receiver_strategy, receipt_account vs merchant_account, settlement mode and batch amount uniqueness (flow.rs:253-297). Amounts are never validated and flow into three unchecked u64 sums (flow.rs:336, 1182, 1294-1297) -> candidate zanary/unchecked-zat-sum-overflow. The same unchecked sum shape also exists at payer.rs:519, inside the peer-owned bounded-payer unit, and is not reported here.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/record.rs",
+          "crates/probe/src/flow.rs"
+        ],
+        "invariant": "Artifact writes stay under the caller-named --out directory, no path component derives from file content, and each write is bounded by the recorded run",
+        "method": "source",
+        "result": "record.rs:35-62 is create_dir_all(out_dir) plus three fixed-name writes (run.json, findings.json, report.json); the only definition-derived path is default_out_dir, which uses the definition's file_stem (flow.rs:1091-1097) and a stem cannot contain a separator; --out being caller-named is the documented contract. Write volume is bounded by what the run recorded (per-payment labels from the definition, memos by ZIP-302's 512 bytes). No traversal, TOCTOU or unbounded write at this privilege level.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/main.rs",
+          "crates/probe/src/gate.rs",
+          "crates/probe/src/wallet.rs",
+          "crates/probe/src/core.rs",
+          "crates/probe/src/node.rs"
+        ],
+        "invariant": "Every parse, decode and arithmetic step on caller-supplied values either rejects bad input with an error or panics only on construction-guaranteed state",
+        "method": "source",
+        "result": "One input-reachable panic (flow.rs:1785 -> candidate zanary/hex-decode-str-slice-panic) and one unchecked-arithmetic family (candidates zanary/unchecked-zat-sum-overflow and zanary/unbounded-jitter-block-mining). All other expects are construction- or chain-guaranteed: ops.rs:81 (peek), ops.rs:1118 (consensus-validated note), flow.rs:936 (permutation from batch_order), core.rs:639/1077/1118/1149/1191/1199. --ttl-days is parsed as a full u64 (flow.rs:1119-1128) and multiplied unchecked at record.rs:58 (hardening: only the caller's own argument). RUST_LOG reaches tracing_subscriber's EnvFilter, which parses lossily (tracing-subscriber 0.3.23 src/filter/env/mod.rs:350-354). Rig-facing RPC/scan code in core.rs and node.rs beyond the generate/timeout path was left to the local-rig unit.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/ops.rs",
+          "crates/properties/src/properties/mod.rs",
+          "crates/properties/src/lib.rs",
+          "crates/properties/src/properties/amount_fingerprint.rs",
+          "crates/properties/src/properties/timing_correlation.rs",
+          "flows/ci-checkout.json",
+          "flows/ci-checkout-control.json"
+        ],
+        "invariant": "A caller-supplied invoice file cannot make the payer act on anything the file does not say, and evaluating a recorded run cannot panic",
+        "method": "source",
+        "result": "Invoice::from_path (flow.rs:1740-1768) cross-checks the file's receiver, amount and memo against its own ZIP-321 URI and refuses a self-disagreeing invoice; the privacy-policy check precedes any proposal (ops.rs:1019-1020); the amount bound Zatoshis::from_u64 precedes any build (ops.rs:912). The 13 properties index only behind guards and use abs_diff (amount_fingerprint.rs:98 behind len()==1, timing_correlation.rs:87 behind f.height <= h). Both checked-in ci flows parse and pass the load-time validation. No finding.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/main.rs",
+          "crates/probe/src/record.rs"
+        ],
+        "invariant": "A hostile definition file and a hostile --txid are refused with a diagnostic (exit 1), not a crash, and the CLI contacts no chain resource to reject them",
+        "method": "local",
+        "result": "Built the unmodified reviewed commit in an OS-enforced sandbox (docker --network=none, rustc 1.99.0, dev profile, 4m03s) and ran the CLI: `flow --definition evil-sum.json` exited 101 with `attempt to add with overflow` while the flow.rs:328-338 header evaluated the amount sum; `verify-invoice --txid \"aéb\"` exited 101 with the char-boundary panic at flow.rs:1785. Controls with odd-length and non-hex-ASCII txids exited 1 with `invalid hex`. Neither run reached a wallet, node or indexer.",
+        "artifact": "agents/hunter-inputs/artifacts/check-panics.txt"
+      },
+      {
+        "agent_id": "hunter-inputs",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/node.rs"
+        ],
+        "invariant": "An accepted flow definition cannot name an unbounded mining request",
+        "method": "local",
+        "result": "A test appended to the disposable sandbox copy drives Jitter::from_definition with the definition jitter_blocks [1,4294967295], jitter_seed 7: 32 draws averaged ~1.9e9 blocks with a maximum of 4,085,077,839 blocks in one node.generate argument (the value flow.rs:645/883 pass to ops.rs:436 -> node.rs:232). Missing-bound half of candidate zanary/unbounded-jitter-block-mining settled; the node-side cost stays needs_validation.",
+        "artifact": "agents/hunter-inputs/artifacts/check-jitter-draw.txt"
+      },
+      {
+        "agent_id": "verifier-11",
+        "reviewed_paths": [
+          "crates/probe/src/bin/zanary-seed.rs",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/main.rs",
+          "crates/report/src/node.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/hex-decode-str-slice-panic",
+        "method": "local",
+        "result": "confirmed: verify-invoice panics on a txid containing a multi-byte UTF-8 character instead of rejecting it",
+        "artifact": "agents/verifier-11/artifacts/check-hex-decode-panic-build.txt"
+      },
+      {
+        "agent_id": "verifier-19",
+        "reviewed_paths": [
+          "action.yml",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/node.rs",
+          "crates/probe/src/ops.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/unbounded-jitter-block-mining",
+        "method": "local",
+        "result": "needs_validation: flow definition jitter_blocks has no upper bound: one accepted line names a mining request of up to 4,294,967,295 blocks, drawn per payment and sent as a single uncancellable `generate` RPC",
+        "artifact": "agents/verifier-19/artifacts/check-verdict.json"
+      },
+      {
+        "agent_id": "verifier-20",
+        "reviewed_paths": [
+          "Cargo.toml",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/ops.rs",
+          "docs/FLOW-RUNNER-NOTES.md"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/unchecked-zat-sum-overflow",
+        "method": "local",
+        "result": "confirmed: Flow-definition amounts are summed with unchecked u64 arithmetic: a two-invoice definition aborts the dev build and wraps silently in the release build",
+        "artifact": "agents/verifier-20/artifacts/check-panics-repro.txt"
+      },
+      {
+        "agent_id": "verifier-30",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/gate.rs",
+          "crates/probe/src/main.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/record.rs",
+          "flows"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/hex-decode-str-slice-panic",
+        "method": "local",
+        "result": "verified: fingerprint zanary/hex-decode-str-slice-panic (Phase-5 record verification)",
+        "artifact": "agents/verifier-30/artifacts/check-hex-decode-repro.txt"
+      },
+      {
+        "agent_id": "verifier-38",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/gate.rs",
+          "crates/probe/src/main.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/record.rs",
+          "flows"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/unbounded-jitter-block-mining",
+        "method": "local",
+        "result": "verified: fingerprint zanary/unbounded-jitter-block-mining (Phase-5 record verification)",
+        "artifact": "agents/verifier-38/artifacts/check-jitter-independent-38.txt"
+      },
+      {
+        "agent_id": "verifier-39",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/gate.rs",
+          "crates/probe/src/main.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/record.rs",
+          "flows"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/unchecked-zat-sum-overflow",
+        "method": "local",
+        "result": "verified: fingerprint zanary/unchecked-zat-sum-overflow (Phase-5 record verification)",
+        "artifact": "agents/verifier-39/artifacts/check-dev-release-split.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/hex-decode-str-slice-panic",
+      "zanary/unbounded-jitter-block-mining",
+      "zanary/unchecked-zat-sum-overflow"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "flow.rs:1050-1065 (also 922 and 1708): the invoice binding is a substring test, `read.memo_text.contains(invoice_id)`, so an invoice_id of \"\" or \"1\" passes trivially against a memo that names a different invoice; bind the parsed memo exactly, or reject empty/duplicate invoice ids at load, if a receipt's claim is meant to be independently checkable.",
+        "record.rs:58 multiplies --ttl-days by 86_400 without a bound: the gate caps the flag to u32 (gate.rs:98) but `flow --ttl-days` accepts a full u64 (flow.rs:1119-1128), so an absurd value panics in a dev build and wraps to a wrong expiry in release. Only the caller's own claim is affected — hardening, not a candidate.",
+        "record.rs:35-62, the artifact write path: create_dir_all on the caller-named --out plus three fixed-name writes. No path component derives from file content (default_out_dir at flow.rs:1091-1097 uses only the definition's file_stem, which cannot contain a separator), write sizes are bounded by what the run recorded, and --out being caller-chosen is the documented contract. Reviewed with no traversal, TOCTOU or unbounded-write path at this privilege level.",
+        "The invoice intake path is well guarded: Invoice::from_path (flow.rs:1740-1768) cross-checks the file's receiver, amount and memo against its own ZIP-321 URI and refuses a self-disagreeing invoice; `pay --invoice` keeps the privacy-policy check ahead of any proposal (ops.rs:1019-1020); an invalid address or oversized memo is a clean error; the amount bound runs before any build (ops.rs:912).",
+        "ops::anchor (ops.rs:494-509) recomputes the report hash and the evidence root from the file it is asked to anchor and refuses a report that does not hash to itself, so a hand-edited report cannot be anchored.",
+        "Panic inventory of the probe CLI's input paths: ops.rs:81 expect(\"peeked\") is guarded by the preceding peek; ops.rs:1118 expect(\"consensus-validated note value\") is on a consensus-validated note; flow.rs:936 expect(\"every issued invoice is in the order\") is guaranteed because batch_order returns a permutation of 0..count and the index comes from enumerate over the same list; core.rs:639/1077/1118/1149/1191/1199 are chain-derived or mutex-poisoning invariants. Deliberate panics on unreachable state, not caller-triggerable.",
+        "flow.rs:638 and 876 use proposal.steps().first(): Proposal::steps() returns &NonEmpty<Step> in zcash_client_backend 0.24.0, so that access cannot be empty.",
+        "RUST_LOG is interpolated into tracing_subscriber's EnvFilter (main.rs:33-34); EnvFilter::new parses lossily (tracing-subscriber 0.3.23 src/filter/env/mod.rs:350-354 prints and ignores an invalid directive), so a hostile filter string cannot panic the CLI.",
+        "The property library evaluated by the recording boundary is panic-free by inspection for malformed runs: amount_fingerprint.rs indexes candidates[0] only behind candidates.len() == 1, timing_correlation.rs subtracts heights only after filtering f.height <= h, and both use abs_diff rather than raw arithmetic."
+      ],
+      "wave1_agent": "hunter-inputs",
+      "note": "wave-1 hunter result recovered by parent on resume from async_delegations.result_json (delivery was dropped when the orchestrator session stalled)",
+      "parent_notes": [
+        "the wave-2 receipt hunter proposed the same root cause (flow.rs:1778-1792 hex_decode, called with --txid at flow.rs:1687) as this unit's candidate zanary/hex-decode-str-slice-panic; the parent rejected the proposed duplicate unit instead of creating a second one"
+      ],
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-11",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-19",
+          "decision": "needs_validation"
+        },
+        {
+          "verifier": "verifier-20",
+          "decision": "confirmed"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-30",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-38",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-39",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fgate.rs%23test%20verdict%20criteria%20%28--expect%20pass%7Cfail%20and%20the%20verdict%20line%20it%20prints%29::the%20run%27s%20findings%20%28pass%2Ffail%2Fskip%20counts%20and%20failed_properties%29%20-%3E%20the%20gate%27s%20exit%20code%200%2F1%2F2%20and%20the%20green%20build%20CI%20acts%20on::ci-and-release::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/probe/src/gate.rs#test verdict criteria (--expect pass|fail and the verdict line it prints)",
+      "boundary": "the run's findings (pass/fail/skip counts and failed_properties) -> the gate's exit code 0/1/2 and the green build CI acts on",
+      "subsystem": "ci-and-release",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/probe/src/gate.rs#test verdict criteria (--expect pass|fail and the verdict line it prints)",
+    "boundary": "the run's findings (pass/fail/skip counts and failed_properties) -> the gate's exit code 0/1/2 and the green build CI acts on",
+    "subsystem": "ci-and-release",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/record.rs",
+      "crates/properties/src/lib.rs",
+      "crates/properties/src/properties/tests.rs",
+      ".github/workflows/privacy-gate.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#CI and automation attack classes",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Release and update attack classes",
+        "reason": "the gate publishes no release or update artifact; its outputs are a verdict, a run directory and CI artifacts whose upload/retention handling the gate-evidence unit already owns (crates/probe/src/gate.rs#test-summary-and-run-artifacts x .github/workflows/privacy-gate.yml#evidence-artifact-upload)."
+      },
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Failure and recovery attack classes",
+        "reason": "the gate's failure handling is already checked outside this boundary: the run-timeout path maps 124 -> rig failure 2 (action.yml:108-125) and the documented exit contract is docs/CI.md:16-17; no resource-bounded work is in scope here."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Which findings the gate's exit code may call a verdict has no owning unit. Source facts: (1) `--expect fail` is satisfied by `outcome.fail > 0` (crates/probe/src/gate.rs:239-242) while the module's own contract says '`--expect fail` passes only when the property library actually caught the planted leaks, so a property that has quietly stopped detecting anything fails the build instead of looking like a clean run' (gate.rs:10-13) and docs/CI.md:29-33 calls the control flow 'the reason to believe the property library still works'; the failing property ids are computed and printed (crates/probe/src/record.rs:84-88, gate.rs:271-276) but never compared against the set the control flow plants, so a control whose detectors went partly silent (or that trips an unrelated property instead) still exits 0. (2) `--expect pass` is `outcome.fail == 0` (gate.rs:239-241) with Skips contributing nothing,"
+    ],
+    "bookkeeping": {
+      "proposed_by": "critic-wave2",
+      "proposal_reason": "Which findings the gate's exit code may call a verdict has no owning unit. Source facts: (1) `--expect fail` is satisfied by `outcome.fail > 0` (crates/probe/src/gate.rs:239-242) while the module's own contract says '`--expect fail` passes only when the property library actually caught the planted leaks, so a property that has quietly stopped detecting anything fails the build instead of looking like a clean run' (gate.rs:10-13) and docs/CI.md:29-33 calls the control flow 'the reason to believe the property library still works'; the failing property ids are computed and printed (crates/probe/src/record.rs:84-88, gate.rs:271-276) but never compared against the set the control flow plants, so a control whose detectors went partly silent (or that trips an unrelated property instead) still exits 0. (2) `--expect pass` is `outcome.fail == 0` (gate.rs:239-241) with Skips contributing nothing, and that path prints 'PASS - every property held, and the chain agrees with the report' (gate.rs:307); the property library emits Skip exactly when the observation set cannot decide the question and states 'a skip is honest; a guessed pass is not' (crates/properties/src/lib.rs:9-13), and its own severity-aware predicate `passes()` is used only by unit tests (crates/properties/src/properties/tests.rs:96, 120), never by the gate - so 'every property held' can be printed for a run that decided almost nothing. Both facets are one criterion problem with one fix (assert the declared control properties via failed_properties, and refuse to call a skip-decided run a pass), and both are source-verifiable offline: a hand-built FlowRun fixture evaluated through zanary_properties::evaluate shows fail == 0 with most verdicts Skip, and failed_properties is already in RunArtifacts. Not covered by any unit: the gate-evidence unit is scoped to the artifact upload, the action.yml unit to input expansion, and the wave-1 inputs unit to flow definition parsing and panic paths; note the same criterion shape exists for the payer at crates/probe/src/payer.rs:469-478 (`--expect-refused` counts refusals, never the rules they name) which no payer unit asserts either.",
+      "paths_missing_in_target": []
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fgate.rs%23test-summary-and-run-artifacts::.github%2Fworkflows%2Fprivacy-gate.yml%23evidence-artifact-upload::ci-and-release::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "crates/probe/src/gate.rs#test-summary-and-run-artifacts",
+      "boundary": ".github/workflows/privacy-gate.yml#evidence-artifact-upload",
+      "subsystem": "ci-and-release",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "crates/probe/src/gate.rs#test-summary-and-run-artifacts",
+    "boundary": ".github/workflows/privacy-gate.yml#evidence-artifact-upload",
+    "subsystem": "ci-and-release",
+    "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "starting_paths": [
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/wallet.rs",
+      "action.yml",
+      ".github/workflows/privacy-gate.yml",
+      "data/runs/demo/demo-private/run.json"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "covered",
+    "agent_id": "hunter-gate",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      "action.yml",
+      "crates/observation/src/lib.rs",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/payer.rs",
+      "crates/probe/src/record.rs",
+      "crates/probe/src/wallet.rs",
+      "data/runs/demo/demo-private/anchor.json",
+      "data/runs/demo/demo-private/findings.json",
+      "data/runs/demo/demo-private/report.json",
+      "data/runs/demo/demo-private/run.json",
+      "data/runs/demo/demo-private/test.json",
+      "docs/CI.md",
+      "docs/THREAT-MODEL.md",
+      "docs/WALLET-NOTES.md",
+      "scripts/bounded-payer-demo.sh"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-gate",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "action.yml",
+          "crates/probe/src/record.rs",
+          "data/runs/demo/demo-private/run.json",
+          "data/runs/demo/demo-private/report.json",
+          "data/runs/demo/demo-private/anchor.json",
+          "data/runs/demo/demo-private/findings.json"
+        ],
+        "invariant": "The uploaded bundles are exactly the run directories the probe wrote (run.json/findings.json/report.json + anchor.json/test.json/gate.log), and they contain no wallet database, seed, spending key or credential.",
+        "method": "source",
+        "result": "privacy-gate.yml:95-104 uploads runs/<matrix.id>/ (private|control); :244-250 uploads data/payer-demo/; both retention-days 30, if: always(). action.yml:87-129 writes only the out dir (test.json, gate.log); record.rs:36-92 writes run/findings/report; gate.rs:187-189 anchor.json; gate.rs:331-368 test.json. Wallet DBs are opened at WalletProfile data_dirs (core.rs:236-282, ./data/wallet, ./data/wallet-merchant, ./data/wallet-beacon), never inside runs/ or data/payer-demo/. Content audit of the recorded run (data/runs/demo/demo-private/): run.json fields are public keys/signatures (receipt signer, attestation wallet_ak), regtest receivers/txids/memos, simulated merchant headers (content-type, user-agent; remote_ip null), pool totals; report.json/test.json/anchor.json/findings.json carry no receipts or attestation (0 grep hits); a secret-shaped-pattern scan (uview1|upriv1|secret-extended|abandon|ghp_|AKIA|BEGIN PRIVATE KEY|rpcpassword) over the run dir yields only the public-key words attestation/wallet_ak/signer in run.json.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-gate",
+        "reviewed_paths": [
+          "crates/probe/src/core.rs",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/wallet.rs",
+          "crates/observation/src/lib.rs",
+          "docs/THREAT-MODEL.md"
+        ],
+        "invariant": "The receipt attestation and wallet key material that reach the world-readable artifact name only wallets derived from committed public BIP-39 test vectors, so no protected principal or non-public key exists to disclose.",
+        "method": "source",
+        "result": "core.rs:63 DEV_MNEMONIC, core.rs:207 MERCHANT_MNEMONIC, core.rs:214 BEACON_MNEMONIC are committed constants (no seed/mnemonic env override exists anywhere in the probe); flow.rs:386 derives the receipt key from the merchant seed at receipt_account (default 1); flow.rs:1508-1523 signs the attestation with merchant account-0 ask and publishes only the public ak, attached unconditionally (flow.rs:1523). observation/src/lib.rs:112-141 documents signer/signature/attestation as public-key fields. THREAT-MODEL.md:30-41 states the attestation is a publication-time choice and the ak 'is still not a viewing key: it reveals no note contents or history'. wallet.rs:36-45 prints the same dev seed phrase by design; WALLET-NOTES.md:21-24 already publishes dev seed + dev UFVK. Any artifact reader can recompute the same wallets from the repository, so the linked presentation crossing into the artifact is not a confidentiality boundary crossing and has no affected principal or resource.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-gate",
+        "reviewed_paths": [
+          "crates/probe/src/gate.rs",
+          "docs/CI.md",
+          ".github/workflows/privacy-gate.yml"
+        ],
+        "invariant": "No published verification path consumes run.json or gate.log, so the artifact is a strict superset of what verify/verify-anchor need (derived-copy minimization check at a wider-access, 30-day storage tier).",
+        "method": "source",
+        "result": "verify reads report.json (docs/CI.md:94); verify-anchor reads the report plus the beacon UFVK (docs/CI.md:95-96); gate.rs:136-174 re-verifies the report, not the run; the publish job copies only report.json/anchor.json/test.json per artifact dir and never run.json/gate.log (privacy-gate.yml:151-163). The wider bundle is documented as the reviewer's raw evidence (privacy-gate.yml:101-102), i.e. intent, and its extra contents are public-vector material with no readers harmed — recorded as hardening, not a candidate. No external fact is decisive here: platform visibility of public-repo artifacts can only amplify a disclosure, and the content class is non-sensitive regardless.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-gate",
+        "reviewed_paths": [
+          "scripts/bounded-payer-demo.sh",
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "The payer job's uploaded directory (data/payer-demo/) carries no receipts, keys or seed material — only the grant, invoices and the decision ledger.",
+        "method": "source",
+        "result": "payer.rs:388-411 builds the payer FlowRun with receipts: Vec::new() and writes ledger.jsonl + run.json/findings.json/report.json; bounded-payer-demo.sh puts only invoices/, grants/ and runs/ under data/payer-demo/ (receivers, budget, per-payment cap, allowlist, refusal reasons — authority terms, not keys). The payer wallet's DB stays under the workspace data/wallet path, which the upload path does not include.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-gate",
+        "reviewed_paths": [
+          "crates/probe/src/gate.rs",
+          "crates/probe/src/flow.rs",
+          "action.yml",
+          "docs/WALLET-NOTES.md",
+          "data/runs/demo/demo-private/test.json"
+        ],
+        "invariant": "gate.log and test.json contain only the gate's own stdout (heights, account UUIDs, regtest receivers/txids/memos, verdicts, invocation paths) and no credential or key material; the same log tail is already emitted into the public step summary.",
+        "method": "source",
+        "result": "The complete stdout sources are gate.rs:110-328 and flow.rs:306-391/1660-1723 (setup prints: AccountUuid of payer/merchant, chain heights, receivers, memo text, txids, verdict lines, absolute runner paths). AccountUuid is random per import and identifies only the ephemeral wallet DB (WALLET-NOTES.md:110). No mnemonic, UFVK or RPC credential is printed by the gate path (the seed print at wallet.rs:38 is a different subcommand, not in the gate path). The recorded test.json carries only the summary numbers plus the beacon UFVK that THREAT-MODEL.md:48-56 declares public by design. action.yml:142-147 already echoes tail -40 of gate.log into $GITHUB_STEP_SUMMARY, so the artifact adds no disclosure class beyond the job's own summary; the workflows and action use no secrets.* / GITHUB_TOKEN (permissions: contents: read).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "Artifact bundle is unminimized: runs/<id>/ ships run.json (receipts including the wallet attestation) and the full gate.log although verify/verify-anchor need only report.json + anchor.json (privacy-gate.yml:95-104 vs 151-163). Today's content is non-sensitive (all wallets derive from committed BIP-39 test vectors in core.rs:63/207/214), but consider uploading report/anchor/test/findings only, or moving run.json/gate.log behind an explicit opt-in input, so the public artifact cannot become the place where the linked receipt presentation is chosen by default.",
+        "The 'attestation is opt-in' statement (docs/THREAT-MODEL.md:30-41) holds only at publication time, not in the run path: flow.rs:1511-1523 attaches the attestation unconditionally and run.json always serializes it. Add a flow-definition knob (e.g. attestation: false) or strip the attestation when packaging an evidence bundle for publication, so the unlinked presentation the threat model promises is actually producible.",
+        "action.yml:142-147 echoes tail -40 of gate.log into the public job summary; if the artifact is trimmed for minimization, keep in mind the summary tail still reproduces a slice of the same log (same non-sensitive class today: AccountUuid lines, runner paths, regtest identifiers).",
+        "Keep future upload globs scoped as they are: data/payer-demo/ sits inside data/, where the wallet DBs (data/wallet, data/wallet-merchant, data/wallet-beacon) also live; a later change from 'data/payer-demo/' to 'data/' would sweep wallet databases into a world-readable artifact. Same rule for the gate job: the out path (${{ github.workspace }}/runs/<id>) must stay separate from the action checkout's data/ directory where the run's wallet DBs are opened."
+      ],
+      "wave2_agent": "hunter-gate"
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fops.rs%23propose_shielded_payment%20%2F%20build_sign_broadcast::the%20authority%20check%20%28decide%29%20-%3E%20the%20transaction%20actually%20built%20and%20broadcast::bounded-payer::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/probe/src/ops.rs#propose_shielded_payment / build_sign_broadcast",
+      "boundary": "the authority check (decide) -> the transaction actually built and broadcast",
+      "subsystem": "bounded-payer",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/probe/src/ops.rs#propose_shielded_payment / build_sign_broadcast",
+    "boundary": "the authority check (decide) -> the transaction actually built and broadcast",
+    "subsystem": "bounded-payer",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/payer.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Core discipline",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Replay, ordering, and transaction attack classes",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Universal moves",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-broadcast",
+    "reviewed_paths": [
+      "crates/observation/src/lib.rs",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/payer.rs",
+      "crates/properties/src/properties/fixtures.rs",
+      "crates/properties/src/properties/payer_policy.rs",
+      "crates/properties/src/properties/policy_downgrade.rs",
+      "crates/report/src/verify.rs",
+      "docs/BOUNDED-PAYER.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/ops.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "the pool legs and privacy policy a payer payment records describe the transaction that was built, not a constant template",
+        "method": "source",
+        "result": "payer.rs:347-352 writes pool_in: Orchard, pool_out: Orchard, kind: Shielded, policy: Some(\"FullPrivacy\") as literals for every payment, and payer.rs never reads anything back from the proposal it built (no proposal.steps, no payment_pools, no transaction decryption anywhere in the file, unlike ops.rs:1076-1126 where `pay` decrypts the mined transaction). observation/src/lib.rs:28-36 and 56-60 define those fields as the payment's real pools and the 'privacy policy argument the flow passed to its wallet layer, verbatim' — the payer passes no such argument.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "a merchant-supplied recipient whose payment would reveal more than FullPrivacy is refused before anything is proposed or built, as every other payment path in the workspace refuses it",
+        "method": "local",
+        "result": "Observed in the approved sandbox (check-intake.txt, 2 tests passed, exit 0): an invoice-style payment to a Sapling receiver (bare zregtestsapling1..., and a unified address with a Sapling receiver and no Orchard receiver) is ACCEPTED by the target's own intake in ops::propose_shielded_payments (it reaches the wallet layer: 'Must scan blocks first', with the invoice memo and with an empty memo), while ops::required_policy_for_recipient + ops::check_policy refuse the same recipient under FullPrivacy with 'would reveal the amount (Orchard -> Sapling pool crossing)'. payer.rs contains 0 occurrences of either function, against ops.rs:566 / ops.rs:777 / ops.rs:1020 / flow.rs:634 / flow.rs:827 on the other payment paths. A bare transparent receiver is refused inside the target's intake by zip321's memo rule, so the transparent variant is not reachable.",
+        "artifact": "agents/hunter-broadcast/artifacts/check-intake.txt"
+      },
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "the run's per-invoice decisions and artifacts are committed even when a payment step fails after earlier payments were broadcast",
+        "method": "source",
+        "result": "payer.rs:246-270 decides every invoice first and only prints; the payment loop (291-363) propagates each step with `?` (decode 298-303, memo 304-305, propose 306-307, build_sign_broadcast 308, mine_and_resync 309, mined_height_of 310); ledger.jsonl and the run/report artifacts are written afterwards (408-411) and --expect-refused is evaluated later still (469-478). A mid-loop failure therefore returns Err with nothing recorded although earlier iterations already broadcast, and no code path in payer.rs can produce the `error:` refusal reason that properties/src/properties/payer_policy.rs:66-74 exists to flag.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/flow.rs"
+        ],
+        "invariant": "every invoice the decision layer admits can be executed by the payment loop (the decision covers the whole invoice, not only budget/cap/allowlist fields)",
+        "method": "local",
+        "result": "Observed in the approved sandbox (check-intake.txt): with the documented grant shape (empty allowlist, cap 10,000,000 zat, budget 50,000,000 zat) an invoice whose receiver is 'not-an-address' and whose amount is 5,000,000 is decided allowed=true ('paid: within the cap ... and the budget'), and Address::decode then returns NONE at payer.rs:298; an invoice whose memo is 600 bytes is likewise decided allowed=true and rejected by MemoBytes::from_bytes at payer.rs:304. The same run shows the payer's intake (serde, payer.rs:515-516) accepting an invoice whose URI pays the Orchard UA but whose receiver says Sapling, which flow.rs:1740-1768 (ops::pay --invoice) refuses as 'an invoice that disagrees with itself'.",
+        "artifact": "agents/hunter-broadcast/artifacts/check-intake.txt"
+      },
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/properties/src/properties/policy_downgrade.rs",
+          "crates/properties/src/properties/fixtures.rs",
+          "crates/properties/src/properties/payer_policy.rs"
+        ],
+        "invariant": "the leak verdict for a payment's pools is derived from the chain/transaction rather than from the writer's self-report, and the fixture set pins the encoding of a cross-pool payment",
+        "method": "source",
+        "result": "policy_downgrade.rs:76-101 computes both signals from Payment.policy and Payment.pool_in/pool_out alone (an explicit token match and pool_out in {Transparent, CrossPool}); nothing in the properties crate re-derives a pool leg from a transaction, and payer_policy.rs:63-103 likewise checks only the ledger's own amount/receiver/revoked fields against the grant. fixtures.rs:240-246 models a cross-pool payment with the real destination pool (pool_out Transparent, kind CrossPool, policy AllowRevealedAmounts), i.e. the record is the only evidence there is.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-broadcast",
+        "reviewed_paths": [
+          "crates/probe/src/core.rs"
+        ],
+        "invariant": "the chain the payment is built for activates the pools that decide what the transaction can reveal",
+        "method": "source",
+        "result": "core.rs:81-91 pins LocalNetwork with sapling: Some(1) (active from height 1) and nu6_1/nu6_2/nu6_3 unactivated, so an Orchard-receiver payment is an Orchard output and a Sapling receiver is the shielded cross-pool delivery this build can actually produce; the harness node (zcashd v6.20.0) matches.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-1",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "docs/BOUNDED-PAYER.md"
+        ],
+        "invariant": "independent Phase-3 re-derivation of crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written",
+        "method": "local",
+        "result": "needs_validation: Payment-loop failure aborts the bounded payer before its ledger and run artifacts are written, losing the record of payments already broadcast",
+        "artifact": "agents/verifier-1/artifacts/check-binary.txt"
+      },
+      {
+        "agent_id": "verifier-2",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/core.rs",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/fixtures.rs",
+          "crates/properties/src/properties/policy_downgrade.rs",
+          "crates/report/src/verify.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction",
+        "method": "local",
+        "result": "needs_validation: The bounded payer writes every payment record from literals (Orchard -> Orchard, Shielded, FullPrivacy) and never applies the recipient-policy guard, so a payment whose transaction crosses a shielded pool boundary (a Sapling receiver) would be recorded and scored as a same-pool, fully-shielded, FullPrivacy payment",
+        "artifact": "agents/verifier-2/artifacts/check-verify2.txt"
+      },
+      {
+        "agent_id": "verifier-21",
+        "reviewed_paths": [
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-5 check of the finished record crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction",
+        "method": "local",
+        "result": "verified: fingerprint crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction (Phase-5 record verification)",
+        "artifact": "agents/verifier-21/artifacts/check-v21-blocker.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written",
+      "crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "ops::pay --invoice cross-checks an invoice against its own ZIP-321 URI (flow.rs:1740-1768) while the payer's intake deserializes the same JSON with plain serde (payer.rs:515-516): an invoice whose URI pays the account's Orchard UA but whose receiver says Sapling is accepted by the payer and refused by the CLI path (observed). The payer never reads `uri`, so no payment changes, but the two intakes disagree about what a valid invoice is.",
+        "The grant's budget is compared against invoice amounts only (payer.rs:110-128) and the ZIP-317 fee is budgeted separately as a funding margin (payer.rs:530), so a run that ends at exactly budget_zat also spends the fees on top of it while the ledger reads 'spent 50000000 of 50000000'.",
+        "The payer writes the grant's filesystem path into the per-payment observed map (payer.rs:356-359), which lands in the run/report evidence the matrix and Pages publish; the run already carries the grant's full contents, so the path adds only the operator's layout.",
+        "The same constant-template record exists in the flow runner (flow.rs:687-690 single, flow.rs:984-987 batch); it is true there only because that path issues its own Orchard-only receivers and records the policy it actually requested, so a fix that derives pool legs from proposal.steps()[0].payment_pools() would close all writers at once."
+      ],
+      "wave2_agent": "hunter-broadcast",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-1",
+          "decision": "needs_validation"
+        },
+        {
+          "verifier": "verifier-2",
+          "decision": "needs_validation"
+        }
+      ],
+      "parent_notes": [
+        "the fingerprint crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written was consolidated into zanary/payer-ledger-not-durable in findings.json: independent verification found the two to share one root cause (the end-of-loop commit plus `?` abort ordering at payer.rs:291-411), so the run reports the defect once"
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-21",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fpayer.rs%23decide::crates%2Fproperties%2Fsrc%2Fproperties%2Fpayer_policy.rs%23evaluate::bounded-payer::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/probe/src/payer.rs#decide",
+      "boundary": "crates/properties/src/properties/payer_policy.rs#evaluate",
+      "subsystem": "bounded-payer",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/probe/src/payer.rs#decide",
+    "boundary": "crates/properties/src/properties/payer_policy.rs#evaluate",
+    "subsystem": "bounded-payer",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/probe/src/payer.rs",
+      "crates/observation/src/lib.rs",
+      "crates/properties/src/properties/payer_policy.rs",
+      "data/grants"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Quota and scheduling attack classes",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Replay, ordering, and transaction attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-payer",
+    "reviewed_paths": [
+      "crates/observation/src/lib.rs",
+      "crates/probe/src/flow.rs",
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/payer.rs",
+      "crates/probe/src/record.rs",
+      "crates/properties/src/properties/amount_fingerprint.rs",
+      "crates/properties/src/properties/payer_policy.rs",
+      "data/grants"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-payer",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "decide() is the single decision point for an invoice and applies the five grant rules in the documented order (revoked -> expired -> allowlist -> cap -> budget) over the grant actually recorded for the run",
+        "method": "source",
+        "result": "verified for the reference payer: decide is called once per invoice before any payment (payer.rs:246-270), the grant recorded in the run is the same object decide used (payer.rs:193-199, 388), and every refusal/allowance carries the first rule that fired. The rule bodies themselves are where the authority model leaks: the expiry rule is a text comparison (payer.rs:91), the allowlist rule never validates the receiver (100), the budget rule counts invoice principal only (119-128).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-payer",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/record.rs"
+        ],
+        "invariant": "the ledger a payer records carries everything the payer-policy boundary needs to re-derive every grant rule, and the boundary re-derives the same verdict as the payer's own decide()",
+        "method": "source",
+        "result": "not re-derivable: PayerDecision has no decision time (observation:200-214), so the expiry rule cannot be checked at all (payer_policy only echoes expires_at into its summary, 105-116); the property never cross-checks the ledger against run.payments; and its internal-error rule keys on the literal reason prefix \"error:\" (68) which the reference payer never writes (it aborts, payer.rs:298-309).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-payer",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/flow.rs"
+        ],
+        "invariant": "the payer's own gate holds: an expired grant cannot pay (as an instant), a repeated invoice_id is decided once, the budget bounds what the run spends, a misspelled grant key cannot widen authority, and an invoice the payment loop cannot pay is not decided payable",
+        "method": "local",
+        "result": "all five fail against the reviewed decide() (7/7 tests passed, i.e. the failures are the observed behaviour): H1a same expiry instant two encodings -> refused (canonical Z) vs ALLOWED (offset +14:00); H1b fractional clock against a whole-second expiry -> ALLOWED; H1c \"never\"/\"2030-99-99T00:00:00Z\" -> ALLOWED; H2 invoice dup-8301 decided ALLOW twice (spent 300 then 600 of 1000); H3 1-zat invoices -> 10,000,000 zat of fees for a 1,000-zat budget; H4 typo'd allow_list/expiry -> allowlist [] (any receiver), expires_at None; H8 allowlisted non-address receiver and 600-byte memo -> ALLOWED",
+        "artifact": "agents/hunter-payer/artifacts/check-payer-decide.txt"
+      },
+      {
+        "agent_id": "hunter-payer",
+        "reviewed_paths": [
+          "crates/properties/src/properties/payer_policy.rs",
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/flow.rs"
+        ],
+        "invariant": "the payer-policy boundary re-derives the grant verdict from the run record for invoice identity, for whether a paid row is backed by a payment, and for the grant's expiry",
+        "method": "local",
+        "result": "passes in all three blind spots (3/3 tests passed): H5 two paid rows sharing one invoice_id (the second with no txid) -> PASS; H6 a paid row with zero run.payments entries -> PASS; H7 a ledger whose recorded grant expired in 2020 -> PASS, with the expiry echoed in the summary text only",
+        "artifact": "agents/hunter-payer/artifacts/check-payer-policy.txt"
+      },
+      {
+        "agent_id": "hunter-payer",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/ops.rs"
+        ],
+        "invariant": "what the payer spends and does per allowed invoice is what the grant's budget accounts for (the cost of paying at the shared wallet layer is visible to the authority model)",
+        "method": "source",
+        "result": "the budget comparison never sees the payment layer's cost: every allowed invoice is one shielded transaction plus mine_and_resync(11 blocks) (payer.rs:291-310; ops.rs:59) and the payer's own funding model budgets 10,000 zat of ZIP-317 fee per payment (payer.rs:530), none of which the budget rule (119-128) or payer_policy (77-90) counts — the fee the payer knows it will pay is invisible to the authority it enforces.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-12",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/payer-budget-excludes-fees",
+        "method": "local",
+        "result": "confirmed: The grant's budget bounds invoice principal, not the cost of paying: per-payment fees and the invoice count sit outside the authority",
+        "artifact": "agents/verifier-12/artifacts/check-verifier12-tests.txt"
+      },
+      {
+        "agent_id": "verifier-13",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/flow.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/amount_fingerprint.rs",
+          "crates/properties/src/properties/payer_policy.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/payer-duplicate-invoice-id-replay",
+        "method": "local",
+        "result": "confirmed: Invoice identity is a label, not a key: two invoice files carrying one invoice_id are both decided ALLOW and queued for payment in a single run, the run record puts the second payment's txid on the first row, and payer-policy passes the duplicated ledger",
+        "artifact": "agents/verifier-13/artifacts/check-record.json"
+      },
+      {
+        "agent_id": "verifier-14",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/record.rs",
+          "crates/properties/src/properties/payer_policy.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/payer-expiry-text-compare",
+        "method": "local",
+        "result": "confirmed: Bounded payer enforces grant expiry as a text comparison, so an expiry instant written with a UTC offset (or an unparsable value) still pays",
+        "artifact": "agents/verifier-14/artifacts/check-cli-run.txt"
+      },
+      {
+        "agent_id": "verifier-15",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/record.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/payer-ledger-not-durable",
+        "method": "local",
+        "result": "needs_validation: Payments are recorded only after all of them are broadcast: an aborted or repeated run leaves on-chain payments with no ledger and re-pays them",
+        "artifact": "agents/verifier-15/artifacts/check-verifier15.txt"
+      },
+      {
+        "agent_id": "verifier-31",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "data/grants"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/payer-budget-excludes-fees",
+        "method": "local",
+        "result": "verified: fingerprint zanary/payer-budget-excludes-fees (Phase-5 record verification)",
+        "artifact": "agents/verifier-31/artifacts/check-verifier31-module.txt"
+      },
+      {
+        "agent_id": "verifier-32",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "data/grants"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/payer-duplicate-invoice-id-replay",
+        "method": "local",
+        "result": "verified: fingerprint zanary/payer-duplicate-invoice-id-replay (Phase-5 record verification)",
+        "artifact": "agents/verifier-32/artifacts/check-v32-cli.txt"
+      },
+      {
+        "agent_id": "verifier-33",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "data/grants"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/payer-expiry-text-compare",
+        "method": "local",
+        "result": "verified: fingerprint zanary/payer-expiry-text-compare (Phase-5 record verification)",
+        "artifact": "agents/verifier-33/artifacts/check-cli.txt"
+      },
+      {
+        "agent_id": "verifier-34",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/payer.rs",
+          "crates/properties/src/properties/payer_policy.rs",
+          "data/grants"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/payer-ledger-not-durable",
+        "method": "local",
+        "result": "verified: fingerprint zanary/payer-ledger-not-durable (Phase-5 record verification)",
+        "artifact": "agents/verifier-34/artifacts/check-replay15.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/payer-budget-excludes-fees",
+      "zanary/payer-duplicate-invoice-id-replay",
+      "zanary/payer-expiry-text-compare",
+      "zanary/payer-ledger-not-durable"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "The kill switch is read once, at startup: `revoked = grant_file.revoked || kill_file.exists()` (payer.rs:185-191), and every invoice is decided before any payment moves (244-270), so `touch`ing the kill file mid-run stops nothing — including invoices already decided and not yet broadcast. docs/BOUNDED-PAYER.md:33-34 says the switch stops 'the next decision', which overstates it for a run in flight; its own limits section ('no revocation of in-flight payments') partly covers this. Design limit with no privileged actor; the smallest improvement is re-checking the kill file before each broadcast.",
+        "The expiry verdict rests on a caller-supplied clock that is never recorded: `--now` overrides the clock (payer.rs:162, 169-172), PayerDecision carries no decision time or clock (observation:200-214), and paid reasons embed no timestamp — so a run's expiry verdict cannot be reproduced from its artifacts, and a runner distinct from the grant author can un-expire an immutable grant with no trace. In this repo the grant author and the runner are the same principal, so this is not a privilege gain (validation rule 3), but it is why candidate zanary/payer-expiry-text-compare cannot be caught after the fact; recording `decided_at` (and gating `--now` as test-only) fixes both.",
+        "The payer-policy boundary is weaker than its module doc: it claims to catch a payment 'after the grant expired' (payer_policy.rs:6-8) but has no time input at all; it never cross-checks the ledger against run.payments (a paid decision with zero backing payments passes, H6); and its internal-error rule keys on the literal reason prefix \"error:\" (payer_policy.rs:68) that the reference payer never writes (it aborts instead, payer.rs:298-309), so 'should have paid but errored' is structurally undetectable for this payer. Fix: carry decided_at plus the paid txid in PayerDecision and re-derive/verify both in check().",
+        "The grant file format fails open on unrecognised or misspelled keys: no `deny_unknown_fields`, and every absent security field defaults to a wider value — budget 50,000,000 zat, cap 10,000,000 zat, empty allowlist (any receiver is allowed, payer.rs:222-227 documents it), missing expiry -> now + 30 days (payer.rs:49-70, 173-184). The widened grant is what gets recorded, so payer-policy validates against the widening (offline check H4). Same principal supplies the file, so hardening rather than a privilege gain; the fix is `#[serde(deny_unknown_fields)]` on Grant plus making budget/cap/allowlist/expires_at required fields.",
+        "flow_id hashes the invoices *path*, not its contents (payer.rs:392, 553-558), so two different invoice sets at the same directory share a flow_id (flow_commit still differs because it hashes the decisions, 393) — an observability wrinkle for claims about 'this payer run', not an authority gap."
+      ],
+      "wave1_agent": "hunter-payer",
+      "note": "wave-1 hunter result recovered by parent on resume from async_delegations.result_json (delivery was dropped when the orchestrator session stalled)",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-12",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-13",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-14",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-15",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-31",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-32",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-33",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-34",
+          "decision": "verified"
+        }
+      ],
+      "parent_notes": [
+        "this record consolidates the wave-2 fingerprint crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written; the merged record keeps this fingerprint and unions both verifiers' trace, evidence, blockers and plans"
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fpayer.rs%23load-invoices::merchant-supplied%20invoice%20directory%20-%3E%20payer%20memory%20and%20payment%20work::bounded-payer::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Resource%20accumulation%20attack%20classes",
+    "canonical_refs": {
+      "surface": "crates/probe/src/payer.rs#load-invoices",
+      "boundary": "merchant-supplied invoice directory -> payer memory and payment work",
+      "subsystem": "bounded-payer",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes"
+    },
+    "surface": "crates/probe/src/payer.rs#load-invoices",
+    "boundary": "merchant-supplied invoice directory -> payer memory and payment work",
+    "subsystem": "bounded-payer",
+    "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes",
+    "starting_paths": [
+      "crates/probe/src/payer.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Resource accumulation attack classes",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-invoices",
+    "reviewed_paths": [
+      "crates/probe/src/ops.rs",
+      "crates/probe/src/payer.rs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-invoices",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/ops.rs"
+        ],
+        "invariant": "load_invoices bounds what a merchant-supplied directory can make the payer read (file count, file size) and the payment loop bounds its own cardinality; grant budget must bound work as well as money",
+        "method": "source",
+        "result": "No count cap (read_dir collects every *.json entry), no size cap (read_to_string per file, no metadata check), no payment-count cap (to_pay grows per allowed invoice; budget bounds only sum(amount_zat)); intake (payer.rs:201) runs before the first decide() (payer.rs:250) and is not conditional on revoked/kill-file state",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-invoices",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "invoice entries are regular files inside the supplied directory: no symlink following, no blocking on non-regular files, read has a deadline",
+        "method": "source",
+        "result": "Selection is by extension only (payer.rs:503); read_to_string (payer.rs:513) follows symlinks and blocks in open() on a FIFO; no symlink_metadata/is_file check, no O_NOFOLLOW, no timeout in the intake",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-invoices",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "memory intake scales with an operator-chosen bound, not with merchant-controlled file bytes; intake must not run for void authority",
+        "method": "local",
+        "result": "256 MiB invoice -> peak RSS 526 MB (revoked grant: intake still completed, REFUSE printed) / 527 MB (full grant); 768 MiB invoice under ulimit -v 1200000 -> exit 1, 'Error: reading the invoice ... Caused by: out of memory', zero decisions; same limit with tiny and 256 MiB fixtures completes intake",
+        "artifact": "agents/hunter-invoices/artifacts/check-memory-intake.txt"
+      },
+      {
+        "agent_id": "hunter-invoices",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs",
+          "crates/probe/src/ops.rs"
+        ],
+        "invariant": "the number of invoices accepted into payment work is bounded (queue cardinality / per-run payment cap)",
+        "method": "local",
+        "result": "5000 zero-amount invoice files all read, decided ALLOW and queued in one run (5000 ALLOW lines, 'invoices : 5000'); each queued entry costs a proposal + broadcast + 11 mined blocks + resync (payer.rs:307-309, ops.rs:59); the payment phase itself could not run offline",
+        "artifact": "agents/hunter-invoices/artifacts/check-count-queue.txt"
+      },
+      {
+        "agent_id": "hunter-invoices",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "non-regular and symlinked *.json entries cannot hang the payer or be read from outside the supplied directory",
+        "method": "local",
+        "result": "FIFO named hang.json (with a revoked grant): 0 bytes of output for 15 s until the harness killed it (exit 137) - blocked in intake before any decision; symlink link.json -> file outside --invoices: the outside invoice was loaded and ALLOWed",
+        "artifact": "agents/hunter-invoices/artifacts/check-filetype.txt"
+      },
+      {
+        "agent_id": "verifier-6",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of probe/payer.rs:load_invoices:nonregular-entry",
+        "method": "local",
+        "result": "confirmed: Bounded payer follows symlinks and blocks forever on non-regular *.json entries in the merchant-supplied invoice directory",
+        "artifact": "agents/verifier-6/artifacts/check-verdict.json"
+      },
+      {
+        "agent_id": "verifier-7",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of probe/payer.rs:load_invoices:unbounded-intake-memory",
+        "method": "local",
+        "result": "confirmed: Bounded payer ingests a merchant-supplied invoice directory into memory with no size or count cap, before and independent of grant authority",
+        "artifact": "agents/verifier-7/artifacts/check-record.json"
+      },
+      {
+        "agent_id": "verifier-8",
+        "reviewed_paths": [
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of probe/payer.rs:run:unbounded-payment-count",
+        "method": "local",
+        "result": "needs_validation: Bounded payer queues an unbounded number of payments: the grant bounds the sum of amounts, not the count of heavy per-invoice work",
+        "artifact": "agents/verifier-8/artifacts/check-budget-amounts.txt"
+      },
+      {
+        "agent_id": "verifier-25",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-5 check of the finished record probe/payer.rs:load_invoices:nonregular-entry",
+        "method": "local",
+        "result": "verified: fingerprint probe/payer.rs:load_invoices:nonregular-entry (Phase-5 record verification)",
+        "artifact": "agents/verifier-25/artifacts/check-filetype.txt"
+      },
+      {
+        "agent_id": "verifier-26",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-5 check of the finished record probe/payer.rs:load_invoices:unbounded-intake-memory",
+        "method": "local",
+        "result": "verified: fingerprint probe/payer.rs:load_invoices:unbounded-intake-memory (Phase-5 record verification)",
+        "artifact": "agents/verifier-26/artifacts/check-intake-memory.txt"
+      },
+      {
+        "agent_id": "verifier-27",
+        "reviewed_paths": [
+          "crates/probe/src/payer.rs"
+        ],
+        "invariant": "independent Phase-5 check of the finished record probe/payer.rs:run:unbounded-payment-count",
+        "method": "local",
+        "result": "verified: fingerprint probe/payer.rs:run:unbounded-payment-count (Phase-5 record verification)",
+        "artifact": "agents/verifier-27/artifacts/check-27-repro.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "probe/payer.rs:load_invoices:nonregular-entry",
+      "probe/payer.rs:load_invoices:unbounded-intake-memory",
+      "probe/payer.rs:run:unbounded-payment-count"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "load_invoices aborts the entire run on the first unreadable or unparseable file (payer.rs:513-517, error propagated at payer.rs:201): one bad file in a merchant directory denies every other invoice in it. Per-file error isolation (a refusal line naming the parse error) would stop one merchant's malformed file from blocking the others.",
+        "The invoice memo and receiver are only validated while their payment is being built (Address::decode payer.rs:298, MemoBytes::from_bytes payer.rs:304); an oversized memo or undecodable receiver in a later-sorted file aborts the run after earlier invoices were already broadcast, and the run artifacts (ledger.jsonl and report.json are written only after the payment loop, payer.rs:406-411) are never written - the payments that did happen lose their local audit record. Validating every field at intake, or writing the ledger incrementally, would keep the audit trail.",
+        "The payment loop has no run-level deadline: the node client has per-request timeouts (node.rs), but a stalled proof or a slow block generation leaves the payer serial and stuck with no bound the operator can set."
+      ],
+      "wave2_agent": "hunter-invoices",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-6",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-7",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-8",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-25",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-26",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-27",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Fprobe%2Fsrc%2Fpayer.rs%23run%20%28payment-loop%20txid%20attribution%29::merchant-supplied%20invoice%20directory%20-%3E%20payer%20run%20record%20%28decisions%20txid%2Fheight%20attribution%29::bounded-payer::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/probe/src/payer.rs#run (payment-loop txid attribution)",
+      "boundary": "merchant-supplied invoice directory -> payer run record (decisions txid/height attribution)",
+      "subsystem": "bounded-payer",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/probe/src/payer.rs#run (payment-loop txid attribution)",
+    "boundary": "merchant-supplied invoice directory -> payer run record (decisions txid/height attribution)",
+    "subsystem": "bounded-payer",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/probe/src/payer.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Core discipline",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Replay, ordering, and transaction attack classes",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Universal moves",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Two invoice files may carry the same invoice_id - nothing dedupes ids at intake and decide() never sees id uniqueness. After each payment the txid update finds the FIRST decision with that id (payer.rs:320-326), so a later payment of a duplicate id overwrites the earlier payment's txid and leaves its own decision with txid: None, while payments[] and ledger.jsonl carry both; PayerDecision::paid() (observation) only compares the decision string, so no property flags it. The run's payer record mis-attributes and drops txids for duplicate merchant ids; no current coverage unit owns payer.rs#run evidence attribution, so this needs its own deterministic unit (fixture with duplicate ids, then check report/payer-policy expectations)."
+    ],
+    "bookkeeping": {
+      "proposed_by": "hunter-invoices",
+      "proposal_reason": "Two invoice files may carry the same invoice_id - nothing dedupes ids at intake and decide() never sees id uniqueness. After each payment the txid update finds the FIRST decision with that id (payer.rs:320-326), so a later payment of a duplicate id overwrites the earlier payment's txid and leaves its own decision with txid: None, while payments[] and ledger.jsonl carry both; PayerDecision::paid() (observation) only compares the decision string, so no property flags it. The run's payer record mis-attributes and drops txids for duplicate merchant ids; no current coverage unit owns payer.rs#run evidence attribution, so this needs its own deterministic unit (fixture with duplicate ids, then check report/payer-policy expectations)."
+    }
+  },
+  {
+    "coverage_id": "crates%2Fproperties%2Fsrc%2Fproperties%2Fpolicy_downgrade.rs%23check%20and%20crates%2Fproperties%2Fsrc%2Fproperties%2Funshielding.rs%23check%20%28the%20implicit%20pool-legs%20signals%29::a%20payment%20record%27s%20pool%20legs%20%28pool_in%2Fpool_out%29%20-%3E%20the%20leak%20verdict%20for%20a%20shielded-to-shielded%20cross-pool%20spend::properties-detectors::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/properties/src/properties/policy_downgrade.rs#check and crates/properties/src/properties/unshielding.rs#check (the implicit pool-legs signals)",
+      "boundary": "a payment record's pool legs (pool_in/pool_out) -> the leak verdict for a shielded-to-shielded cross-pool spend",
+      "subsystem": "properties-detectors",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/properties/src/properties/policy_downgrade.rs#check and crates/properties/src/properties/unshielding.rs#check (the implicit pool-legs signals)",
+    "boundary": "a payment record's pool legs (pool_in/pool_out) -> the leak verdict for a shielded-to-shielded cross-pool spend",
+    "subsystem": "properties-detectors",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/properties/src/properties/policy_downgrade.rs",
+      "crates/properties/src/properties/unshielding.rs",
+      "crates/observation/src/lib.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Both implicit signals are keyed on the transparent leg only - policy_downgrade.rs:92-93 fires on pool_out in {Transparent, CrossPool}, unshielding.rs:77 on pool_out == Transparent - so a payment that crosses between two shielded pools (Orchard in, Sapling out, recorded under the encoding the fixtures use at fixtures.rs:240-246: pool_out = the real destination pool, kind = CrossPool) produces no evidence from either property. The gap is independent of the payer's constant record: even a truthful writer would pass, so fixing crates/probe/src/payer.rs would not by itself make an Orchard -> Sapling payment detectable. No coverage unit owns the properties crate's detection logic (the only properties path in the ledger is payer_policy.rs, linked to the payer#decide unit), and the fixture set has no Sapling-crossing case, so this needs its own deterministic unit (writer-side encoding convention"
+    ],
+    "bookkeeping": {
+      "proposed_by": "hunter-broadcast",
+      "proposal_reason": "Both implicit signals are keyed on the transparent leg only - policy_downgrade.rs:92-93 fires on pool_out in {Transparent, CrossPool}, unshielding.rs:77 on pool_out == Transparent - so a payment that crosses between two shielded pools (Orchard in, Sapling out, recorded under the encoding the fixtures use at fixtures.rs:240-246: pool_out = the real destination pool, kind = CrossPool) produces no evidence from either property. The gap is independent of the payer's constant record: even a truthful writer would pass, so fixing crates/probe/src/payer.rs would not by itself make an Orchard -> Sapling payment detectable. No coverage unit owns the properties crate's detection logic (the only properties path in the ledger is payer_policy.rs, linked to the payer#decide unit), and the fixture set has no Sapling-crossing case, so this needs its own deterministic unit (writer-side encoding convention vs property-side signal, with a Sapling-crossing fixture)."
+    }
+  },
+  {
+    "coverage_id": "crates%2Freport%2Fsrc%2Flib.rs%23index-renderer::.github%2Fworkflows%2Fprivacy-gate.yml%23publish::published-evidence::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "crates/report/src/lib.rs#index-renderer",
+      "boundary": ".github/workflows/privacy-gate.yml#publish",
+      "subsystem": "published-evidence",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "crates/report/src/lib.rs#index-renderer",
+    "boundary": ".github/workflows/privacy-gate.yml#publish",
+    "subsystem": "published-evidence",
+    "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "starting_paths": [
+      "crates/report/src/lib.rs",
+      "crates/observation/src/lib.rs",
+      "docs/SUBMISSION.md",
+      "docs/LEAK-MATRIX.md",
+      ".gitignore"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "CLOUD-AND-DEPLOYMENT.md#Configuration and secret lifecycle attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-evidence",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      ".gitignore",
+      "action.yml",
+      "crates/observation/src/lib.rs",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/ops.rs",
+      "crates/properties/src/properties/report_leak.rs",
+      "crates/report/fixtures/index.golden.html",
+      "crates/report/fixtures/reports/report-2026-10-10.json",
+      "crates/report/src/anchor.rs",
+      "crates/report/src/index.rs",
+      "crates/report/src/lib.rs",
+      "crates/report/src/main.rs",
+      "crates/report/src/verify.rs",
+      "crates/report/tests/golden.rs",
+      "data/claims/2026-10-11-checkout-private.json",
+      "data/claims/index.html",
+      "data/demo-payer/invoices/8301.json",
+      "data/runs/ci-checkout/report.json",
+      "data/runs/ci-checkout/test.json",
+      "data/runs/demo/demo-control/report.json",
+      "data/runs/demo/demo-private/anchor.json",
+      "data/runs/demo/demo-private/report.json",
+      "data/runs/demo/demo-private/run.json",
+      "data/runs/demo/demo-private/test.json",
+      "docs/ANCHOR-NOTES.md",
+      "docs/CI.md",
+      "docs/CLAIMS.md",
+      "docs/LEAK-MATRIX.md",
+      "docs/SUBMISSION.md",
+      "docs/THREAT-MODEL.md",
+      "flows/ci-checkout.json",
+      "scratch/ci-private.log",
+      "scripts/bounded-payer-demo.sh",
+      "scripts/ci-summary.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/report/src/index.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/lib.rs",
+          "crates/report/fixtures/index.golden.html"
+        ],
+        "invariant": "the published claim page shows the claim (flow id, clock, hashes, anchor txid, verdicts) and must never render the evidence payload or the anchor record's key material",
+        "method": "source",
+        "result": "render_index_with_anchors formats only flow_id/flow_commit(short)/chain/verified_at/height/ttl/countdown/evidence-root+report-hash (full only in title attributes)/anchor txid+height/evidence count/merchant_is_simulated/finding property-severity-verdict-title-note/regression links; no Evidence value (txid, receiver, memo, pool totals, merchant field) is ever formatted; every interpolated value passes esc(); the golden fixture and the four recorded renderings (crates/report/fixtures/index.golden.html, data/claims/index.html, data/runs/index.html, data/runs/demo/index.html) contain zero occurrences of any receiver address or memo hex",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "action.yml",
+          ".gitignore"
+        ],
+        "invariant": "the publish job must publish a fixed allowlist of claim files and never widen to the rest of the run directory",
+        "method": "source",
+        "result": "publish (privacy-gate.yml:110-215) copies only index.html plus per-run report.json/anchor.json/test.json (line 161) and the tracked fixture reports (lines 143-148, 163); run.json, findings.json, gate.log and claim-input/ are not republished; the job is main-only and reads artifacts of its own workflow run; .gitignore excludes /data, claim-input/, public/, *.env, *.key",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/report/src/anchor.rs",
+          "crates/probe/src/ops.rs",
+          "crates/probe/src/core.rs",
+          "docs/THREAT-MODEL.md",
+          "docs/ANCHOR-NOTES.md",
+          "docs/CI.md"
+        ],
+        "invariant": "the only key material the pipeline publishes is the beacon viewing key its documented verifier needs; no seed, spending key or wallet credential reaches published output",
+        "method": "source",
+        "result": "anchor.json/test.json publish the beacon account-0 UFVK; the beacon wallet (WalletProfile::beacon) is instantiated only in the anchor path (ops.rs:540) and is paid only the 1000-zat anchor notes, so that key decrypts the anchor log and nothing else; no mnemonic, seed, USK, transparent key or node credential is written into report.json/anchor.json/test.json or the page (the docs state the beacon key must be public: THREAT-MODEL.md:48-56, ANCHOR-NOTES.md:32-36, CI.md:99)",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/report/src/verify.rs",
+          "crates/properties/src/properties/report_leak.rs",
+          "docs/CLAIMS.md",
+          "docs/LEAK-MATRIX.md"
+        ],
+        "invariant": "published report evidence is a whitelist that excludes payer-side and receipt material, and every published evidence entry is re-checkable",
+        "method": "source",
+        "result": "collect_evidence (lib.rs:209-254) whitelists transaction/batch_size, recipient receivers, memo bytes, pool totals and merchant fields; Payment.sender_receivers, funding receivers, receipts (with signer ak and wallet attestation), merchant headers, policy strings and free-form observed values are never copied into a report; verify re-checks tx/receiver/memo/pool entries against the chain and deliberately SKIPs merchant fields as not-chain facts (verify.rs:774-781)",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "docs/SUBMISSION.md",
+          "data/claims/index.html",
+          "data/claims/2026-10-11-checkout-private.json",
+          "crates/report/fixtures/reports/report-2026-10-10.json",
+          "flows/ci-checkout.json",
+          "scripts/bounded-payer-demo.sh"
+        ],
+        "invariant": "what the documented publish shape actually contains for a recorded claim",
+        "method": "source",
+        "result": "the recorded claim file and page carry the full evidence array (txids, regtest receivers, 20-byte invoice memos, merchant webhook fields, pool totals) next to the page - intended and requirable by 'zanary-report verify'; the flat fixture report published as history is already tracked in the repo, and the bounded-payer demo dir that the publish job also downloads has no top-level report.json/anchor.json/test.json, so no payer data reaches public/",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/probe/src/gate.rs",
+          "data/runs/demo/demo-private/report.json",
+          "data/runs/demo/demo-private/run.json",
+          "data/runs/demo/demo-private/anchor.json",
+          "data/runs/demo/demo-private/test.json",
+          "data/runs/demo/demo-control/report.json",
+          "data/runs/ci-checkout/test.json",
+          "data/runs/ci-checkout/report.json",
+          "data/demo-payer/invoices/8301.json",
+          "scratch/ci-private.log"
+        ],
+        "invariant": "recorded run-dir contents vs what the publish job copies (does any un-copied file carry material that would be excess if it were published)",
+        "method": "source",
+        "result": "run.json carries receipts with signer+attestation (merchant wallet ak), merchant-side headers, invoice ids and observed values, and gate.log carries the payer/merchant AccountUuid lines (scratch/ci-private.log:21-22) - the publish job copies none of them, but the gate/payer jobs upload those files as world-downloadable artifacts; test.json carries the raw flow_definition/run_dir/report_file argument strings plus the anchor's beacon_ufvk",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/report/src/index.rs",
+          "data/runs/demo/demo-private/report.json",
+          "data/runs/demo/demo-private/anchor.json"
+        ],
+        "invariant": "what the page actually renders when the claim input carries full evidence and an anchor record",
+        "method": "local",
+        "result": "rendering the built tool at commit 7058406 over a claim-input copy of the recorded private-flow report (32 evidence entries) plus its anchor.json produced a page that contains the flow id, short commit, report hash, evidence root, anchor txid+height, evidence count and finding text, and none of the 32 evidence entries' values, no anchor-record field except the txid, and no unescaped markup from a hostile flow_id/note/title (LEAKMARKER values absent)",
+        "artifact": "agents/hunter-evidence/artifacts/check-r1-render.json"
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/report/src/index.rs"
+        ],
+        "invariant": "the index must not abort on a report whose hash-like field is not pure ASCII at byte 12",
+        "method": "local",
+        "result": "a report whose flow_commit is 11 ASCII chars followed by U+00E9 panics at crates/report/src/index.rs:138 ('end byte index 12 is not a char boundary'), exit 101, no page written - byte-index truncation in short()",
+        "artifact": "agents/hunter-evidence/artifacts/check-r2-slice.txt"
+      },
+      {
+        "agent_id": "hunter-evidence",
+        "reviewed_paths": [
+          "crates/report/tests/golden.rs",
+          "crates/report/src/index.rs"
+        ],
+        "invariant": "the published page's bytes are pinned by tests, so an accidental widening of what the page shows fails CI",
+        "method": "local",
+        "result": "cargo test --offline -p zanary-report in the offline sandbox at commit 7058406: exit 0, 13 unit tests and 4 golden tests pass, including index_matches_golden_html which compares the renderer's output byte-for-byte against crates/report/fixtures/index.golden.html",
+        "artifact": "agents/hunter-evidence/artifacts/check-r3-tests.txt"
+      },
+      {
+        "agent_id": "verifier-16",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "action.yml",
+          "crates/probe/src/gate.rs",
+          "data/runs/ci-checkout/test.json",
+          "scripts/ci-summary.py"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/published-summary-carries-invocation-paths",
+        "method": "local",
+        "result": "needs_validation: Published claim files carry the gate's raw invocation-path arguments verbatim (${{ github.workspace }}-prefixed in the documented CI usage)",
+        "artifact": "agents/verifier-16/artifacts/check-v16-record.json"
+      },
+      {
+        "agent_id": "verifier-35",
+        "reviewed_paths": [
+          ".gitignore",
+          "crates/observation/src/lib.rs",
+          "crates/report/src/lib.rs",
+          "docs/LEAK-MATRIX.md",
+          "docs/SUBMISSION.md"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/published-summary-carries-invocation-paths",
+        "method": "local",
+        "result": "verified: fingerprint zanary/published-summary-carries-invocation-paths (Phase-5 record verification)",
+        "artifact": "agents/verifier-35/artifacts/check-v35-lines.json"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/published-summary-carries-invocation-paths"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "the anchor record publishes beacon_receiver, beacon_receiver_index and payer_label, which no consumer reads: AnchorRecord's only readers are the probe's gate (record.check_against and record.beacon_ufvk, gate.rs:189-234) and the index (anchor.report_hash/txid/height, main.rs:719-726), and zanary-report verify-anchor takes the beacon UFVK on the command line (main.rs:309-311, scanned at 397) - the three fields are written at ops.rs:592-596 and never read again, so the published anchor.json carries naming metadata (including the fixed label 'zanary-probe dev wallet (regtest harness)') beyond the claim's need; the beacon UFVK itself is also duplicated into test.json (gate.rs:359)",
+        "the beacon viewing key published in every anchor.json and test.json is a full account UFVK (it includes the outgoing viewing key and transparent components) where scanning needs only incoming-note decryption; the only thing keeping it limited to the anchor log is that WalletProfile::beacon is instantiated nowhere else (ops.rs:540) - a future use of that wallet would silently widen what the still-published key decrypts, and it cannot be unpublished",
+        "the page's anchor line is rendered from anchor.json alone: main.rs:704-731 trusts any record whose report_hash matches and index.rs:335-348 then prints 'the chain says this root existed by then' without a chain check, while the gate's own test.json carries a scan-verified anchor (gate.rs:205-234); a stale or hand-edited anchor.json beside a report makes the page assert an unbacked timestamp (page footer tells readers to re-derive, and verify-anchor will refute it)",
+        "index.rs short() (lines 136-142; the byte slice is at line 138) truncates by byte index and panics on a non-ASCII boundary; in the producing paths the fields are hex hashes/txids so no current run reaches it, but there is no validation that a report's flow_commit/report_hash/txid are ASCII before slicing (demonstrated locally, check-r2-slice.txt)",
+        "the page renders finding.notes verbatim (escaped, so no markup injection): notes are the property library's free text and the only prose channel into the published page today; they carry counts/thresholds only, so keep future notes count-derived",
+        "published report evidence includes merchant-side fields (amount_zat/invoice_id/txid per webhook path) that zanary-report verify explicitly SKIPs as 'not a chain fact' (verify.rs:774-781): the amounts are the only evidence for the amount-fingerprint verdict, yet a stranger has no way to re-derive them - publishing them is defensible for auditability, but collect_evidence whitelists merchant fields by field name only and republishes their values verbatim, so a flow that reports a secret-bearing field to its (real, non-simulated) merchant would publish it",
+        "docs/CLAIMS.md:36-41 promises claim pages are anonymised by default (flow identified by commit hash plus a conforming-or-refusing label, project name opt-in), but render_index has no such mode: it always prints flow_id verbatim; harmless for this repository's own claims (its own name), a doc/code gap for adopters",
+        "esc() escapes &, <, > and double quotes and never single quotes, which is safe only because every attribute in the generated page is double-quoted and there is no script context; a future single-quoted attribute or JS string would make that gap exploitable",
+        "the publish job's only inputs are the artifacts of its own workflow run on main (if: github.ref == 'refs/heads/main'), and PR builds cannot write into the published page - the control that keeps a contributor's flow definition from reaching public output; the flat fixture reports published as history are already tracked files, so that copy adds no new disclosure"
+      ],
+      "wave1_agent": "hunter-evidence",
+      "note": "wave-1 hunter result recovered by parent on resume from async_delegations.result_json (delivery was dropped when the orchestrator session stalled)",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-16",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-35",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Freport%2Fsrc%2Fmain.rs%23run-and-report-intake::crates%2Freport%2Fsrc%2Flib.rs%23renderers-and-property-evaluation::published-evidence::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "crates/report/src/main.rs#run-and-report-intake",
+      "boundary": "crates/report/src/lib.rs#renderers-and-property-evaluation",
+      "subsystem": "published-evidence",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "crates/report/src/main.rs#run-and-report-intake",
+    "boundary": "crates/report/src/lib.rs#renderers-and-property-evaluation",
+    "subsystem": "published-evidence",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "crates/report/src/main.rs",
+      "crates/report/src/matrix.rs",
+      "crates/report/src/verify.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-intake",
+    "reviewed_paths": [
+      "crates/observation/src/lib.rs",
+      "crates/properties/src/lib.rs",
+      "crates/properties/src/properties/amount_fingerprint.rs",
+      "crates/properties/src/properties/common.rs",
+      "crates/properties/src/properties/memo_absent.rs",
+      "crates/properties/src/properties/memo_content.rs",
+      "crates/properties/src/properties/payer_linkability.rs",
+      "crates/properties/src/properties/policy_downgrade.rs",
+      "crates/properties/src/properties/receiver_reuse.rs",
+      "crates/properties/src/properties/report_leak.rs",
+      "crates/properties/src/properties/same_block_roundtrip.rs",
+      "crates/properties/src/properties/server_metadata.rs",
+      "crates/properties/src/properties/timing_correlation.rs",
+      "crates/properties/src/properties/transparent_fallback.rs",
+      "crates/properties/src/properties/unshielding.rs",
+      "crates/report/src/anchor.rs",
+      "crates/report/src/index.rs",
+      "crates/report/src/lib.rs",
+      "crates/report/src/main.rs",
+      "crates/report/src/matrix.rs",
+      "crates/report/src/receipt.rs",
+      "crates/report/src/verify.rs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/verify.rs",
+          "crates/report/src/lib.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "The display helpers short()/short_tail() truncate report/run JSON fields by byte index; a field carrying a multi-byte UTF-8 character at the truncation offset must not abort the process (documented exit contract: 0 pass / 1 mismatch / 2 error).",
+        "method": "local",
+        "result": "Ran the binary built from the reviewed revision in the sandbox. verify on a report whose flow_commit is 'aaaaaaaaaaaé' (byte 12 inside the character): exit 101, stdout empty, panic at crates/report/src/main.rs:762:29 'end byte index 12 is not a char boundary'. Same shape in report_hash: panic at crates/report/src/verify.rs:851:29, i.e. inside the report-hash-mismatch branch that exists to report an altered claim. build --run <hostile run.json>: wrote its --out report.json, then panicked at main.rs:762:29, exit 101. verify-anchor --root <13-byte multibyte>: panicked offline at main.rs:762:29; with --report and a mismatching 25-byte --root: panic at main.rs:287:28 (short_tail). Benign controls: verify exited 1 with a full check list, verify-anchor/parse paths clean.",
+        "artifact": "agents/hunter-intake/artifacts/check-intake-panics.txt"
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/matrix.rs",
+          "crates/report/src/main.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "matrix --runs <dir> must render every run directory it accepts or fail with a diagnostic; it must not abort while truncating a run.json field.",
+        "method": "local",
+        "result": "run directory whose run.json has flow_commit 'abcdefgé' (byte 8 inside the character): exit 101, panic at crates/report/src/matrix.rs:109:27, out file not written; benign run directory exits 0 and renders (out2/m0.md). Same expression also at matrix.rs:148 and main.rs:226.",
+        "artifact": "agents/hunter-intake/artifacts/check-matrix-panic.txt"
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/main.rs"
+        ],
+        "invariant": "Every filesystem path the report CLI writes or reads comes from the operator's own arguments or env; no path component is derived from parsed JSON (no traversal, no zip slip); the index walk stays one level under --reports.",
+        "method": "source",
+        "result": "Confirmed: verify/build/matrix/index/verify-anchor/verify-receipt open only --run/--findings/--report/--reports/--root/--out paths plus the anchor sidecar built from the directory entry (main.rs:711-714); no crate in the intake handles archives; the index walk follows symlinks only inside the directory the operator named (same principal).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/verify.rs",
+          "crates/report/src/lib.rs"
+        ],
+        "invariant": "Caller-supplied numbers in the intake are parsed with checks and are never used as lengths, indices or offsets.",
+        "method": "source",
+        "result": "Confirmed: --ttl-days uses checked_mul(86_400) with an explicit overflow error (main.rs:609-617); --verified-at is RFC3339-validated in build_with_claim (lib.rs:130-134); --since/--now parse with context; batch_size as usize (verify.rs:334) is a widening cast compared against an Orchard action count; indexer height as u32 (verify.rs:282) only feeds the node-vs-indexer agreement line (the node stays authoritative). The only byte-index arithmetic over data is the display truncation, carried as the candidate.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/lib.rs",
+          "crates/report/src/anchor.rs"
+        ],
+        "invariant": "Untrusted JSON deserialization is derive-only (no untagged/flatten/custom Deserialize, no data-driven recursion) and malformed input produces a clean error or an explicit skip, never partial state.",
+        "method": "source",
+        "result": "Confirmed: Report/Evidence/Finding/FlowRun/Receipt/AnchorRecord are plain serde derives; index skips unparseable files with a stderr warning (main.rs:698-701); verify/build/verify-receipt exit 2 with a context message; Anchor::from_memo_text refuses unknown fields and unknown payload versions (anchor.rs:82-109). No unsafe-deserialization surface reachable from this intake.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/properties/src/lib.rs",
+          "crates/properties/src/properties/amount_fingerprint.rs",
+          "crates/properties/src/properties/common.rs",
+          "crates/properties/src/properties/memo_absent.rs",
+          "crates/properties/src/properties/memo_content.rs",
+          "crates/properties/src/properties/payer_linkability.rs",
+          "crates/properties/src/properties/policy_downgrade.rs",
+          "crates/properties/src/properties/receiver_reuse.rs",
+          "crates/properties/src/properties/report_leak.rs",
+          "crates/properties/src/properties/same_block_roundtrip.rs",
+          "crates/properties/src/properties/server_metadata.rs",
+          "crates/properties/src/properties/timing_correlation.rs",
+          "crates/properties/src/properties/transparent_fallback.rs",
+          "crates/properties/src/properties/unshielding.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "Property evaluation reached from `build --run <untrusted run.json>` (zanary_properties::evaluate) must not panic or mis-bound on hostile heights, amounts or strings.",
+        "method": "source",
+        "result": "No defect found. timing-correlation's u32 subtraction is preceded by its `f.height <= h` filter and expect(\"delay came from this set\") filters on the same expression that produced the minimum (reachable-safe); same-block-roundtrip compares Options before unwrap; unshielding widens to u128 and uses saturating_sub; payer-linkability uses fixed weights, abs_diff and Dsu indices bounded by n; amount-fingerprint uses abs_diff and a len==1 guard before candidates[0]; common.rs slices only after a char-boundary find('@'). payer_policy.rs excluded (peer-owned bounded-payer unit).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-intake",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/matrix.rs"
+        ],
+        "invariant": "Resource bounds on intake: file size, array lengths and output escaping for data the CLI ingests.",
+        "method": "source",
+        "result": "No bound exists: fs::read_to_string with no size cap, evidence/findings/merchant_events accepted unbounded, hash_report clones the whole Report, pairwise property loops are O(n^2), and matrix markdown interpolates run-supplied strings unescaped. All same-principal input (the operator names the file), so recorded as hardening rather than a finding.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-3",
+        "reviewed_paths": [
+          "crates/report/src/index.rs",
+          "crates/report/src/lib.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/matrix.rs",
+          "crates/report/src/receipt.rs",
+          "crates/report/src/verify.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields",
+        "method": "local",
+        "result": "confirmed: Report CLI truncates untrusted report/run JSON fields by byte index and panics (exit 101) instead of returning a verdict",
+        "artifact": "agents/verifier-3/artifacts/check-verdict.json"
+      },
+      {
+        "agent_id": "verifier-22",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/matrix.rs",
+          "crates/report/src/verify.rs"
+        ],
+        "invariant": "independent Phase-5 check of the finished record crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields",
+        "method": "local",
+        "result": "verified: fingerprint crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields (Phase-5 record verification)",
+        "artifact": "agents/verifier-22/artifacts/check-22-results.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "No resource bound on intake: every read is fs::read_to_string with no size cap (report/run/receipt/anchor JSON, and every *.json in the --reports directory), array lengths (evidence/findings/merchant_events) are unbounded, hash_report clones the whole Report and the pairwise property loops are O(n^2); a byte cap with a clean exit 2 at intake would bound it. Same-principal input (the operator names the file), so not a finding.",
+        "index trusts the sidecar anchor record: the anchor map is keyed by the record's own claimed report_hash (crates/report/src/main.rs:719-727) with no chain check, while the page then asserts 'the chain says this root existed by then' (index.rs:337-343); a hand-written anchor.json in an indexed directory makes the published page claim a timestamp nothing verified (verify-anchor is the check that would catch it). The indexed directories in this repo's own publish job are rig-produced, so recorded as hardening.",
+        "matrix output is unescaped markdown: render_markdown interpolates flow_commit, property names and the run directory path raw into docs/LEAK-MATRIX.md, including inside the fenced re-check command (matrix.rs:104-158); a third-party run directory handed to the operator can forge table cells or close the fence in the generated document. Values come from directories the operator named, so hygiene rather than a boundary crossing.",
+        "--out targets are written with fs::write (main.rs:219, 621, 652, 734), which follows symlinks and truncates whatever the operator names; no output path is ever derived from JSON, so this is only a local footgun worth a create_new where clobbering is not intended."
+      ],
+      "wave2_agent": "hunter-intake",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-3",
+          "decision": "confirmed"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-22",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Freport%2Fsrc%2Fmain.rs%23short%20%28762%29%20and%20%23short_tail%20%28287%29%2C%20crates%2Freport%2Fsrc%2Fverify.rs%23short%20%28851%29%2C%20crates%2Freport%2Fsrc%2Findex.rs%23short%20%28136%29::a%20caller-supplied%20report.json%20%2F%20run.json%20%2F%20--root%20argument%20-%3E%20the%20printed%20verdict%20text%20and%20exit%20code%20of%20%60zanary-report%20verify%60%2C%20%60verify-anchor%60%20and%20%60index%60::published-evidence::MEMORY-SAFETY-AND-BINARY.md%23Bounds%2C%20integer%2C%20and%20representation%20attack%20classes",
+    "canonical_refs": {
+      "surface": "crates/report/src/main.rs#short (762) and #short_tail (287), crates/report/src/verify.rs#short (851), crates/report/src/index.rs#short (136)",
+      "boundary": "a caller-supplied report.json / run.json / --root argument -> the printed verdict text and exit code of `zanary-report verify`, `verify-anchor` and `index`",
+      "subsystem": "published-evidence",
+      "attack_class": "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes"
+    },
+    "surface": "crates/report/src/main.rs#short (762) and #short_tail (287), crates/report/src/verify.rs#short (851), crates/report/src/index.rs#short (136)",
+    "boundary": "a caller-supplied report.json / run.json / --root argument -> the printed verdict text and exit code of `zanary-report verify`, `verify-anchor` and `index`",
+    "subsystem": "published-evidence",
+    "attack_class": "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+    "starting_paths": [
+      "crates/report/src/main.rs",
+      "crates/report/src/verify.rs",
+      "crates/report/src/index.rs",
+      "crates/report/src/receipt.rs",
+      "crates/report/src/node.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Same root cause as this unit's confirmed panic (byte-offset slicing of a str with only a length guard), on surfaces this unit does not own, and reproduced in the same sandbox: `verify /t/bad-report-hash.json` panicked at crates/report/src/verify.rs:851:29 (exit 101) on report_hash from the report JSON; `verify-anchor --root \"aaaaaaaaaaa<euro>bbb\"` and `verify /t/bad-flow-commit.json` panicked at crates/report/src/main.rs:762:29 (exit 101) on argv and on flow_commit from the report JSON - all before any network call. index.rs:136 has the same slice and renders report.flow_commit/report_hash into the published HTML at index.rs:298/314/326/409/411. The unit that owns crates/report/src/main.rs#run-and-report-intake is scoped to ATTACK-CLASSES.md#Resource and file handling and the index/publish unit to the crypto-disclosure boundary, so no current unit covers these under the representation cl"
+    ],
+    "bookkeeping": {
+      "proposed_by": "hunter-receipt",
+      "proposal_reason": "Same root cause as this unit's confirmed panic (byte-offset slicing of a str with only a length guard), on surfaces this unit does not own, and reproduced in the same sandbox: `verify /t/bad-report-hash.json` panicked at crates/report/src/verify.rs:851:29 (exit 101) on report_hash from the report JSON; `verify-anchor --root \"aaaaaaaaaaa<euro>bbb\"` and `verify /t/bad-flow-commit.json` panicked at crates/report/src/main.rs:762:29 (exit 101) on argv and on flow_commit from the report JSON - all before any network call. index.rs:136 has the same slice and renders report.flow_commit/report_hash into the published HTML at index.rs:298/314/326/409/411. The unit that owns crates/report/src/main.rs#run-and-report-intake is scoped to ATTACK-CLASSES.md#Resource and file handling and the index/publish unit to the crypto-disclosure boundary, so no current unit covers these under the representation class; one deterministic unit should own them and the fix is shared (crates/report/src/node.rs:193 already shows the safe shape).",
+      "parent_notes": [
+        "same defect shape as this run's candidate crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields (main.rs:762); this unit's distinct value is the copies and rendering paths that candidate does not name (verify.rs:851, index.rs:136 published to Pages, and argv through short_tail). One remediation should replace every copy"
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Freport%2Fsrc%2Freceipt.rs%23verify_signature%20%2F%20verify_attestation%20%2F%20validate_claim::a%20flow-signed%20receipt%20%28signer%20ak%20%2B%20optional%20wallet%20attestation%29%20-%3E%20the%20offline%20%60verify-receipt%60%20verdict%3A%20signature%20validity%2C%20attestation-to-wallet%20binding%2C%20claim%2Fbody%20agreement%2C%20exit%20code::published-evidence::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "crates/report/src/receipt.rs#verify_signature / verify_attestation / validate_claim",
+      "boundary": "a flow-signed receipt (signer ak + optional wallet attestation) -> the offline `verify-receipt` verdict: signature validity, attestation-to-wallet binding, claim/body agreement, exit code",
+      "subsystem": "published-evidence",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "crates/report/src/receipt.rs#verify_signature / verify_attestation / validate_claim",
+    "boundary": "a flow-signed receipt (signer ak + optional wallet attestation) -> the offline `verify-receipt` verdict: signature validity, attestation-to-wallet binding, claim/body agreement, exit code",
+    "subsystem": "published-evidence",
+    "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "starting_paths": [
+      "crates/report/src/receipt.rs",
+      "crates/report/src/main.rs",
+      "crates/observation/src/lib.rs",
+      "schemas/zanary-receipt-v1.json",
+      "crates/probe/src/flow.rs",
+      "docs/FLOW-RUNNER-NOTES.md",
+      "data/receipts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Bounds, integer, and representation attack classes",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+        "reason": "considered for the receipt's disclosure lifecycle (attested vs un-attested receipts riding world-downloadable CI artifacts); that boundary is already owned by the planned gate-evidence unit (gate.rs#test-summary-and-run-artifacts x .github/workflows/privacy-gate.yml#evidence-artifact-upload) and by the publish-side unit, while this unit's boundary is the offline verdict, which publishes or derives no new copy."
+      },
+      {
+        "block": "PROTOCOLS-RPC-AND-MESSAGING.md#Envelope and payload identity mismatch",
+        "reason": "considered for the receipt's format handling; verify-receipt is offline by construction with no peer channel or second consumer whose independent decoding can disagree (main.rs:60-62), so the receipt's internal payload-to-envelope binding is settled by this unit's ordinary class."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-receipt",
+    "reviewed_paths": [
+      "README.md",
+      "crates/observation/src/lib.rs",
+      "crates/probe/src/flow.rs",
+      "crates/properties/src/properties/report_leak.rs",
+      "crates/report/src/main.rs",
+      "crates/report/src/receipt.rs",
+      "data/receipts",
+      "docs/FLOW-RUNNER-NOTES.md",
+      "docs/THREAT-MODEL.md",
+      "schemas/zanary-receipt-v1.json"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/report/src/receipt.rs",
+          "crates/report/src/main.rs",
+          "crates/observation/src/lib.rs"
+        ],
+        "invariant": "the verdict binds exactly what it claims: the receipt signature covers {format, body, claims, discloses} under the key the receipt NAMES; the attestation is outside those bytes; --signer pins the named key and --fvk binds it to a wallet's ak through the wallet's own attestation signature; claim/body agreement is checked by validate_claim.",
+        "method": "source",
+        "result": "Source-confirmed for the binding model: signing_payload/attestation_payload cover only those fields (receipt.rs:24-40, 100-115); verify_signature checks the signature under receipt.signer (receipt.rs:55-94), so a bare pass means only 'that key signed this' - documented at receipt.rs:10-12 and printed as `binding : none` (main.rs:191-196); the `signer` field itself is not in the signed payload, but substituting it breaks verification because it is the verification key; verify_attestation compares attestation.receipt_key against receipt.signer and attestation.wallet_ak against the UFVK-derived ak before checking the wallet's own signature (receipt.rs:125-185), and an attestation does not move the receipt's signed bytes (receipt.rs:487-504), so neither replaying nor stripping an attestation yields a --fvk pass. Nothing binds body/claims to a chain, invoice or amount beyond the signer's assertion - the module documents that limitation, so it is not a finding.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/report/src/receipt.rs",
+          "crates/report/src/main.rs"
+        ],
+        "invariant": "a receipt file that is not ASCII hex in its key/signature fields, or that carries an unvalidated attestation, is reported with a verdict (INVALID, exit 1) or echoed safely - never by aborting the verifier.",
+        "method": "local",
+        "result": "Violated (candidate 1). Four panics reproduced in the sandbox: unit probes probe_a (receipt.rs:359:36, signer=\"a<euro>\") and probe_b (receipt.rs:190:30, 24-byte key), and CLI runs `verify-receipt /t/hunter/bad-hex-signer.json` -> no verdict printed, exit 101 and `verify-receipt /t/hunter/grafted-attestation.json` -> `signature : VALID` + both `claim ok` lines, then panic, exit 101. Raw unit log in check-probe-log.txt.",
+        "artifact": "agents/hunter-receipt/artifacts/check-receipt-panic.txt"
+      },
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/report/src/receipt.rs",
+          "schemas/zanary-receipt-v1.json"
+        ],
+        "invariant": "a receipt whose claims state different figures than its body is refused by validate_claim (`claim : INVALID`, exit 1), as the schema promises.",
+        "method": "local",
+        "result": "Violated (candidate 2). The executed receipt carries body invoice 4471 / 1234567 zatoshis / txid 44f2...337e and the claim `invoice 44710 was paid 12345678 zatoshis in transaction 44f2...337e`; validate_claim returned Ok at unit level and the CLI printed both `claim ok` lines and exited 0. The check is a three-needle `words.contains(&needle)` loop, so any superstring satisfies it.",
+        "artifact": "agents/hunter-receipt/artifacts/check-claim-containment.txt"
+      },
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/report/src/receipt.rs",
+          "schemas/zanary-receipt-v1.json"
+        ],
+        "invariant": "the implementation is the check the shipped schema promises (same accept/reject set for third-party tools) and the key it accepts as `signer` is one an Orchard wallet could hold.",
+        "method": "source",
+        "result": "Two divergences, both hardening rather than findings: (a) uppercase hex is accepted for body txid/memo_sha256 (receipt.rs:301 is_ascii_hexdigit) and for signer/signature/attestation fields, while the schema requires ^[0-9a-f]{64}$/^[0-9a-f]{128}$ and the code's own message claims 'zanary-receipt-v1 says lowercase hex' - executed: uppercase-txid fixture exits 0 with `claim ok`; (b) the identity point (32 zero bytes) is accepted as `signer` (executed: r=B, s=1 verifies, `signer : 000...0`), because reddsa 0.5.2 allows the identity for Orchard and pasta_curves decodes the all-zero encoding as it; a real Orchard ak can never be the identity. Neither grants a pass an attacker could not already obtain with their own key.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/report/src/main.rs",
+          "crates/report/src/receipt.rs"
+        ],
+        "invariant": "the built CLI's verdicts match the documented behaviour table for the controls, for the unattested + --fvk case, for a garbage UFVK, and for a flag given without a value.",
+        "method": "local",
+        "result": "Controls on the same sandbox build: clean receipt -> `signature : VALID`, `binding : none`, exit 0; clean receipt + `--fvk <local merchant.ufvk>` -> `FAIL - nothing binds this receipt to that wallet`, exit 1; `--fvk notaufvk` -> `error: decoding the unified full viewing key: Address is not Bech32m encoded`, exit 2; `--signer` with no value is silently dropped and still exits 0 (hardening 3); a bad signature exits 1, not the `2` the docs' Known gaps claims (hardening 6).",
+        "artifact": "agents/hunter-receipt/artifacts/check-cli-run.txt"
+      },
+      {
+        "agent_id": "hunter-receipt",
+        "reviewed_paths": [
+          "crates/probe/src/flow.rs",
+          "docs/FLOW-RUNNER-NOTES.md",
+          "docs/THREAT-MODEL.md",
+          "README.md"
+        ],
+        "invariant": "the producer signs receipts with a dedicated key and fresh randomness, and the documented behaviour/exit-code contract matches what the verifier does.",
+        "method": "source",
+        "result": "Producer is sound: sign_receipt uses ZIP-32 account `receipt_account` (default 1, refused when equal to merchant_account: flow.rs:73-78, 263-267, 383-386) and signs each payload with rand::rngs::OsRng (flow.rs:1496) - no nonce reuse, no weak randomness, and the printed material is only public keys and 8+8 prefixes, no secrets in errors or logs. The documented table matches the verifier for the rows that still reproduce (clean 0, unattested + --fvk 1, wrong signer 1), but its fixtures are canary-era and untracked and the Known-gaps exit-code sentence is wrong (hardening 5 and 6).",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-4",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/receipt.rs"
+        ],
+        "invariant": "independent Phase-3 re-derivation of crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields",
+        "method": "local",
+        "result": "confirmed: verify-receipt aborts with a Rust panic (exit 101, no verdict) on a receipt whose hex fields or attestation key are not ASCII",
+        "artifact": "agents/verifier-4/artifacts/check-final-record.json"
+      },
+      {
+        "agent_id": "verifier-5",
+        "reviewed_paths": [
+          "crates/properties/src/properties/report_leak.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/receipt.rs",
+          "docs/FLOW-RUNNER-NOTES.md",
+          "schemas/zanary-receipt-v1.json"
+        ],
+        "invariant": "independent Phase-3 re-derivation of crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment",
+        "method": "local",
+        "result": "confirmed: verify-receipt certifies claim/body agreement for a receipt whose claims state different figures (substring containment)",
+        "artifact": "agents/verifier-5/artifacts/check-final-record.json"
+      },
+      {
+        "agent_id": "verifier-24",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/flow.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/receipt.rs",
+          "data/receipts",
+          "docs/FLOW-RUNNER-NOTES.md",
+          "schemas/zanary-receipt-v1.json"
+        ],
+        "invariant": "independent Phase-5 check of the finished record crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment",
+        "method": "local",
+        "result": "verified: fingerprint crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment (Phase-5 record verification)",
+        "artifact": "agents/verifier-24/artifacts/check-cli-output.txt"
+      },
+      {
+        "agent_id": "verifier-23",
+        "reviewed_paths": [
+          "crates/observation/src/lib.rs",
+          "crates/probe/src/flow.rs",
+          "crates/report/src/main.rs",
+          "crates/report/src/receipt.rs",
+          "data/receipts",
+          "docs/FLOW-RUNNER-NOTES.md",
+          "schemas/zanary-receipt-v1.json"
+        ],
+        "invariant": "independent Phase-5 check of the finished record crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields",
+        "method": "local",
+        "result": "verified: fingerprint crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields (Phase-5 record verification)",
+        "artifact": "agents/verifier-23/artifacts/check-cli-independent.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields",
+      "crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "Identity signer accepted: a receipt whose `signer` is the 32-byte all-zero encoding (the Pallas identity point) verifies for any payload (executed: signature r=B, s=1 -> `signature : VALID`, exit 0), because reddsa 0.5.2 deliberately admits the identity as an Orchard verification key and pasta_curves decodes all-zero bytes as the identity. A real Orchard `ak` can never be the identity, so a self-contained receipt format should reject it explicitly (a `signer` of all zeros is otherwise a key whose 'private' scalar 0 is public).",
+        "Verifier more permissive than the schema it says it implements: uppercase hex passes validate_claim for `txid`/`memo_sha256` (receipt.rs:301 uses is_ascii_hexdigit, and the receipt.rs:303 error text claims lowercase) and for `signer`/`signature`/`attestation.*`, while schemas/zanary-receipt-v1.json requires ^[0-9a-f]{64}$ / ^[0-9a-f]{128}$; the attestation's own field shapes are only checked on the --fvk path. Two shipped validators therefore disagree about the same artifact (executed: uppercase-txid receipt exits 0 with `claim ok`).",
+        "`--fvk`, `--signer` and `--network` given without a value are silently treated as absent (main.rs:88-95, `args.get(i + 1).cloned()`): `verify-receipt clean.json --signer` prints no `expected` line and exits 0, so a caller whose variable was empty gets a bare signature check instead of the pin it asked for. Reject a flag with no value.",
+        "`SignatureCheck.signer_matches` is hardcoded `true` (receipt.rs:92) while its doc comment promises 'True when the receipt also named this signer in its own fields'; since `signer` is not part of the signed payload, the field can never carry information. Drop it or define something a third-party caller can act on.",
+        "The local evidence set under data/receipts is untracked (`git ls-files data` is empty; `/data` is gitignored) and stale: every fixture still says `\"format\": \"canary-receipt-v1\"`, so the documented `verify-receipt data/receipts/invoice-4471.json` now exits 1 (\"unknown receipt format ... this verifier knows zanary-receipt-v1\") where docs/FLOW-RUNNER-NOTES.md:345 records exit 0; the shipped `data/receipts/merchant.ufvk` is byte-identical to the dev UFVK committed in docs/WALLET-NOTES.md (whose seed phrase is also hardcoded at crates/report/src/verify.rs:47, crates/probe/src/core.rs:64, crates/probe/src/bin/zanary-seed.rs:81) yet derives ak 6cb31f4d..., not the wallet_ak 3bae3a08... that attests the published receipts. Regenerate the fixtures and the table, and use a seed that is not in the tree if the binding demo is meant to show forgery resistance.",
+        "docs/FLOW-RUNNER-NOTES.md:502 ('Known gaps') states receipts 'check offline (`verify-receipt`, exit 0 / 2 for a bad signature / 1 for a wrong signer)': a bad signature exits 1 (main.rs:135-138) and 2 is reserved for input errors (unreadable file, undecodable UFVK; both observed). The exit-code sentence is the contract a consumer scripts against, so it should be corrected."
+      ],
+      "wave2_agent": "hunter-receipt",
+      "parent_normalizations": [
+        "source check from this agent omitted the required `artifact` field; set to null (source checks carry no artifact)",
+        "source check from this agent omitted the required `artifact` field; set to null (source checks carry no artifact)",
+        "source check from this agent omitted the required `artifact` field; set to null (source checks carry no artifact)"
+      ],
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-4",
+          "decision": "confirmed"
+        },
+        {
+          "verifier": "verifier-5",
+          "decision": "confirmed"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-24",
+          "decision": "verified"
+        },
+        {
+          "verifier": "verifier-23",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "crates%2Freport%2Fsrc%2Fverify.rs%23verify_report%20verdict%20model%20and%20the%20published%20claim%20bundle%20it%20is%20pointed%20at::a%20claim%20as%20published%20%28report.json%20%2B%20anchor.json%20%2B%20test.json%20under%20%2Fclaims%2F%29%20-%3E%20what%20a%20stranger%27s%20%60zanary-report%20verify%60%20%2F%20%60verify-anchor%60%20actually%20re-derive%2C%20and%20what%20the%20row%20the%20index%20page%20renders%20asserts%20from%20a%20VERIFIED%20verdict::published-evidence::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "crates/report/src/verify.rs#verify_report verdict model and the published claim bundle it is pointed at",
+      "boundary": "a claim as published (report.json + anchor.json + test.json under /claims/) -> what a stranger's `zanary-report verify` / `verify-anchor` actually re-derive, and what the row the index page renders asserts from a VERIFIED verdict",
+      "subsystem": "published-evidence",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "crates/report/src/verify.rs#verify_report verdict model and the published claim bundle it is pointed at",
+    "boundary": "a claim as published (report.json + anchor.json + test.json under /claims/) -> what a stranger's `zanary-report verify` / `verify-anchor` actually re-derive, and what the row the index page renders asserts from a VERIFIED verdict",
+    "subsystem": "published-evidence",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "crates/report/src/verify.rs",
+      "crates/report/src/main.rs",
+      "crates/report/src/lib.rs",
+      "crates/report/src/index.rs",
+      "crates/probe/src/gate.rs",
+      "docs/CLAIMS.md",
+      ".github/workflows/privacy-gate.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "PROTOCOLS-RPC-AND-MESSAGING.md#RPC identity and authorization attack classes",
+        "reason": "the peer the verifier reads (zcashd JSON-RPC over plain HTTP behind one shared credential, indexer hop with no credential or TLS) is owned by the local-rig unit (harness/docker-compose.yml#services x harness/zcash.conf#rpc-credentials) and by the rig-image unit; this unit's question is what a verdict over a caller-supplied report establishes, not the identity of the node."
+      },
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Configuration and secret lifecycle attack classes",
+        "reason": "no credential lifecycle is selected by this boundary: the verifier reads the repo-default ZANARY_NODE_USER/PASS and prints no key material, and the beacon UFVK it needs is published by design (docs/ANCHOR-NOTES.md, docs/THREAT-MODEL.md:48-56)."
+      },
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Deletion, revocation, and lifecycle attack classes",
+        "reason": "claim expiry/stale/dead rendering is owned by the index-renderer unit (crates/report/src/lib.rs#index-renderer); this unit asks what a VERIFIED verdict covers, not when a claim ages out."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: Nothing in the 18 units asks what the verifier's PASS establishes, yet docs/CLAIMS.md:69-72 promises a stranger can check 'the report hash, the properties, the evidence array, and the anchor memo'. Source facts: (1) `zanary-report verify` exits 0 iff VerifyOutcome::verified(), i.e. fails() == 0 (crates/report/src/verify.rs:109-112; crates/report/src/main.rs:570-582), so a report whose evidence array is empty - or holds only MerchantField entries, which the verifier pushes as Skip by design (verify.rs:774-786) - prints VERIFIED and exits 0 as soon as the node answers chain `regtest` and its tip >= verified_at_height (verify.rs:697-742); evidence_root(&[]) is a defined constant (lib.rs:187-189), so such a report is buildable, hashable and publishable. (2) report.findings is never read on the verification path (no `finding` reference anywhere in verify.rs), so the property verdicts the publ"
+    ],
+    "bookkeeping": {
+      "proposed_by": "critic-wave2",
+      "proposal_reason": "Nothing in the 18 units asks what the verifier's PASS establishes, yet docs/CLAIMS.md:69-72 promises a stranger can check 'the report hash, the properties, the evidence array, and the anchor memo'. Source facts: (1) `zanary-report verify` exits 0 iff VerifyOutcome::verified(), i.e. fails() == 0 (crates/report/src/verify.rs:109-112; crates/report/src/main.rs:570-582), so a report whose evidence array is empty - or holds only MerchantField entries, which the verifier pushes as Skip by design (verify.rs:774-786) - prints VERIFIED and exits 0 as soon as the node answers chain `regtest` and its tip >= verified_at_height (verify.rs:697-742); evidence_root(&[]) is a defined constant (lib.rs:187-189), so such a report is buildable, hashable and publishable. (2) report.findings is never read on the verification path (no `finding` reference anywhere in verify.rs), so the property verdicts the published page renders (crates/report/src/index.rs:105-121, 365-366) are the one part of a claim no in-repo verifier re-derives, and the published bundle omits the run.json that `zanary-report build` would need to recompute them (.github/workflows/privacy-gate.yml:158-163) - after the 30-day artifact expires the verdicts are unauditable while the site keeps presenting them, with a countdown, as a live claim. (3) The gate's own `chain_verified` inherits the same condition (crates/probe/src/gate.rs:165, 239-250). Distinguish from what is already owned: the index-renderer unit checked that the page never leaks the evidence payload and that publish copies a fixed allowlist; the report-intake unit checked intake panics, paths and resource bounds; the receipt unit owns the receipt's own binding. None states what a PASS covers. Local checks are available offline: a fixture report with empty/skip-only evidence plus a loopback can stand in for the node (the seed unit already used a loopback fixture), and CLAIMS.md vs verify.rs is a source-level comparison.",
+      "paths_missing_in_target": []
+    }
+  },
+  {
+    "coverage_id": "harness%2Fdocker-compose.yml%23services::electriccoinco%2Fzcashd%3Alatest%20and%20electriccoinco%2Flightwalletd%3Alatest%20image%20references::local-rig::SUPPLY-CHAIN-AND-RELEASE.md%23Dependency%20and%20build-input%20attack%20classes",
+    "canonical_refs": {
+      "surface": "harness/docker-compose.yml#services",
+      "boundary": "electriccoinco/zcashd:latest and electriccoinco/lightwalletd:latest image references",
+      "subsystem": "local-rig",
+      "attack_class": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes"
+    },
+    "surface": "harness/docker-compose.yml#services",
+    "boundary": "electriccoinco/zcashd:latest and electriccoinco/lightwalletd:latest image references",
+    "subsystem": "local-rig",
+    "attack_class": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes",
+    "starting_paths": [
+      "harness/docker-compose.yml",
+      "harness/up.sh",
+      "harness/HARNESS.md"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-images",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      "README.md",
+      "action.yml",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/gate.rs",
+      "crates/probe/src/main.rs",
+      "crates/report/src/lib.rs",
+      "crates/report/src/verify.rs",
+      "docs/CI.md",
+      "docs/SUBMISSION.md",
+      "harness/HARNESS.md",
+      "harness/docker-compose.yml",
+      "harness/up.sh",
+      "rust-toolchain.toml",
+      "scripts/phase0-warmup.sh"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-images",
+        "reviewed_paths": [
+          "harness/docker-compose.yml",
+          "harness/up.sh",
+          "harness/HARNESS.md",
+          "action.yml",
+          ".github/workflows/privacy-gate.yml",
+          "README.md",
+          "docs/CI.md",
+          "scripts/phase0-warmup.sh"
+        ],
+        "invariant": "both rig images are selected by an identity bound to the reviewed revision, and every consumer of the rig (the composite action, this repo's gate/payer jobs, the documented one-command setup) resolves exactly that artifact",
+        "method": "source",
+        "result": "refuted: docker-compose.yml:9 and :34 use floating :latest tags with no digest, no pull_policy and no platform pin; the tracked tree contains zero occurrences of @sha256: / pull_policy / repoDigests; resolution happens at the bare `docker compose up -d` (up.sh:60) and the rig's only inspect (up.sh:116) reads .State.Running; the callers are action.yml:85 (third-party consumers), .github/workflows/privacy-gate.yml:87/:239 (this repo's jobs); docs assert v6.20.0 / v0.5.5 (HARNESS.md:54-55, README.md:75) with nothing enforcing them.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-images",
+        "reviewed_paths": [
+          "harness/docker-compose.yml",
+          "harness/up.sh",
+          "action.yml",
+          ".github/workflows/privacy-gate.yml",
+          "crates/report/src/lib.rs",
+          "harness/HARNESS.md"
+        ],
+        "invariant": "the repo-side facts above hold under mechanical re-derivation on a disposable copy, with no registry contact, and the recorded claim format really carries no environment identity",
+        "method": "local",
+        "result": "re-derived inside the approved sandbox (docker run --network=none, rust:1-slim, script on stdin, no target code executed, no image pulled or inspected): two image references and nothing else; 0 files matching @sha256:/pull_policy/repoDigests; callers action.yml:85 + privacy-gate.yml:239 (gate job via uses: ./ at :87); tracked claim fixtures mention no image/version identity (files=0) and the Report fields (crates/report/src/lib.rs:33-54) bind flow/chain/height/hash only; cited-file sha256 values match the target checkout (harness/docker-compose.yml 7d6e6470..., harness/up.sh 0958b05d...). Full transcript in the artifact.",
+        "artifact": "agents/hunter-images/artifacts/check-images-refs.txt"
+      },
+      {
+        "agent_id": "hunter-images",
+        "reviewed_paths": [
+          "crates/probe/src/main.rs",
+          "crates/probe/src/core.rs",
+          "crates/probe/src/gate.rs"
+        ],
+        "invariant": "the target code that consumes the rig can distinguish a substituted node/indexer from the reviewed one (any version, digest or chain-identity check on the client side, including at the gate's re-derivation)",
+        "method": "source",
+        "result": "no such control exists: crates/probe/src/main.rs:97-107 prints the indexer's self-reported chain_name/version/vendor and compares them to nothing; core.rs connects to the endpoint and waits for a tip height only (wait_for_indexer_height, core.rs:128-160); the flow runner's 'chain: regtest' is a self-asserted string in the artifact (flow.rs:396, payer.rs:394); the gate's chain_verified (gate.rs:165, summary fields :342-348) re-reads evidence from that same unbound pair. A substituted pair is therefore indistinguishable to the client, which is why the impact rides entirely on image identity - this unit's root cause.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-images",
+        "reviewed_paths": [
+          "rust-toolchain.toml",
+          "docs/SUBMISSION.md"
+        ],
+        "invariant": "the entry points a judge or third-party consumer follows are bound to reviewed artifacts - the images the one command resolves, and the toolchain the build step resolves",
+        "method": "source",
+        "result": "refuted on both: docs/SUBMISSION.md:36 (and README.md:111) tells a judge to run `harness/up.sh && scripts/demo-run.sh`, which resolves the unpinned images with no digest check, and rust-toolchain.toml:4 sets channel = \"stable\" (its own comment :1-2 presents it as the pin against a pre-1.88 rustc) which action.yml:59 and privacy-gate.yml:50/:130/:231 install with a bare `rustup toolchain install` - a second unbound build input, recorded in this result as an uncovered variant because no current unit owns toolchain identity.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-17",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "README.md",
+          "action.yml",
+          "crates/probe/src/gate.rs",
+          "crates/report/src/lib.rs",
+          "crates/report/src/verify.rs",
+          "docs/CI.md",
+          "docs/SUBMISSION.md",
+          "harness/HARNESS.md",
+          "harness/docker-compose.yml",
+          "harness/up.sh",
+          "scripts/phase0-warmup.sh"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/rig-image-tags-unpinned",
+        "method": "local",
+        "result": "needs_validation: The rig that produces and re-verifies every published privacy claim runs from two mutable :latest image tags",
+        "artifact": "agents/verifier-17/artifacts/check-1.json"
+      },
+      {
+        "agent_id": "verifier-36",
+        "reviewed_paths": [
+          "harness/HARNESS.md",
+          "harness/docker-compose.yml",
+          "harness/up.sh"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/rig-image-tags-unpinned",
+        "method": "local",
+        "result": "verified: fingerprint zanary/rig-image-tags-unpinned (Phase-5 record verification)",
+        "artifact": "agents/verifier-36/artifacts/evidence.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/rig-image-tags-unpinned"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "Nothing records which image a recorded run came from: harness/HARNESS.md:76-86 and data/runs/* evidence quote heights, txids and pool totals only, and the tracked claim fixtures (crates/report/fixtures/reports/*.json) contain no image or version string at all. Recording the two container digests in the harness log (or in run.json) would make exactly the drift this unit is about visible in evidence, without changing what a claim means.",
+        "harness/up.sh:116 already inspects the indexer container, but only for .State.Running. Comparing `docker inspect --format '{{index .RepoDigests 0}}'` against a pinned digest is the cheap place to bind identity at use time, so a pin would be verified rather than assumed.",
+        "harness/up.sh:60 runs compose from the harness directory, so an untracked docker-compose.override.yml / compose.override.yaml placed there would be merged into the model - a second, repository-external resolution input for the documented one command. Not a finding (writing one requires write access to the checkout, the same principal that runs the rig; .gitignore does not cover such a file), but `docker compose --file harness/docker-compose.yml --project-directory harness up -d` would make resolution exactly the reviewed file.",
+        "The host-filesystem effect of a substituted image is bounded, and it is worth stating so impact is not overstated: docker-compose.yml:18 mounts only ../data/zcashd (gitignored chain state, consumed by zcashd itself) and lightwalletd mounts nothing; with docker-compose.yml:16 the container runs as ${ZANARY_UID:-1000}:${ZANARY_GID:-1000}, so host writes land as the invoking user under data/zcashd. Nothing in the tree reads a file from data/zcashd back into a shell, so this is not a host code-execution path - the impact is the code that executes inside the container and the chain data it is trusted to produce.",
+        "scripts/phase0-warmup.sh:29 is the only explicit `docker pull` of the rig images (bare, :latest). Pinning it alongside the compose file costs nothing functionally: it is a best-effort warm-up whose failures are already non-fatal (:28).",
+        "If the owner pins digests, the doc claims should move in the same change: harness/HARNESS.md:54-55, README.md:75 and docs/WALLET-NOTES.md:76-89 name v6.20.0 / v0.5.5 as if the runtime version were fixed, which is how a tag drift turns into docs that read as wrong rather than a visible substitution."
+      ],
+      "wave2_agent": "hunter-images",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-17",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-36",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "harness%2Fdocker-compose.yml%23services::harness%2Fzcash.conf%23rpc-credentials::local-rig::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "harness/docker-compose.yml#services",
+      "boundary": "harness/zcash.conf#rpc-credentials",
+      "subsystem": "local-rig",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "harness/docker-compose.yml#services",
+    "boundary": "harness/zcash.conf#rpc-credentials",
+    "subsystem": "local-rig",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "harness/docker-compose.yml",
+      "harness/zcash.conf",
+      "harness/up.sh",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/node.rs"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Ingress, network, and control-plane attack classes",
+      "CLOUD-AND-DEPLOYMENT.md#Container and orchestration attack classes",
+      "CLOUD-AND-DEPLOYMENT.md#Universal moves",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#RPC identity and authorization attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-rig",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      "README.md",
+      "action.yml",
+      "crates/probe/src/core.rs",
+      "crates/probe/src/node.rs",
+      "crates/report/src/node.rs",
+      "crates/report/src/verify.rs",
+      "docs/CI.md",
+      "docs/THREAT-MODEL.md",
+      "harness/HARNESS.md",
+      "harness/docker-compose.yml",
+      "harness/seed.sh",
+      "harness/up.sh",
+      "harness/zcash.conf"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "harness/docker-compose.yml"
+        ],
+        "invariant": "the compose file constrains the host interface of every published rig port",
+        "method": "source",
+        "result": "refuted: all four publishes are bare PORT:PORT scalars (docker-compose.yml:20, 21, 46, 47); the file contains no host-IP port spec and no loopback qualifier anywhere, so nothing in the repository restricts the host-side binding the documented setup creates.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "harness/zcash.conf",
+          "harness/docker-compose.yml"
+        ],
+        "invariant": "the node refuses RPC from unexpected sources, or binds only the interface it needs",
+        "method": "source",
+        "result": "refuted: rpcbind=0.0.0.0 (zcash.conf:15) and rpcallowip=0.0.0.0/0 (zcash.conf:16) admit every address, and the container command (docker-compose.yml:22-26) starts the node with the same credential pair the tracked conf seed carries, so a connection forwarded through the published port is accepted and the shared credential is the whole gate.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "harness/docker-compose.yml",
+          "harness/zcash.conf",
+          "harness/up.sh",
+          "crates/probe/src/node.rs"
+        ],
+        "invariant": "the credential the node accepts is rotatable by the person running the documented setup",
+        "method": "source",
+        "result": "not rotatable through the documented knobs: up.sh's ZANARY_NODE_USER/ZANARY_NODE_PASS (up.sh:23-24) feed only the docker-exec CLI calls (up.sh:33); the probe reads ZANARY_NODE_RPC_USER/PASSWORD but defaults to the same repo-published pair (node.rs:47-48, 64-66); the compose command line re-passes the pair at every container start (docker-compose.yml:24-25) and the healthcheck reuses it (line 28). The local check confirmed conf seed = command-line value = probe default; zcashd command-line-vs-conf precedence stays a node-side fact (blocker 3).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "crates/probe/src/node.rs",
+          "harness/docker-compose.yml",
+          "harness/zcash.conf"
+        ],
+        "invariant": "RPC peer identity is bound to something beyond one shared constant (per-peer, channel, or source restriction)",
+        "method": "source",
+        "result": "refuted: the only identity on the node RPC is HTTP Basic with the single shared pair over plain HTTP (node.rs:79; module doc lines 9-12), rpcallowip=0.0.0.0/0 attaches no source restriction, and the indexer hop carries no credential and no TLS at all (docker-compose.yml:48-57) - anything that can reach the ports and has read the public repository is indistinguishable from the rig's own tooling.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "docs/THREAT-MODEL.md",
+          "harness/HARNESS.md",
+          "crates/probe/src/node.rs",
+          "crates/probe/src/core.rs",
+          "harness/up.sh",
+          "crates/report/src/node.rs",
+          "crates/report/src/verify.rs"
+        ],
+        "invariant": "the repository's stated boundary (rig is localhost-only) matches what the compose file binds",
+        "method": "source",
+        "result": "contradicted: docs/THREAT-MODEL.md:113 asserts 'the harness runs everything on localhost' (network observers scoped out on that premise), HARNESS.md:55 says of the no-TLS indexer 'never expose it', and every consumer default is loopback (node.rs:26, core.rs:101, up.sh:25-26, report/src/node.rs:186, report/src/verify.rs:127) - while the compose publishes are interface-unqualified. The smallest fix (loopback-qualified publish specs) breaks no documented use.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "README.md",
+          "docs/CI.md",
+          "action.yml",
+          ".github/workflows/privacy-gate.yml",
+          "harness/seed.sh"
+        ],
+        "invariant": "any exposure created by the compose binding stays on the authors' own host",
+        "method": "source",
+        "result": "refuted: README.md:111-114 and docs/CI.md:66 tell any reader to run harness/up.sh; action.yml:85 runs it in a third-party caller's job, .github/workflows/privacy-gate.yml:239 in this repository's own CI, and harness/seed.sh:4 documents the same raw 'docker compose up -d' - the binding is created wherever the documented setup runs, including machines the authors do not control.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "harness/up.sh",
+          "harness/seed.sh",
+          "harness/docker-compose.yml",
+          "crates/probe/src/node.rs"
+        ],
+        "invariant": "no lower-trust input selects a file path across this boundary (the assigned Resource-and-file-handling traversal/SSRF/temp-file shapes have a sink here)",
+        "method": "source",
+        "result": "held: up.sh writes only the fixed $ROOT/data/zcashd/.zcash/zcash.conf (up.sh:27-28, 45-52), seed.sh only under $ROOT/data (seed.sh:18), the compose stack mounts one fixed relative path (docker-compose.yml:17-18), and the probe's node client takes env-supplied host/port/credential from the same user and writes no files. The only file-adjacent effect a lower-trust principal can reach in this unit is through the exposed RPC surface (see the candidate); up.sh's check-then-copy seed race is same-principal and recorded as hardening.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-rig",
+        "reviewed_paths": [
+          "harness/docker-compose.yml",
+          "harness/zcash.conf",
+          "harness/up.sh",
+          "crates/probe/src/node.rs",
+          "crates/probe/src/core.rs",
+          "crates/report/src/node.rs",
+          "crates/report/src/verify.rs",
+          "docs/THREAT-MODEL.md",
+          "harness/HARNESS.md",
+          "README.md",
+          "docs/CI.md",
+          "action.yml",
+          ".github/workflows/privacy-gate.yml"
+        ],
+        "invariant": "the repo-side facts hold under mechanical re-derivation on a disposable copy",
+        "method": "local",
+        "result": "held: no host-IP port spec and no loopback qualifier in the compose file; rpcbind/rpcallowip present in the conf; the conf credential equals the compose command-line value and the probe default (compared, never printed); every consumer of both ports defaults to 127.0.0.1; the documented entry paths that create the binding were enumerated in the same sandbox pass. The live host binding and external reachability were deliberately not observed (out of bounds; deployment step).",
+        "artifact": "agents/hunter-rig/artifacts/check-rig-ports.json"
+      },
+      {
+        "agent_id": "verifier-18",
+        "reviewed_paths": [
+          "README.md",
+          "action.yml",
+          "crates/probe/src/node.rs",
+          "docs/THREAT-MODEL.md",
+          "harness/HARNESS.md",
+          "harness/docker-compose.yml",
+          "harness/up.sh",
+          "harness/zcash.conf"
+        ],
+        "invariant": "independent Phase-3 re-derivation of zanary/rig-ports-published-all-interfaces",
+        "method": "local",
+        "result": "needs_validation: Rig control plane (zcashd JSON-RPC) and the credential-less lightwalletd indexer are published without a host-IP qualifier, so the documented setup inherits the Docker engine's every-interface default, gated only by RPC credentials the public repository itself carries",
+        "artifact": "agents/verifier-18/artifacts/check-rig-ports-verify.txt"
+      },
+      {
+        "agent_id": "verifier-37",
+        "reviewed_paths": [
+          "crates/probe/src/core.rs",
+          "crates/probe/src/node.rs",
+          "harness/docker-compose.yml",
+          "harness/up.sh",
+          "harness/zcash.conf"
+        ],
+        "invariant": "independent Phase-5 check of the finished record zanary/rig-ports-published-all-interfaces",
+        "method": "local",
+        "result": "verified: fingerprint zanary/rig-ports-published-all-interfaces (Phase-5 record verification)",
+        "artifact": "agents/verifier-37/artifacts/check-record.json"
+      }
+    ],
+    "result_fingerprints": [
+      "zanary/rig-ports-published-all-interfaces"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "The committed regtest RPC credentials are not a finding on their own: they are documented as throwaway, the chain is regtest with no real value, and nothing here touches mainnet - they matter only through the interface the unqualified publishes expose (this unit's candidate).",
+        "Ports with no in-repo consumer can simply be dropped from the publish list: 18233 (the file itself labels it unused) and lightwalletd's 9068 (referenced nowhere else in the repository) - shrinking the surface independently of the host-IP fix.",
+        "The node's rpcbind=0.0.0.0 / rpcallowip=0.0.0.0/0 remain container-reachable on the compose bridge network even after a loopback-only host publish; scoping them to the indexer's address or a dedicated compose network is useful defense in depth, not a separate finding (the harness doc already describes the RPC as 'open to the docker bridge').",
+        "up.sh's seed step (check-then-copy, up.sh:47-52) is a benign TOCTOU and would follow a symlink at the conf path, but only the checkout's own user can plant one - same-principal, so recorded as hardening, not a finding.",
+        "The composite action's failure-diagnostics step republishes the credential-bearing docker exec command into job summaries (action.yml:163); the value is already public in the same repository, so there is no incremental disclosure, but an action ready for credential rotation would not need to embed it.",
+        "The datadir bind mount is the only host path any rig container can write (docker-compose.yml:17-18; lightwalletd has no mounts), which is what bounds the network-reachable file effect to data/zcashd."
+      ],
+      "wave1_agent": "hunter-rig",
+      "note": "wave-1 hunter result recovered by parent on resume from async_delegations.result_json (delivery was dropped when the orchestrator session stalled)",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-18",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-37",
+          "decision": "verified"
+        }
+      ]
+    }
+  },
+  {
+    "coverage_id": "rust-toolchain.toml%23toolchain-channel::rust-toolchain.toml%20channel%20%3D%20%22stable%22%20-%3E%20the%20rustc%2Fcargo%20that%20build%20zanary-probe%20and%20zanary-report%2C%20the%20binaries%20that%20produce%20and%20verify%20every%20published%20claim::ci-and-release::SUPPLY-CHAIN-AND-RELEASE.md%23Dependency%20and%20build-input%20attack%20classes",
+    "canonical_refs": {
+      "surface": "rust-toolchain.toml#toolchain-channel",
+      "boundary": "rust-toolchain.toml channel = \"stable\" -> the rustc/cargo that build zanary-probe and zanary-report, the binaries that produce and verify every published claim",
+      "subsystem": "ci-and-release",
+      "attack_class": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes"
+    },
+    "surface": "rust-toolchain.toml#toolchain-channel",
+    "boundary": "rust-toolchain.toml channel = \"stable\" -> the rustc/cargo that build zanary-probe and zanary-report, the binaries that produce and verify every published claim",
+    "subsystem": "ci-and-release",
+    "attack_class": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes",
+    "starting_paths": [
+      "rust-toolchain.toml",
+      "action.yml",
+      ".github/workflows/privacy-gate.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Dependency and build-input attack classes",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "deferred",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "budget_cannot_reserve_critics_and_validation: A mutable and unbound build input of the same class as this unit's images, on a different surface with no owning unit: rust-toolchain.toml:4 sets channel = \"stable\" while the file's comment (:1-2) presents it as the pin that stops a pre-1.88 rustc, and both the composite action (action.yml:58-60) and every workflow job (privacy-gate.yml:50, :130, :231) resolve that channel with `rustup toolchain install` and no version, date or checksum, so the compiler that builds the release binaries can change without any repository change. The risk is not theoretical - the untracked warm-up log records rustc 1.86.0 against the dependency graph's 1.88 floor. The action.yml unit covers this file only for injection (its bookkeeping notes the sed-derived channel is passed quoted to rustup) and no unit owns toolchain identity, so it needs its own deterministic coverage unit: what `stable` resolved to at t"
+    ],
+    "bookkeeping": {
+      "proposed_by": "hunter-images",
+      "proposal_reason": "A mutable and unbound build input of the same class as this unit's images, on a different surface with no owning unit: rust-toolchain.toml:4 sets channel = \"stable\" while the file's comment (:1-2) presents it as the pin that stops a pre-1.88 rustc, and both the composite action (action.yml:58-60) and every workflow job (privacy-gate.yml:50, :130, :231) resolve that channel with `rustup toolchain install` and no version, date or checksum, so the compiler that builds the release binaries can change without any repository change. The risk is not theoretical - the untracked warm-up log records rustc 1.86.0 against the dependency graph's 1.88 floor. The action.yml unit covers this file only for injection (its bookkeeping notes the sed-derived channel is passed quoted to rustup) and no unit owns toolchain identity, so it needs its own deterministic coverage unit: what `stable` resolved to at the reviewed commit, which binaries the CI run built, and whether a release binary's provenance is checkable."
+    }
+  },
+  {
+    "coverage_id": "video%2Fzanary-demo.mp4%23published-asset::.github%2Fworkflows%2Fprivacy-gate.yml%23publish-video::published-evidence::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "video/zanary-demo.mp4#published-asset",
+      "boundary": ".github/workflows/privacy-gate.yml#publish-video",
+      "subsystem": "published-evidence",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "video/zanary-demo.mp4#published-asset",
+    "boundary": ".github/workflows/privacy-gate.yml#publish-video",
+    "subsystem": "published-evidence",
+    "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "starting_paths": [
+      "video/zanary-demo.mp4",
+      "docs/VIDEO-SCRIPT.md",
+      ".github/workflows/privacy-gate.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Derived-data and disclosure attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "CLOUD-AND-DEPLOYMENT.md#Configuration and secret lifecycle attack classes"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "hunter-video",
+    "reviewed_paths": [
+      ".github/workflows/privacy-gate.yml",
+      "README.md",
+      "crates/probe/src/wallet.rs",
+      "crates/properties/src/properties/report_leak.rs",
+      "docs/CLAIMS.md",
+      "docs/PROPERTY-IMPL-NOTES.md",
+      "docs/SUBMISSION.md",
+      "docs/THREAT-MODEL.md",
+      "docs/VIDEO-SCRIPT.md",
+      "video/zanary-demo.mp4"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-video",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml"
+        ],
+        "invariant": "The publish-video step reproduces exactly the reviewed revision's committed media bytes into the Pages output path: a verbatim local copy, gated to main after the gate jobs, with no network fetch, transform, or content-dependent branch a contributor could steer.",
+        "method": "source",
+        "result": "Lines 166-172 copy video/*.mp4 to public/video/ verbatim (no hash pin, no scan, no transform); the publish job runs only when github.ref == 'refs/heads/main' (line 113) and after needs: gate; lines 209-215 upload public/ and deploy it; the player page hardcodes the served file name zanary-demo.mp4 (line 196). Nothing else decides what is served, and at the reviewed commit the glob matches exactly one file (video/zanary-demo.mp4, 3717435 B).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-video",
+        "reviewed_paths": [
+          "docs/VIDEO-SCRIPT.md",
+          "README.md",
+          "docs/SUBMISSION.md"
+        ],
+        "invariant": "What the published asset is claimed to show, and where its on-screen text comes from, are stated in-tree well enough to name the intended-public content the pixels would have to match.",
+        "method": "source",
+        "result": "The cut sheet claims a 112 s cut of one real exit-0 take, every on-screen block verbatim from an out-of-tree rehearsal log (lines 8-9), and enumerates the blocks (typed command, payment lines with txids/heights, property table, claim block, payer ledger + kill-switch block, control 'caught' block, index and Actions shots). README lines 15-18 and SUBMISSION.md lines 99/111 surface the same claims to judges. Source states the claim but cannot exhibit the pixels; the take log and the render pipeline (TTS beats, frame renderer, ffmpeg) are out of tree by stated design (privacy-gate.yml:169-170).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-video",
+        "reviewed_paths": [
+          "video/zanary-demo.mp4"
+        ],
+        "invariant": "The published container carries no stowaway payload: no text/subtitle/chapter track, no bytes after the last top-level box, no author/path/creation metadata, and no plaintext key-material or address-shaped strings in any uncompressed region.",
+        "method": "local",
+        "result": "Sandboxed parse (rust:1-slim, --network=none, disposable copy) of the committed bytes (sha256 38a6b73fb25bab4e3888988639658e603336a8784e5503af7783179cb159ec75; 3717435 B): one avc1 video track (112.13 s, Lavc63.1.101 libx264) plus one mp4a audio track (112.15 s); no text/subtitle/chapter track; the file ends exactly at the end of the last top-level box (0 trailing bytes, no appended polyglot payload); creation/modification times 0; udta/meta carries only ©too=Lavf63.1.101. Raw-byte token scan: 0 hits for abandon / seed phrase / mnemonic / ufvk / uview / rpcpassword / zanary-rehearsal / kiter / uregtest / allowlist. Decoder probe: no ffmpeg/ffprobe/python3 in the sandbox and no media crates in the read-only offline registry, so decoded frames/audio - the only remaining content surface - are not inspectable.",
+        "artifact": "agents/hunter-video/artifacts/check-video-container.txt"
+      },
+      {
+        "agent_id": "hunter-video",
+        "reviewed_paths": [
+          "crates/properties/src/properties/report_leak.rs",
+          "docs/PROPERTY-IMPL-NOTES.md",
+          "docs/THREAT-MODEL.md",
+          "docs/CLAIMS.md"
+        ],
+        "invariant": "One of the project's own disclosure rules for published artifacts reaches the media asset (no key-material tokens, no disclosure beyond a claim), or their absence is explicit and acknowledged.",
+        "method": "source",
+        "result": "report-leak - the excess-disclosure rule (discloses list, key-material tokens, addresses not in the run's records, emails) - inspects flow-exported receipts only and skips runs without receipts (report_leak.rs:81-89); the threat model's disclosure inventory (THREAT-MODEL.md:3, 43-46) and CLAIMS.md's publishing rules (36-57) cover claim artifacts, not the video or the Pages video publish. No in-tree rule or CI check reviews the media content.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-9",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "crates/probe/src/wallet.rs",
+          "crates/properties/src/properties/report_leak.rs",
+          "docs/SUBMISSION.md",
+          "docs/VIDEO-SCRIPT.md",
+          "video/zanary-demo.mp4"
+        ],
+        "invariant": "independent Phase-3 re-derivation of video/zanary-demo.mp4:publish-video-unverifiable-media-content",
+        "method": "local",
+        "result": "needs_validation: Publish-video step serves a media asset whose disclosed content no repository artifact constrains or verifies",
+        "artifact": "agents/verifier-9/artifacts/check-video-container.txt"
+      },
+      {
+        "agent_id": "verifier-28",
+        "reviewed_paths": [
+          ".github/workflows/privacy-gate.yml",
+          "docs/VIDEO-SCRIPT.md",
+          "video/zanary-demo.mp4"
+        ],
+        "invariant": "independent Phase-5 check of the finished record video/zanary-demo.mp4:publish-video-unverifiable-media-content",
+        "method": "local",
+        "result": "verified: fingerprint video/zanary-demo.mp4:publish-video-unverifiable-media-content (Phase-5 record verification)",
+        "artifact": "agents/verifier-28/artifacts/check-video-container.txt"
+      }
+    ],
+    "result_fingerprints": [
+      "video/zanary-demo.mp4:publish-video-unverifiable-media-content"
+    ],
+    "unresolved": [],
+    "bookkeeping": {
+      "hardening": [
+        "Pin the published media: replace `cp video/*.mp4 public/video/` with a copy of the one reviewed file plus a committed checksum check (sha256sum -c, or the git blob hash) so a future commit cannot silently change what /video/ serves - the same byte-identical convention the repo applies to recorded evidence (README.md:22-25).",
+        "Make the copy step fail when the submission asset is missing or renamed: `|| echo \"no video in the tree - skipping\"` deploys a page whose player 404s while the job stays green, and the hardcoded player src (privacy-gate.yml:196) disagrees with the glob.",
+        "Keep the take traceable in-tree: store the rehearsal log (or a redacted/digested copy) or the rendered slide text so the \"verbatim from a real take\" claim (VIDEO-SCRIPT.md:8) is diffable by a reviewer without the out-of-tree pipeline.",
+        "Add the demo video to the disclosure inventory: THREAT-MODEL.md claims to list \"every place it deliberately discloses something\" (:3) but the published video - run output rendered into a world-readable asset with an out-of-tree producer - is not itemised.",
+        "Add a per-take review step to the recording checklist (VIDEO-SCRIPT.md:101-117): view the cut once against the on-screen block list before committing; publication is irreversible (Pages + git history + mirrors), so that review is the only revocation point."
+      ],
+      "wave2_agent": "hunter-video",
+      "phase3_decisions": [
+        {
+          "verifier": "verifier-9",
+          "decision": "needs_validation"
+        }
+      ],
+      "phase5_decisions": [
+        {
+          "verifier": "verifier-28",
+          "decision": "verified"
+        }
+      ]
+    }
+  }
+]

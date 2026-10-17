@@ -1,0 +1,29 @@
+verifier-21 own check: zanary_properties::evaluate over hand-built records (offline sandbox)
+Command: docker run ... -w /t rust:1-slim sh -c 'cargo run --offline -p zanary-properties --bin verifier21_check'
+(exit=0)
+
+=== verifier-21 independent property check ===
+== A
+   payment: pool_in=Orchard pool_out=Orchard kind=Shielded policy=Some("FullPrivacy")
+   policy-downgrade: Pass (severity Disqualifying)
+   run passes (no disqualifying fail): true
+
+== B
+   payment: pool_in=Orchard pool_out=Transparent kind=CrossPool policy=Some("AllowRevealedAmounts")
+   policy-downgrade: Fail (severity Disqualifying)
+     evidence: txid=5a... policy="AllowRevealedAmounts" matched=AllowRevealedAmounts (wallet instructed to relax its privacy policy)
+     evidence: txid=5a... height=100 pool_in=orchard pool_out=transparent (cross-pool spend of shielded value reveals amounts — implicit downgrade)
+   run passes (no disqualifying fail): false
+
+== C
+   payment: pool_in=Orchard pool_out=Sapling kind=CrossPool policy=Some("FullPrivacy")
+   policy-downgrade: Pass (severity Disqualifying)
+   run passes (no disqualifying fail): true
+
+== D
+   payment: pool_in=Orchard pool_out=Sapling kind=CrossPool policy=Some("AllowRevealedAmounts")
+   policy-downgrade: Fail (severity Disqualifying)
+     evidence: txid=5a... policy="AllowRevealedAmounts" matched=AllowRevealedAmounts (wallet instructed to relax its privacy policy)
+   run passes (no disqualifying fail): false
+
+=== end of verifier-21 property check ===

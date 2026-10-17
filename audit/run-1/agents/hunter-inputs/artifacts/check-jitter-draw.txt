@@ -1,0 +1,55 @@
+# local check — how large a mining request an *accepted* flow definition can name
+# agent: hunter-inputs   unit: crates/probe/src/flow.rs#parse-args-and-flow-load
+# candidate: zanary/unbounded-jitter-block-mining (needs_validation; this check settles the
+#            "missing bound" half of it, not the node-side cost)
+#
+# sandbox: docker run --rm --network=none -v $SB:/t -v <host cargo registry>:/usr/local/cargo/registry:ro
+#          --memory=8g --cpus=6 -w /t rust:1-slim
+#   The *same* sandbox copy as check-panics.txt; after the binary run for that check, one
+#   #[cfg(test)] module was appended to $SB/crates/probe/src/flow.rs (disposable copy only —
+#   the target repository was never modified) so the private `Jitter` type could be driven directly.
+#   Appended test (verbatim):
+
+# #[cfg(test)]
+# mod hunt_inputs_tests {
+#     use super::*;
+#     #[test]
+#     fn accepted_jitter_definition_can_draw_a_billion_block_mining_request() {
+#         let definition: FlowDefinition = serde_json::from_str(
+#             r#"{"flow_id":"jitter-probe",
+#                 "invoices":[{"invoice_id":"1","amount_zat":1000}],
+#                 "jitter_blocks":[1,4294967295],
+#                 "jitter_seed":7}"#,
+#         ).expect("the definition parses");
+#         let mut jitter = Jitter::from_definition(&definition);
+#         let mut max = 0u64; let mut all = Vec::new();
+#         for _ in 0..32 { let draw = jitter.next(); all.push(draw); max = max.max(draw); }
+#         println!("draws over 32 rounds = {all:?}");
+#         println!("max single draw = {max} blocks (one node.generate() argument)");
+#         assert!(max > 1_000_000_000, "max draw was only {max}");
+#     }
+# }
+
+$ cargo test --offline -p zanary-probe --bin zanary-probe accepted_jitter -- --nocapture
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.96s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 1 test
+draws over 32 rounds = [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+max single draw = 4085077839 blocks (one node.generate() argument)
+test flow::hunt_inputs_tests::accepted_jitter_definition_can_draw_a_billion_block_mining_request ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+# Reading: `jitter_blocks: [1, 4294967295]` is accepted verbatim by Jitter::from_definition
+# (flow.rs:166-176 accepts any range with 1 <= min <= max; only malformed ranges are bounded, by the
+# fixed-3 fallback). Every draw is an argument to `ops::mine_and_resync(payer, jitter.next())`
+# (flow.rs:645 per invoice, flow.rs:883 for a batch) -> ops.rs:436 `node.generate(blocks)` ->
+# node.rs:232 `generate` JSON-RPC with the drawn count. The 32 draws above average ~1.9e9 blocks.
+#
+# What this does *not* settle (why the candidate stays needs_validation): how long the node actually
+# spends producing that many blocks, and whether it keeps producing them after the client's 300 s
+# read timeout (node.rs:122-125) closes the connection. Both live in zcashd, outside this repository,
+# and the rig's containers/host ports are out of bounds for this run.
+#
+# The target repository was not modified; only the disposable sandbox copy (mount $SB) was.

@@ -1,0 +1,24 @@
+verifier-39 phase-5 check — sandbox source integrity (zanary/unchecked-zat-sum-overflow)
+========================================================================================
+
+Method: extracted `git archive HEAD` of /home/kiter/hackathon/zanary (commit 7058406) to a temp
+dir, removed rust-toolchain.toml (as the approved sandbox recipe does), and ran
+`diff -r` against /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (excluding target/, the
+sandbox's untracked agent scratch files, and files I added).
+
+Result: ZERO "differ" lines, ZERO "Only in <pristine>" lines. Every tracked file in the sandbox
+is byte-identical to commit 7058406. The only differences are extra untracked files left by other
+agents (v2-check, v4, verifier1_check.rs, verifier24_probe.rs, hunter/, etc.), which are not part
+of the compile of the `zanary-probe` bin target.
+
+Target repo state at check time:
+  git rev-parse HEAD -> 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+  git status --porcelain -> 0 lines (worktree clean)
+The target itself was read-only throughout: only git/sed/grep/read operations.
+
+Fixtures written into the sandbox for this check:
+  evil-sum.json  : 144 bytes, sha256 6bf0d8114fbb4420359bc81dc498e7a5006ef469f1ec84e91a003e7fded89b5b
+                   (matches the record's claimed payload byte-for-byte; sha256 verified inside the
+                   container too)
+  v39-benign.json: {"flow_id":"benign-39","invoices":[{"invoice_id":"1","amount_zat":100000},
+                   {"invoice_id":"2","amount_zat":100000}]}

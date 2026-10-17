@@ -1,0 +1,99 @@
+=== toolchain ===
+rustc 1.99.0 (b940084d7 2026-09-28)
+=== fixture + binary identity ===
+6bf0d8114fbb4420359bc81dc498e7a5006ef469f1ec84e91a003e7fded89b5b  evil-sum.json
+144 evil-sum.json
+f619ce2a4a4359eeabcc403b9623b52b005f8fa5b14f575f60de2000cfe4668c  target/debug/zanary-probe
+=== RUN 1: hostile payload (dev build) ===
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : hostile-sum
+  flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+
+thread 'main' (18) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:206:1:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=101
+
+=== RUN 2: hostile payload with RUST_BACKTRACE=1 ===
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : hostile-sum
+  flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+
+thread 'main' (25) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:206:1:
+attempt to add with overflow
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/panicking.rs:679:5
+   1: core::panicking::panic_fmt
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:80:14
+   2: core::panicking::panic_const::panic_const_add_overflow
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:175:17
+   3: <u64 as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}>>::{closure#0}
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:55:28
+   4: core::iter::adapters::map::map_fold::<&zanary_probe::flow::InvoiceSpec, u64, u64, zanary_probe::flow::run_recording::{closure#0}::{closure#6}, <u64 as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}>>::{closure#0}>::{closure#0}
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/adapters/map.rs:88:21
+   5: <core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec> as core::iter::traits::iterator::Iterator>::fold::<u64, core::iter::adapters::map::map_fold<&zanary_probe::flow::InvoiceSpec, u64, u64, zanary_probe::flow::run_recording::{closure#0}::{closure#6}, <u64 as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}>>::{closure#0}>::{closure#0}>
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/slice/iter/macros.rs:274:27
+   6: <core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}> as core::iter::traits::iterator::Iterator>::fold::<u64, <u64 as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}>>::{closure#0}>
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/adapters/map.rs:128:19
+   7: <u64 as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}>>
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:52:22
+   8: <core::iter::adapters::map::Map<core::slice::iter::Iter<zanary_probe::flow::InvoiceSpec>, zanary_probe::flow::run_recording::{closure#0}::{closure#6}> as core::iter::traits::iterator::Iterator>::sum::<u64>
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:3670:9
+   9: zanary_probe::flow::run_recording::{closure#0}
+             at ./crates/probe/src/flow.rs:336:18
+  10: zanary_probe::flow::run::{closure#0}
+             at ./crates/probe/src/flow.rs:230:38
+  11: zanary_probe::main::{closure#0}
+             at ./crates/probe/src/main.rs:46:41
+  12: <core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>> as core::future::future::Future>::poll
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/future/future.rs:133:9
+  13: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>::{closure#0}
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/park.rs:284:71
+  14: tokio::task::coop::with_budget::<core::task::poll::Poll<core::result::Result<(), anyhow::Error>>, <tokio::runtime::park::CachedParkThread>::block_on<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>::{closure#0}>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/task/coop/mod.rs:167:5
+  15: tokio::task::coop::budget::<core::task::poll::Poll<core::result::Result<(), anyhow::Error>>, <tokio::runtime::park::CachedParkThread>::block_on<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>::{closure#0}>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/task/coop/mod.rs:133:5
+  16: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/park.rs:284:31
+  17: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/context/blocking.rs:66:14
+  18: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>::{closure#0}
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/scheduler/multi_thread/mod.rs:92:22
+  19: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>::{closure#0}, core::result::Result<(), anyhow::Error>>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/context/runtime.rs:65:16
+  20: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/scheduler/multi_thread/mod.rs:91:9
+  21: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<alloc::boxed::Box<zanary_probe::main::{closure#0}>>>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/runtime.rs:376:50
+  22: <tokio::runtime::runtime::Runtime>::block_on::<zanary_probe::main::{closure#0}>
+             at /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/runtime/runtime.rs:341:18
+  23: zanary_probe::main
+             at ./crates/probe/src/main.rs:38:43
+  24: <fn() -> core::result::Result<(), anyhow::Error> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+EXIT=101
+
+=== RUN 3: control, benign amounts (dev build, no node in sandbox) ===
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : benign-control
+  flow commit       : 7e00166ec349a6405485d1edaab3261af418f80a766c5cf025fb9e52d99279d2
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+  invoices          : 2 (0.00200000 ZEC total)
+  receiver strategy : fresh diversified receiver per invoice
+  memo              : one ZIP-302 memo per payment
+  policy            : FullPrivacy
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1

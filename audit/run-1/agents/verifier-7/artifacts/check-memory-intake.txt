@@ -1,0 +1,69 @@
+verifier-7 - memory-intake checks: verbatim logs from /t/v7-fx/out (sandbox, --network=none)
+run dir /t/v7-fx; binary /t/target/debug/zanary-probe sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+
+===== r0-tiny-full =====
+log lines: 16
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v7-fx/grant-ok.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 3 in /t/v7-fx/inv-small
+
+  ALLOW    v7a — paid: within the cap (10000000 zat) and the budget (1 of 50000000 zat spent after this)
+  ALLOW    v7b — paid: within the cap (10000000 zat) and the budget (2 of 50000000 zat spent after this)
+  ALLOW    v7c — paid: within the cap (10000000 zat) and the budget (3 of 50000000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+
+===== r1b-tiny-killfile =====
+log lines: 16
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v7-fx/grant-ok.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : TRIPPED — every invoice will be refused
+  invoices          : 3 in /t/v7-fx/inv-small
+
+  REFUSE   v7a — refused: the grant was revoked (kill switch)
+  REFUSE   v7b — refused: the grant was revoked (kill switch)
+  REFUSE   v7c — refused: the grant was revoked (kill switch)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+
+===== r2-big-revoked =====
+log lines: 14
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v7-fx/grant-revoked.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : TRIPPED — every invoice will be refused
+  invoices          : 1 in /t/v7-fx/inv-big
+
+  REFUSE   v7big — refused: the grant was revoked (kill switch)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+
+===== r3-big-nospace =====
+log lines: 4
+Error: reading the invoice /t/v7-fx/inv-big/big.json
+
+Caused by:
+    out of memory
+
+

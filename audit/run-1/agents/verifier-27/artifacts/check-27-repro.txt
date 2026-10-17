@@ -1,0 +1,64 @@
+verifier-27 — Phase-5 record verification for `probe/payer.rs:run:unbounded-payment-count` (needs_validation)
+target: zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (read-only; worktree clean before and after; HEAD unchanged)
+record checked: the prompt's record is byte-equal to the promoted findings.json record (checked programmatically; 19 records, 1 with this fingerprint)
+sandbox copy: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (approved); writes only inside it and this scratch
+
+SOURCE STATE OF THE COPY (why runs reflect the pinned revision):
+  live copy vs target: payer.rs lines 1-655 and ops.rs byte-identical (diff: only a #[cfg(test)] module appended at payer.rs:656+,
+  3 #[cfg(test)] mods in main.rs, extra test-only .rs files); no non-test code differs.
+PRISTINE BUILD (independent of the shared binary):
+  /t/v27-src = git archive HEAD of the target (rust-toolchain.toml removed), built inside the sandbox:
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v <w2>:/t -v <registry>:ro -w /t/v27-src rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-probe --bin zanary-probe'
+  build: Finished dev profile in 57.28 s; binary sha256 200221113b62dc9f81f1ae8bef76ae6377284938b152d451c3b31822f5be6c08
+  control binary (shared /t/target/debug/zanary-probe, = hunter/verifier-8 hash) sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+
+FIXTURES (inside /t/v27fx): grant-ok.json {budget 50000000, cap 10000000, allowlist [], exp 2030-01-01Z, !revoked};
+  grant-150.json {budget 150, cap 10, same otherwise}; inv-zero-5000 = 5000 files (166 B, amount_zat 0);
+  inv-one-300 = 300 files (164 B, amount_zat 1); command shape: zanary-probe payer --grant <g> --invoices <d> --out <o> --now 2026-10-17T00:00:00Z
+
+RESULT (both binaries produced byte-identical logs):
+  1) zero run: exit=1, elapsed 2-3 s, header "invoices          : 5000", 5000 ALLOW / 0 REFUSE, first and last ALLOW both
+     "budget (0 of 50000000 zat spent after this)" — the budget never binds in count; tail:
+     "Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Caused by: Connection refused (os error 111)" — abort strictly
+     after the decision/queue phase, before any payment work.
+  2) one-zat run: exit=1, header "invoices          : 300", exactly 150 ALLOW / 150 REFUSE; boundary:
+     "ALLOW    v27o150 — paid: ... (150 of 150 zat spent after this)" / "REFUSE   v27o151 — ... would take this run to 151 of a 150 zat budget"
+     — the sum-of-amounts budget is the only count-limiting check; tail same Connection refused.
+  ⇒ the record's local claims ("invoices : 5000", 5000 ALLOW lines; 300-file one-zat run with budget 150 admitted exactly 150) reproduced.
+
+SOURCE CHECKS (line-exact):
+  payer.rs:249-260 decide loop; 259 to_pay.push; 250 decide; 110-117 per-payment cap; 119-128 budget check is amount-only
+  (saturating_add, after > budget); 64-66 default budget 50,000,000; 275-276 NodeRpc::from_env + block_count; 291-309 serial
+  payment loop (306-307 propose_shielded_payment, 308 build_sign_broadcast, 309 mine_and_resync(CONFIRM_BLOCKS)); 185-191 kill
+  switch read at startup only; 495-520 load_invoices; 503 extension-only selection; 513 read_to_string.
+  ops.rs:59 CONFIRM_BLOCKS = 11; 360-429 build_sign_broadcast (last statement Ok(txid) at 428); 433-452 mine_and_resync;
+  436 node.generate; 444 core::sync_wallet; 884-891 propose_shielded_payment.
+  No cap on the queue anywhere in crates/probe/src: grep shows only 248 (decl), 259 (push), 278/291/296 (consumers), 523-530
+  (shortfall fn); the only .take( hits are unrelated (seed bin:856, core.rs:1136, short_commit payer.rs:557).
+  node.rs:26 DEFAULT_RPC_URL http://127.0.0.1:18232; core.rs:99-101 indexer default http://127.0.0.1:9067 — both services as the blocker states.
+
+BLOCKER ASSESSMENT:
+  - Blocker 1 (payment loop needs the harness rig: zcashd 18232 + lightwalletd 9067, out of bounds): genuine and decisive —
+    observed abort at the node connection in --network=none; per-payment cost and the N-sequential-payments effect on the shared
+    node can only be measured with the rig.
+  - Blocker 2 (no offline substitute for build_sign_broadcast / mine_and_resync; a mock service is out of bounds and would not
+    reproduce proving/broadcast/mine semantics): decisive — broadcast goes through probe.client (indexer), mining through
+    node.generate; local evidence legitimately covers intake, decisions and queue construction only.
+  Both are exactly the facts the record defers to the owner; no stronger local validation exists inside the boundary.
+
+PLAN ASSESSMENT: local plan is bounded and exact (~20 one-zat invoices + single-invoice cost control + zero-amount control;
+  getblockcount/wall clock/height delta/ledger line count/payment count; disposable regtest rig and run dirs; no repo or shared-state
+  changes). Deployment plan asks the owner to observe runtime facts on their own rig (contention with an active workload, chain growth
+  of 11 blocks/payment, startup-only kill switch, recovery), explicitly non-destructive; owner-executed on a local regtest rig, no
+  audit traffic sent to any deployment.
+
+SCHEMA/CONSISTENCY: record validates against the needs_validation branch (required keys only, no extra properties; trace/evidence
+  item shapes; blockers non-empty; fingerprint regex OK). Fingerprint probe/payer.rs:run:unbounded-payment-count is the one in the
+  unit's result_fingerprints (coverage ledger) and in the Phase-3 pass, unique across findings.json.
+
+NON-MATERIAL OBSERVATIONS (no meaning/evidence change): build_sign_broadcast's body ends at ops.rs:429 (cited 360-428 covers its
+  statements through Ok(txid)); "~1 s" vs 2-3 s for the 5000-file run (timing only); "~140 B" per invoice matches the earlier
+  fixtures (mine measured 164-166 B); the plan's "shortfall() tops up by mining ... payer.rs:523-533" names the shortfall() calculator
+  (the mining top-up itself is flow::top_up_for_target, called at payer.rs:286) — mechanism and effect as stated.
+
+VERDICT: verified — the record holds as written.

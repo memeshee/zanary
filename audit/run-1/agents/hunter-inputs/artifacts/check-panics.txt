@@ -1,0 +1,61 @@
+# local check — hostile flow definition and hostile --txid against the probe CLI
+# agent: hunter-inputs   unit: crates/probe/src/flow.rs#parse-args-and-flow-load
+# boundary under test: crates/probe/src/record.rs#write-artifacts (never reached; see notes)
+#
+# sandbox: docker run --rm --network=none -v $SB:/t -v <host cargo registry>:/usr/local/cargo/registry:ro
+#          -w /t rust:1-slim
+#   $SB = the disposable `git archive HEAD` sandbox copy (commit 7058406), mounted read-write at /t
+#   source verified byte-identical to the target before the build:
+#     diff -q <target-repo>/crates/probe/src/<f> $SB/crates/probe/src/<f> -> IDENTICAL, for
+#     flow.rs, record.rs, ops.rs, main.rs, node.rs
+#   only additions: fixtures evil-sum.json / evil-invoice.json; rust-toolchain.toml removed (channel="stable"
+#   cannot be resolved without network; the image's own toolchain is used)
+#   build: cargo build --offline -p zanary-probe --bin zanary-probe -> Finished `dev` profile in 4m03s
+#   toolchain: rustc 1.99.0 (b940084d7 2026-09-28)
+
+$ ./target/debug/zanary-probe flow --definition /t/evil-sum.json
+# evil-sum.json (177 bytes): {"flow_id":"hostile-sum","invoices":[
+#   {"invoice_id":"1","amount_zat":18446744073709551615},
+#   {"invoice_id":"2","amount_zat":18446744073709551615}]}
+exit=101
+zanary-probe 0.0.1 flow — ZANARY (ZECATHON, Core & Tooling)
+  flow              : hostile-sum
+  flow commit       : 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  settlement        : per_invoice — one transaction per invoice
+  settlement timing : fixed 3 block(s) between payments
+  chain             : regtest (throwaway harness chain)
+
+thread 'main' (7) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:206:1:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+# The panic is raised while the header println at flow.rs:331-337 evaluates
+# `definition.invoices.iter().map(|i| i.amount_zat).sum::<u64>()` (u64::MAX + u64::MAX).
+# It fired before NodeRpc::from_env(), i.e. with no node, indexer or network in play.
+
+$ ./target/debug/zanary-probe verify-invoice --invoice /t/evil-invoice.json --txid "$(printf 'a\303\251b')"
+# the txid argument is "aéb" (4 UTF-8 bytes: 61 c3 a9 62)
+exit=101
+
+thread 'main' (18) panicked at crates/probe/src/flow.rs:1785:36:
+end byte index 2 is not a char boundary; it is inside 'é' (bytes 1..3 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+# controls — same command and same invoice fixture:
+$ ... --txid "$(printf '\303\251')"      # "é", 2 bytes (even) -> clean rejection, no panic
+exit=1
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: invalid digit found in string
+
+$ ... --txid "$(printf 'z%.0s' $(seq 1 64))"   # 64 ASCII 'z' (even, not hex) -> clean rejection
+exit=1
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: invalid digit found in string
+
+# Reading: the odd-length guard and the per-byte hex parse both reject bad input cleanly; only a
+# multi-byte character that straddles a 2-byte slice boundary (`&hex[i..i + 2]`, flow.rs:1785) panics.
+# The invoice fixture is never validated on this path (verify_invoice decodes --txid before any wallet
+# work), so no rig resource was touched.

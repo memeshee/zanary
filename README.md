@@ -87,6 +87,16 @@ flow starts leaking.
 | Claim index with expiry, published | **works** — `zanary-report index --reports <dir> --out <index.html>` renders one page per claim with `live`/`stale`/`dead`/`regression` against a clock and each claim's anchor; CI renders and deploys it on every push and weekly re-probe, next to the claims themselves: **<https://memeshee.github.io/zanary/>** ([`docs/CI.md`](docs/CI.md), golden fixture: [`crates/report/fixtures/index.golden.html`](crates/report/fixtures/index.golden.html)) |
 | The reference implementation that passes — a bounded payer | **works** — `zanary-probe payer --grant <grant.json> --invoices <dir>`: a budget, a per-payment cap, a receiver allowlist, an expiry and a kill switch, with one ledger line per decision (`paid`/`refused` + the rule), appended as the run progresses and read back at startup, so a re-run refuses what it already paid. The grant semantics are strict: the budget counts what paying costs (principal + the per-payment fee), the expiry is compared as an instant, and one invoice id is one decision. Recorded: 4 invoices → 1 paid, 3 refused (budget, cap, allowlist), `payer-policy` PASS, and a kill-switch run where all 4 are refused. `--expect-refused N` makes the refusal set itself a test ([`docs/BOUNDED-PAYER.md`](docs/BOUNDED-PAYER.md)) |
 
+## Audited, and fixed
+
+This repository was audited the way it audits payment flows: a read-only hunter/verifier run against
+revision `7058406`, with every finding reproduced in a `--network=none` disposable copy before it was
+reported, then re-verified by a second agent that read neither the finding nor its author's claim. It
+returned **19 findings — 11 confirmed (4 medium, 7 low) and 8 leads**; every confirmed finding is fixed
+on `main` with a regression test, and every lead is either closed against the running rig or named with
+the fact it still needs. The record — findings, traces, reproductions, the coverage ledger, the budget,
+and what the audit did *not* cover — is in [`audit/`](audit/README.md).
+
 ## How it fits the track
 
 Core & Tooling: "Build something the next Zcash developer will thank you for. SDKs, explorers,

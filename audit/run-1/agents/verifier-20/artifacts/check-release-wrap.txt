@@ -1,0 +1,11 @@
+toolchain: rustc 1.99.0 (b940084d7 2026-09-28)
+=== rustc (debug defaults, overflow checks ON) ===
+
+thread 'main' (47) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/accum.rs:206:1:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+DEBUG_EXIT=101
+
+=== rustc -O (release-like, overflow checks OFF) ===
+sum of two u64::MAX amounts = 18446744073709551614
+RELEASE_EXIT=0

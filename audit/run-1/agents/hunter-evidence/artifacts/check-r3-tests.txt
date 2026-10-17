@@ -1,0 +1,29 @@
+check: cargo test --offline -p zanary-report (sandbox copy of commit 7058406, rust:1-slim, --network=none, rust-toolchain.toml removed so the image toolchain is used)
+command: docker run --rm --network=none -v $SB:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'cargo test --offline -p zanary-report'
+CARGO_TEST_EXIT:0
+
+running 13 tests
+test anchor::tests::a_non_anchor_memo_is_none_and_a_broken_one_is_an_error ... ok
+test anchor::tests::an_unknown_version_is_refused ... ok
+test anchor::tests::an_undefined_field_is_refused ... ok
+test anchor::tests::memo_text_round_trips ... ok
+test tests::claim_status_follows_ttl_arithmetic ... ok
+test tests::evidence_root_is_deterministic_and_order_sensitive ... ok
+test receipt::tests::a_receipt_without_an_attestation_is_not_bound_to_any_wallet ... ok
+test receipt::tests::an_unknown_attestation_format_is_refused ... ok
+test receipt::tests::the_attestation_is_not_part_of_the_receipt_signature ... ok
+test receipt::tests::a_flipped_attestation_signature_fails ... ok
+test receipt::tests::an_attestation_binds_the_receipt_key_to_the_wallet ... ok
+test receipt::tests::an_attestation_by_another_wallet_is_refused ... ok
+test receipt::tests::an_attestation_that_names_another_receipt_key_is_refused ... ok
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 4 tests
+test fixture_report_rebuilds_to_the_same_hash ... ok
+test fixture_claims_expire_on_schedule ... ok
+test fixture_reports_hash_correctly ... ok
+test index_matches_golden_html ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -1,0 +1,128 @@
+{
+  "decision": "confirmed",
+  "record": {
+    "verdict": "confirmed",
+    "fingerprint": "crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment",
+    "title": "verify-receipt certifies claim/body agreement for a receipt whose claims state different figures (substring containment)",
+    "description": "`validate_claim` is documented as the machine-readable half of \"a stranger can check it\": receipt.rs:250-256 says the rules are the ones in schemas/zanary-receipt-v1.json and that \"a claim that contradicts the body ... fails here rather than being printed as if it were fine\", and receipt.rs:308-310 says \"the words must state the figures\". The implementation (receipt.rs:311-322) joins the claims into one string and tests `words.contains(&needle)` for the txid, the amount and the invoice id - pure substring containment - and never checks that the claims state nothing else. A claim that names a DIFFERENT invoice id and a DIFFERENT amount, with the body's values embedded as digit substrings, therefore passes: the executed receipt carries body invoice 4471 / 1234567 zatoshis and the claim \"invoice 44710 was paid 12345678 zatoshis in transaction 44f2...337e\", and `verify-receipt` prints both `claim ok` lines and exits 0 (independently re-executed by the verifier, including on a freshly signed fixture whose claim states invoice 91207 / 2500000 zatoshis for a body of 9120 / 250000). The claim text is the human-readable half of the artifact (it is inside the signed payload, receipt.rs:24-29; printed before any check runs, main.rs:110-111; rendered as claim=\"...\" in the report-leak property's evidence, report_leak.rs:108-115), so a receipt can state a ten times larger payment for a different invoice while the tool that exists to check it certifies the two halves agree.",
+    "root_cause": "The claim/body agreement test is `receipt.claims.join(\" \").contains(&needle)` (receipt.rs:311-322, the test at 317). Containment is satisfied by any superstring, so the test accepts claims that state different figures than the body whenever the body's digits appear inside the claim's (larger) numbers, and it never requires the claims to state nothing else. The refusal the docs promise fires only when the body's figures are entirely absent (verified: a claim naming invoice 9121 for a body of 9120 is refused with \"never state the invoice id (9120)\"). The shipped schema's promise (\"refuses a receipt whose claims contradict its body\") is not implemented, and the schema's prose cannot express the missing rule.",
+    "intended_behavior": "A receipt whose claims and body disagree is refused: validate_claim returns Err and the CLI prints `claim : INVALID - the claims never state the amount in zatoshis (999) that its body carries` and exits 1. That is the documented behaviour for the bundled disagreement fixture (docs/FLOW-RUNNER-NOTES.md:352; docs/FLOW-RUNNER-PLAN.md:127-131: \"claims that state the body's figures ... claims-vs-body disagreement -> exit 1 with a precise message each\").",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "crates/report/src/main.rs",
+        "line": 118,
+        "scope": "verify_receipt",
+        "description": "runs zanary_report::receipt::validate_claim(&receipt) on the caller-supplied receipt (verify_signature runs alongside at line 117)"
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/report/src/receipt.rs",
+        "line": 311,
+        "scope": "validate_claim",
+        "description": "flattens the receipt's prose claims into one searchable string: let words = receipt.claims.join(\" \")"
+      },
+      {
+        "kind": "sink",
+        "file": "crates/report/src/receipt.rs",
+        "line": 317,
+        "scope": "validate_claim",
+        "description": "if !words.contains(&needle) for the txid/amount/invoice-id needles - a superstring satisfies it, so a contradicting claim is accepted; main.rs:130 then prints the `claim ok` notes and main.rs:200 returns exit 0"
+      }
+    ],
+    "evidence": [
+      {
+        "file": "crates/report/src/receipt.rs",
+        "line": 317,
+        "description": "the containment test that decides agreement (`words.contains(&needle)`), the single point where a contradiction is supposed to be caught"
+      },
+      {
+        "file": "crates/report/src/receipt.rs",
+        "line": 308,
+        "description": "the comment it breaks: \"The words must state the figures ... if the claims do not name the transaction, the amount and the invoice, the artifact is asserting something other than what it carries\""
+      },
+      {
+        "file": "crates/report/src/receipt.rs",
+        "line": 27,
+        "description": "the claims are inside the signed payload (SigningPayload { format, body, claims, discloses }, lines 24-29), so the receipt's own producer signs the misleading text - no attacker key is needed"
+      },
+      {
+        "file": "schemas/zanary-receipt-v1.json",
+        "line": 37,
+        "description": "the shipped contract for third-party tools: \"verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and refuses a receipt whose claims contradict its body\""
+      },
+      {
+        "file": "docs/FLOW-RUNNER-NOTES.md",
+        "line": 352,
+        "description": "the documented behaviour for a claims/body disagreement (exit 1 with a precise message) that only holds when the body's figures are absent, not when they are embedded in larger ones (verified: 9121 vs body 9120 is refused, 91207 vs 9120 is accepted)"
+      },
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 111,
+        "description": "each of the receipt's claims is printed as `claim     : ...` before either check runs (loop at 110), next to which the acceptance lines appear"
+      },
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 130,
+        "description": "the acceptance path: validate_claim's notes are printed as `claim ok`, including `claims: state the body's invoice id, amount and transaction`, which is the tool certifying agreement"
+      },
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 200,
+        "description": "`Ok(0)`: the exit code for a receipt that passes both checks, so a contradicting-but-embedding claim exits 0"
+      },
+      {
+        "file": "crates/properties/src/properties/report_leak.rs",
+        "line": 111,
+        "description": "the claim text is rendered as `claim=\"...\"` in the report-leak property's evidence strings (block 108-115), so the misleading prose travels into recorded findings/report output"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "A receipt whose `claims` state figures that contain the body's values as substrings but differ from them (verified pairs: body 9120 / 250000 zatoshis against claim \"invoice 91207 was paid 2500000\"; the candidate's body 4471 / 1234567 against claim \"invoice 44710 was paid 12345678\")."
+      },
+      {
+        "kind": "authentication_level",
+        "description": "None beyond producing the receipt: the claim text is inside the signed payload (receipt.rs:24-29), so the receipt's own producer signs it, and the check runs with no signer pinned (no --signer / --fvk) and still exits 0 - a receipt that is checked without pinning the signer needs no key at all."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A receipt's producer (or anyone whose receipt is checked without pinning the signer) writes a claim line that reads as a bigger amount for a different invoice than the body carries; the verifier prints `claim ok`, exits 0, and the artifact's human-readable half now disagrees with its machine-readable half while the tool certifies agreement.",
+      "payloads": [
+        "{\"label\":\"hunter probe\",\"format\":\"zanary-receipt-v1\",\"body\":\"{\\\"amount_zat\\\":1234567,\\\"invoice_id\\\":\\\"4471\\\",\\\"memo_sha256\\\":\\\"60016cf4bf951820ab397c737584734efac9c519a1f8964e8e8d749c62c50748\\\",\\\"txid\\\":\\\"44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e\\\"}\",\"claims\":[\"invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e\"],\"discloses\":[],\"signer\":\"280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e\",\"signature\":\"8c5f3ec0cf1e617cbb8347668ee6175c26089aeb4351920bdd182b4ac0d6e335f1a8b76bf3088d458bff275d396052da5e6530322daf3458e91a5fbb116dd707\"}",
+        "{\n  \"label\": \"verifier-5 probe\",\n  \"format\": \"zanary-receipt-v1\",\n  \"body\": \"{\\\"amount_zat\\\":250000,\\\"invoice_id\\\":\\\"9120\\\",\\\"memo_sha256\\\":\\\"0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d\\\",\\\"txid\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00\\\"}\",\n  \"claims\": [\n    \"invoice 91207 was paid 2500000 zatoshis in transaction c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00\"\n  ],\n  \"discloses\": [],\n  \"signer\": \"a11032f8472dac59c147446a31e9d5216ad3633d23fea457c09687ed20de4e30\",\n  \"signature\": \"04cf8216f553b9f901130cd345d0e0df29d35c0323bdb9fa6124cc338dc7091685cfd774ee6e820507e6c908d47fec41fef0ac2255d6988c9b2b32e30d658602\"\n}"
+      ],
+      "instructions": [
+        "Build the CLI in the approved disposable sandbox copy: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-report'",
+        "Write the candidate's payload to /t/verifier/record-payload.json and a verifier-generated fixture to /t/verifier/probe-superstring.json, then run /t/target/debug/zanary-report verify-receipt on each; echo exit=$? - each prints both `claim ok` lines and exits 0.",
+        "Unit-level equivalent, also run: the integration test added only in the sandbox copy (/t/crates/report/tests/verifier5_probe.rs, source in check-probe-test.rs.txt) signs the fixture with its own key and calls validate_claim on it (ACCEPTED for the embedding claim, refused for the absent-figures control), and evaluates the proposed boundary-aware helper on the same strings."
+      ],
+      "observed_result": "CLI on the candidate's payload: `claim     : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e`, `signature : VALID`, `signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e`, `claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc...337e`, `claim ok  : claims: state the body's invoice id, amount and transaction`, exit=0. Independently re-run on a verifier-generated fixture (body invoice 9120 / 250000 zatoshis; claim `invoice 91207 was paid 2500000 zatoshis in transaction c0ffee...ee00`, signed by the verifier's own keypair): `signature : VALID`, both `claim ok` lines, exit=0; validate_claim also returned Ok for it at unit level. Controls on the same build: the exact-figure claim -> exit 0; a claim stating figures that do not embed the body's (invoice 9121, then amount 250019) -> `claim : INVALID` (`never state the invoice id (9120)` / `never state the amount in zatoshis (250000)`), exit=1."
+    },
+    "remediation": {
+      "strategy": "Compare the body's figures as delimited tokens rather than substrings: require each needle to be stated with non-alphanumeric boundaries on both sides, so 44710 cannot satisfy the invoice 4471 needle (the `states` helper below does exactly this; evaluated in the sandbox, it returns false for the embedding claim on the invoice id and the amount while still accepting the exact-figure claim). Because a presence check still cannot reject a claim that states the body's figures plus additional contradicting ones, either state plainly in schemas/zanary-receipt-v1.json what agreement is (a boundary-aware presence check) or emit machine-readable claims (a structured object the receipt must match) and check equality instead of prose.",
+      "code_changes": [
+        {
+          "file_name": "crates/report/src/receipt.rs",
+          "fixed_code": "/// True when `words` states `needle` as a whole token (a claim may not merely embed it).\nfn states(words: &str, needle: &str) -> bool {\n    words.match_indices(needle).any(|(start, _)| {\n        let before_ok = words[..start]\n            .chars()\n            .next_back()\n            .is_none_or(|c| !c.is_ascii_alphanumeric());\n        let after_ok = words[start + needle.len()..]\n            .chars()\n            .next()\n            .is_none_or(|c| !c.is_ascii_alphanumeric());\n        before_ok && after_ok\n    })\n}\n\n// in validate_claim, replacing `if !words.contains(&needle)` (line 317):\n//     if !states(&words, &needle) {\n//         return Err(anyhow!(\"the receipt's claims never state {what} ({needle}) that its body carries\"));\n//     }"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "No attacker key or special access is needed: the claim text is inside the signed payload, so any producer signs its own claims, and the third party running verify-receipt does not pin the signer by default. The embedding case arises whenever a producer states a different figure that contains the body's digits (deliberately, or from a claim template that writes a larger number such as 44710 for invoice 4471); the repo's own producer writes the body's exact figures (flow.rs receipt construction), so nothing generates it automatically."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "The published evidence's stated figures can disagree with its own body while the verifier certifies agreement (`claim ok : claims: state the body's invoice id, amount and transaction`) - an integrity failure of the artifact a stranger is told to trust. It invents no body data: the same tool prints the true body figures on the adjacent `claim ok : body:` line; the signature is only the producer's assertion; and nothing is authorised by a receipt (payment authority is the flow's, not the receipt's)."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Source and execution agree: the containment loop is the only agreement test, the refusal direction is documented and fires only for absent figures, and both the candidate's payload and a verifier-generated signed receipt (body 9120 / 250000 vs claim 91207 / 2500000) were accepted end to end from the unmodified reviewed revision (sandbox receipt.rs sha256 f26dbc615c3ddd6a4ee4779f0eb38554abddd23e6167e3d70d42396c4bc97dac = git HEAD) with CLI exit 0 and both `claim ok` lines, plus validate_claim returning Ok at unit level."
+    }
+  }
+}

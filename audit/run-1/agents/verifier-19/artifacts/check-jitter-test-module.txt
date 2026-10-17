@@ -1,0 +1,60 @@
+
+// ---------------------------------------------------------------------------
+// verifier-19: independent re-establishment of the "unbounded jitter" half of
+// candidate zanary/unbounded-jitter-block-mining. Appended to the *disposable*
+// sandbox copy only; the reviewed repository is never modified. Module name is
+// unique so it cannot collide with any other agent's appended test.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod verifier19_tests {
+    use super::*;
+
+    fn parse(json: &str) -> FlowDefinition {
+        serde_json::from_str(json).expect("the definition parses")
+    }
+
+    #[test]
+    fn v19_seed7_draws() {
+        // The exact definition shape the candidate names: an *accepted* range with
+        // max = u32::MAX. FlowDefinition::jitter_blocks is Option<[u32; 2]>, so
+        // 4294967295 is the largest value JSON can name here.
+        let d = parse(
+            r#"{"flow_id":"v19","invoices":[{"invoice_id":"1","amount_zat":1000}],
+                "jitter_blocks":[1,4294967295],"jitter_seed":7}"#,
+        );
+        println!("V19-RANGE {:?} fixed={:?}", (d.jitter_blocks), d.jitter_seed);
+        let mut jitter = Jitter::from_definition(&d);
+        println!("V19-DESCRIBE {}", jitter.describe());
+        let mut draws: Vec<u64> = Vec::new();
+        for _ in 0..32 {
+            draws.push(jitter.next());
+        }
+        let max = draws.iter().copied().max().unwrap();
+        let sum: u64 = draws.iter().sum();
+        println!("V19-DRAWS {draws:?}");
+        println!("V19-MAX {max}");
+        println!("V19-MEAN {}", sum / 32);
+        println!("V19-DESCRIBE-AFTER {}", jitter.describe());
+        assert!(max > 1_000_000_000, "no billion-block draw observed");
+    }
+
+    #[test]
+    fn v19_bounds_are_shape_only() {
+        // Malformed range: the only bound the code applies is the fixed-3 fallback.
+        let bad = parse(
+            r#"{"flow_id":"v19b","invoices":[{"invoice_id":"1","amount_zat":1000}],
+                "jitter_blocks":[2,1]}"#,
+        );
+        let mut jb = Jitter::from_definition(&bad);
+        println!("V19-BAD-DRAWS {} {} {}", jb.next(), jb.next(), jb.next());
+        // Degenerate max: min == max == u32::MAX is accepted verbatim.
+        let edge = parse(
+            r#"{"flow_id":"v19e","invoices":[{"invoice_id":"1","amount_zat":1000}],
+                "jitter_blocks":[4294967295,4294967295]}"#,
+        );
+        let mut je = Jitter::from_definition(&edge);
+        let d = je.next();
+        println!("V19-EDGE-DRAW {d}");
+        assert_eq!(d, u32::MAX as u64);
+    }
+}

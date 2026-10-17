@@ -1,0 +1,69 @@
+verifier-7 - pristine source lines (target /home/kiter/hackathon/zanary @ 7058406, read-only)
+sha256 crates/probe/src/payer.rs 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720
+same file in the sandbox copy: identical sha256
+
+  pub async fn run(raw: &[String]) -> Result<()> {
+      const USAGE: &str = "zanary-probe payer --grant <grant.json> --invoices <dir> [--out <dir>] \
+                           [--expect-refused N] [--kill-file <path>] [--account N] [--label <text>] \
+                           [--ttl-days N] [--now <rfc3339>]";
+      let mut args = ops::Args::parse(raw, USAGE)?;
+      let grant_path = PathBuf::from(args.require("--grant")?);
+      let invoices_path = PathBuf::from(args.require("--invoices")?);
+      let out_dir = PathBuf::from(
+          args.value("--out")
+      // The kill switch is a file, checked at startup: authority that can be withdrawn by touching a
+      // path is the point of a kill switch (and it keeps the grant file itself immutable evidence).
+      let revoked = grant_file.revoked
+          || kill_file
+              .as_ref()
+              .map(|path| path.exists())
+              .unwrap_or(false);
+  
+      let grant = PayerGrant {
+          budget_zat: grant_file.budget_zat,
+          per_payment_cap_zat: grant_file.per_payment_cap_zat,
+          allowlist: grant_file.allowlist.clone(),
+          expires_at: expires_at.clone(),
+          revoked,
+      };
+  
+      let invoices = load_invoices(&invoices_path)?;
+      if invoices.is_empty() {
+      // Decide everything first, then pay: the ledger a reviewer reads is complete before any money
+      // moves, so a refusal cannot be an artifact of a payment that went wrong earlier.
+      let mut decisions: Vec<PayerDecision> = Vec::new();
+      let mut spent: u64 = 0;
+      let mut to_pay: Vec<(Invoice, String)> = Vec::new();
+      for invoice in &invoices {
+          let decision = decide(&grant, spent, invoice, &now);
+              spent = spent.saturating_add(invoice.amount_zat);
+              to_pay.push((invoice.clone(), decision.reason.clone()));
+          }
+  [...]
+  /// Invoices from a directory (`*.json`) or from a single file, sorted by name so a run is reproducible.
+  fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
+      let mut files: Vec<PathBuf> = Vec::new();
+      if path.is_dir() {
+          for entry in std::fs::read_dir(path)
+              .with_context(|| format!("reading the invoice directory {}", path.display()))?
+          {
+              let entry = entry?;
+              let candidate = entry.path();
+              if candidate.extension().is_some_and(|e| e == "json") {
+                  files.push(candidate);
+              }
+          }
+      } else {
+          files.push(path.to_path_buf());
+      }
+      files.sort();
+      let mut invoices = Vec::new();
+      for file in &files {
+          let text = std::fs::read_to_string(file)
+              .with_context(|| format!("reading the invoice {}", file.display()))?;
+          let invoice: Invoice = serde_json::from_str(&text)
+              .with_context(|| format!("parsing the invoice {}", file.display()))?;
+          invoices.push(invoice);
+      }
+      Ok(invoices)
+  }

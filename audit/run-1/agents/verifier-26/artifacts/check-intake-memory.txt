@@ -1,0 +1,67 @@
+
+===== C0 control: 3 tiny invoices, full-authority grant =====
+[c0-tiny-ok] exit=1 elapsed_s=0 VmHWM_MB=3 VmPeak_MB=219 harness_killed=no
+[c0] ALLOW lines: 3
+  invoices          : 3 in /t/ver26-fx/inv-small
+[c0 tail] Caused by:
+[c0 tail]     Connection refused (os error 111)
+
+===== C1 revoked grant + 256 MiB invoice, no ulimit: is intake still done? peak RSS? =====
+[c1-revoked-big] exit=1 elapsed_s=11 VmHWM_MB=526 VmPeak_MB=996 harness_killed=no
+[c1]   REFUSE   v26big — refused: the grant was revoked (kill switch)
+  invoices          : 1 in /t/ver26-fx/inv-big
+[c1 tail] Caused by:
+[c1 tail]     Connection refused (os error 111)
+
+===== C2 same 256 MiB invoice under RLIMIT_AS 262144 kB (256 MiB address space) =====
+[c2-big-ulim256] exit=1 elapsed_s=0 VmHWM_MB=2 VmPeak_MB=87 harness_killed=no
+[c2] decision lines: 0  log bytes: 86
+[c2 log] Error: reading the invoice /t/ver26-fx/inv-big/big.json
+[c2 log] 
+[c2 log] Caused by:
+[c2 log]     out of memory
+
+===== C2b same 256 MiB invoice under RLIMIT_AS 700000 kB =====
+[c2b-big-ulim700] exit=1 elapsed_s=0 VmHWM_MB=2 VmPeak_MB=87 harness_killed=no
+[c2b] decision lines: 0  log bytes: 86
+[c2b log] Error: reading the invoice /t/ver26-fx/inv-big/big.json
+[c2b log] 
+[c2b log] Caused by:
+[c2b log]     out of memory
+
+===== C3 5000 tiny zero-amount invoices, full-authority grant =====
+[c3-count] exit=1 elapsed_s=5 VmHWM_MB=20 VmPeak_MB=547 harness_killed=no
+[c3] ALLOW lines: 5000
+  invoices          : 5000 in /t/ver26-fx/inv-count
+[c3 tail] Caused by:
+[c3 tail]     Connection refused (os error 111)
+
+===== C4 kill file (existing path) + 3 tiny invoices: does refusal skip the intake? =====
+[c4-killfile] exit=1 elapsed_s=0 VmHWM_MB=4 VmPeak_MB=419 harness_killed=no
+[c4] REFUSE lines: 3
+  invoices          : 3 in /t/ver26-fx/inv-small
+[c4]   REFUSE   v26a — refused: the grant was revoked (kill switch)
+[c4]   REFUSE   v26b — refused: the grant was revoked (kill switch)
+[c4]   REFUSE   v26c — refused: the grant was revoked (kill switch)
+
+===== binary =====
+30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416  /t/target/debug/zanary-probe
+done
+
+===== C5 mixed directory (256 MiB + 5000 tiny = 5001 entries, 282284 KiB) =====
+[c5-mixed] exit=1 all decision lines=5001 VmHWM_MB=532
+  invoices          : 5001 in /t/ver26-fx/inv-mix
+
+===== VmPeak repeats (3 tiny invoices, revoked grant) — the record's 547 MiB 3-invoice VmPeak is not stable =====
+rep1 VmPeak_MB=87 VmHWM_MB=9
+rep2 VmPeak_MB=87 VmHWM_MB=7
+rep3 VmPeak_MB=87 VmHWM_MB=7
+rep4 VmPeak_MB=87 VmHWM_MB=7
+(the first control run in this session showed VmPeak_MB=219 and the kill-file run VmPeak_MB=419 with the same 3 tiny invoices;
+ 547 MiB appeared on the 5000-file run; VmHWM/RSS is the stable, budget-relevant figure and reproduced at 526/532 MiB)
+
+===== environment =====
+binary sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416 (rebuilt from pristine git-archive sources, rustc 1.99.0 image)
+target /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720
+fixtures /t/ver26-fx: grant-ok.json 122 B, grant-revoked.json 121 B, killfile.txt, inv-small/{a,b,c}.json 151 B each,
+ inv-big/big.json 268435603 B (256 MiB memo), inv-count/ 5000 files 149 B each, inv-mix/ 5001 entries 282284 KiB

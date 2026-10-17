@@ -1,0 +1,27 @@
+   Compiling wagyu-zcash-parameters-2 v0.2.0
+   Compiling wagyu-zcash-parameters-5 v0.2.0
+   Compiling wagyu-zcash-parameters-3 v0.2.0
+   Compiling wagyu-zcash-parameters-1 v0.2.0
+   Compiling zanary-properties v0.0.1 (/t/v11-pristine/crates/properties)
+   Compiling wagyu-zcash-parameters v0.2.0
+   Compiling bip39 v2.2.2
+   Compiling matchers v0.2.0
+   Compiling tracing-log v0.2.0
+   Compiling rand_distr v0.4.3
+   Compiling sharded-slab v0.1.7
+   Compiling thread_local v1.1.10
+   Compiling xdg v3.0.0
+   Compiling known-folders v1.4.2
+   Compiling nu-ansi-term v0.50.3
+   Compiling home v0.5.12
+   Compiling tracing-subscriber v0.3.23
+   Compiling zcash_proofs v0.30.0
+   Compiling zanary-report v0.0.1 (/t/v11-pristine/crates/report)
+   Compiling rusqlite v0.37.0
+   Compiling schemerz-rusqlite v0.370.0
+   Compiling zcash_pool_migration v0.1.0
+   Compiling zcash_client_sqlite v0.22.0
+   Compiling zanary-probe v0.0.1 (/t/v11-pristine/crates/probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8m 03s
+BUILD_EXIT=0
+rustc 1.99.0 (b940084d7 2026-09-28)

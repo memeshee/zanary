@@ -1,0 +1,68 @@
+
+// ===========================================================================
+// verifier-14: does the PROPOSED FIX (parse both sides as instants, fail
+// closed on an unparsable expires_at) actually close the gap? Appended to a
+// DISPOSABLE sandbox copy only; this is a check of the remediation, not of
+// the reviewed binary.
+// ===========================================================================
+#[cfg(test)]
+mod verifier14_fixcheck {
+    use super::*;
+
+    fn fixed_decide(grant: &PayerGrant, spent_zat: u64, invoice: &Invoice, now: &str) -> Decision {
+        let rfc3339 = time::format_description::well_known::Rfc3339;
+        if grant.revoked {
+            return Decision { allowed: false, reason: "refused: the grant was revoked (kill switch)".to_string() };
+        }
+        let now_dt = match time::OffsetDateTime::parse(now, &rfc3339) {
+            Ok(dt) => dt,
+            Err(e) => return Decision { allowed: false, reason: format!("refused: the clock is not RFC3339: {e}") },
+        };
+        let expires_dt = match time::OffsetDateTime::parse(&grant.expires_at, &rfc3339) {
+            Ok(dt) => dt,
+            Err(e) => return Decision { allowed: false, reason: format!("refused: the grant's expires_at {} is not RFC3339: {e}", grant.expires_at) },
+        };
+        if now_dt >= expires_dt {
+            return Decision {
+                allowed: false,
+                reason: format!("refused: the grant expired at {} (this invoice was shown at {now})", grant.expires_at),
+            };
+        }
+        if !grant.allowlist.is_empty() && !grant.allowlist.contains(&invoice.receiver) {
+            return Decision { allowed: false, reason: "refused: stranger".to_string() };
+        }
+        if invoice.amount_zat > grant.per_payment_cap_zat {
+            return Decision { allowed: false, reason: "refused: cap".to_string() };
+        }
+        let after = spent_zat.saturating_add(invoice.amount_zat);
+        if after > grant.budget_zat {
+            return Decision { allowed: false, reason: "refused: budget".to_string() };
+        }
+        Decision { allowed: true, reason: format!("paid: within the cap ({} zat) and the budget ({} of {} zat spent after this)", grant.per_payment_cap_zat, after, grant.budget_zat) }
+    }
+
+    fn g(expires_at: &str) -> PayerGrant {
+        PayerGrant { budget_zat: 1000, per_payment_cap_zat: 400, allowlist: vec!["uregtest1merchant".to_string()], expires_at: expires_at.to_string(), revoked: false }
+    }
+
+    fn i(id: &str) -> Invoice {
+        Invoice { invoice_id: id.to_string(), amount_zat: 10, receiver: "uregtest1merchant".to_string(), memo: "v14".to_string(), uri: "u".to_string(), issued_at_height: 1, merchant_account: 0 }
+    }
+
+    #[test]
+    fn v14_fix_refuses_both_encodings_of_a_past_instant() {
+        let now = "2026-11-02T00:00:00Z";
+        let cases = [
+            ("2026-11-01T23:00:00Z", false),
+            ("2026-11-02T13:00:00+14:00", false),
+            ("never", false),
+            ("2030-99-99T00:00:00Z", false),
+            ("2030-01-01T00:00:00Z", true),
+        ];
+        for (exp, expect_allowed) in cases {
+            let d = fixed_decide(&g(exp), 0, &i("v14-fix"), now);
+            println!("V14-FIX expires_at {exp:>26} -> allowed={} [{}]", d.allowed, d.reason);
+            assert_eq!(d.allowed, expect_allowed, "expires_at={exp}");
+        }
+    }
+}

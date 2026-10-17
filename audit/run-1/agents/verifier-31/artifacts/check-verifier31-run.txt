@@ -1,0 +1,15 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.63s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 2 tests
+test verifier31_check::v31_real_decide_admits_a_thousand_one_zat_invoices_under_a_thousand_zat_grant ... V31-1 real decide(): allowed 1000 x 1-zat invoices under a 1000-zat/400-cap grant, spent 1000; 1,001st -> "refused: paying 1 zat would take this run to 1001 of a 1000 zat budget"; payer's own fee model for 1000 payments = 10000000 zat (10_000/payment, payer.rs:530)
+V31-1b demo-default shape: 12000000 x 1-zat invoices -> 120000000000 zat of fees under the payer's own per-payment model (payer.rs:530)
+ok
+test verifier31_check::v31_real_payer_policy_passes_the_fee_multiplied_ledger ... V31-2 real payer-policy property: verdict=Pass
+V31-2a summary: 1000 paid · 0 refused · 1000 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2026-11-01T00:00:00Z)
+V31-2b PayerRun::spent_zat() (observation/src/lib.rs:234) = 1000 zat while the payer's own fee model for the same 1,000 payments is 10000000 zat
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.03s
+

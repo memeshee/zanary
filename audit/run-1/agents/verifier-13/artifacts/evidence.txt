@@ -1,0 +1,70 @@
+zanary run-1 · verifier-13 · evidence summary
+============================================================
+Candidate : zanary/payer-duplicate-invoice-id-replay (hunter-payer, proposed confirmed)
+Verdict   : confirmed (record tightened; fingerprint kept — same source-derived root cause)
+
+Files in this scratch (all written by the verifier from its own runs; inputs synthetic, no
+network, no rig, no real funds):
+  check-source.txt  line-numbered verbatim quotes from the read-only target + the greps
+  check-unit.txt    verifier's own unit check in the approved sandbox (5/5 passed; see below)
+  check-cli.txt     verifier's own real-CLI run in the approved sandbox (two invocations)
+Target: /home/kiter/hackathon/zanary @ 7058406, worktree clean. Sandbox: disposable git-archive
+copy (rust-toolchain.toml removed), production lines 1-655 of crates/probe/src/payer.rs
+byte-identical to the worktree; all execution inside
+`docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+ -v <copy>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim`.
+
+Every decisive claim re-established independently (my own module, not the hunter's):
+1. Intake: the real load_invoices() read a directory with inv-a.json and inv-b.json carrying the
+   same invoice_id and returned TWO invoices, ids ["v13-8301","v13-8301"] (V13-1). Source: the
+   only selection rule is the *.json extension (payer.rs:503), the parse is plain serde (513-517),
+   with no count cap and no id uniqueness check (494-520).
+2. Decision: the production loop statements (payer.rs:246-270) allow BOTH duplicates and queue
+   both — to_pay 2 entries with one id, spent 600 of the 1000 zat budget, both decisions "paid"
+   (V13-2). The same through the real CLI: two ALLOW lines for v13-8301, "300 of 1000" then
+   "600 of 1000" (check-cli.txt). Nothing in decide() (84-136) consults the id.
+3. Cross-run: a second, identical CLI invocation printed the identical 300→600 sequence — spent
+   starts at 0 per process (payer.rs:247) and no paid-invoice state exists to consult
+   (observation:224-230: label + grant + decisions only).
+4. Attribution: the loop's own predicate (payer.rs:320-326) applied to the real PayerDecision
+   vector with two payments puts the SECOND payment's txid/height on row 0 and leaves row 1 with
+   no txid; control with two distinct ids attributes correctly (V13-3). (ledger.jsonl, written
+   per payment at 327-338, keeps one row per payment with its own txid — the corruption is in
+   the run record's payer ledger, which is what payer-policy reads.)
+5. Detector: the real PayerPolicy::check returns Pass for the duplicated ledger ("2 paid ·
+   0 refused · 600 of 1000 zat spent"; evidence echoes both paid rows, one "no txid") (V13-4).
+   Source: the property iterates decisions with no notion of invoice identity (payer_policy.rs:63).
+6. Report: the full real property suite (zanary_properties::evaluate) over the duplicated ledger
+   passes payer-policy, receiver-reuse (both payments share the label "invoice v13-8301", which
+   receiver_reuse_groups() dedupes away — no group forms), memo-absent, memo-content and the
+   pool/policy properties; the only FAIL is amount-fingerprint (W): "exact repeat across
+   payments" on the equal amounts (V13-5). No property compares invoice ids.
+7. The payment loop (payer.rs:291-363) iterates to_pay unconditionally — one propose, sign and
+   broadcast per entry, no dedupe, no per-entry guard — and the payer funds for every to_pay
+   entry including duplicates (shortfall(), payer.rs:523-533, 10,000 zat ZIP-317 fee per entry).
+   So the same invoice_id is paid twice in one run.
+
+Corrections to the candidate's wording (the record replaces it):
+* The claims "the ledger ... shows a clean run" / "the report ... show a clean run" are too
+  strong for the byte-identical duplicate: with two payments of 300 zat the run's own property
+  report holds a WARNING-severity FAIL (amount-fingerprint, "exact repeat across payments" —
+  amount repetition, not the duplicate id), and payer.rs:479-486 aborts the run on any FAIL.
+  That abort is non-zero AFTER both payments and AFTER ledger.jsonl/run.json/report.json are
+  written (406-411), and a re-issued invoice with a corrected (different) amount evades the
+  amount-repeat rule entirely. payer-policy, which is the authority boundary, still passes.
+* "the ledger puts the second payment's txid on the first row": exactly true of the run record's
+  payer ledger (the decisions payer-policy reads). ledger.jsonl's own two rows each keep their
+  own txid; the second decisions row is the one left with none.
+* flow.rs evidence line: the "no channel other than the file" sentence is flow.rs:1554-1555
+  (1552 is the command doc line); corrected in the record.
+
+Still outside source/local observation (not decisive for the stated root cause, named for
+completeness): the two shielded broadcasts themselves and the persisted run record of a real
+run — they need the regtest rig (funded synced wallet + node/indexer, host ports 18232/9067),
+which is out of bounds for the sandbox. Everything up to the queue, the attribution predicate
+and the property verdict was executed with the target's own code; the broadcast is the
+unconditional continuation of the same loop (291-363).
+
+Boundary note: no network service, no rig, no public URL, no host path besides the disposable
+copy and the read-only cargo registry; writes under /t only; the target worktree was not touched
+(git status clean, verified before and after).

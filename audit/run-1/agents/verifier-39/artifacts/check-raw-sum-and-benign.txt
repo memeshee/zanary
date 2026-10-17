@@ -1,0 +1,36 @@
+verifier-39 phase-5 check — raw-sum contrast + benign control (zanary/unchecked-zat-sum-overflow)
+==================================================================================================
+
+Toolchain in the approved sandbox image (rust:1-slim), invoked exactly as the record's
+instructions say:
+  rustc 1.99.0 (b940084d7 2026-09-28)
+  cargo 1.99.0 (5f94df478 2026-08-27)
+(The backtrace in the panic run cites /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/ — the same
+commit as rustc 1.99.0.)
+
+--- raw-sum snippet (same shape as the flow.rs:336 sum) ---
+Source v39-wrap.rs:
+  fn main() {
+      let v = std::hint::black_box([u64::MAX, u64::MAX]);
+      let total: u64 = v.iter().copied().sum::<u64>();
+      println!("{total}");
+  }
+
+rustc v39-wrap.rs  (overflow checks on):
+  build exit: 0 ; run exit: 101
+  thread 'main' (47) panicked at .../library/core/src/iter/traits/accum.rs:206:1:
+  attempt to add with overflow
+
+rustc -O v39-wrap.rs  (overflow checks off):
+  build exit: 0 ; run exit: 0
+  18446744073709551614
+
+--- benign control: v39-benign.json (two 100,000-zat invoices) ---
+dev run   exit: 1 ; release run exit: 1   (both reach the node step; no node in the sandbox)
+both stdouts print:
+  invoices          : 2 (0.00200000 ZEC total)
+  ...
+  Error: connecting to the zcashd RPC at 127.0.0.1:18232
+  Caused by: Connection refused (os error 111)
+i.e. the sum is only wrong when the amounts overflow; the ordinary path accounts correctly and the
+failure mode is the sandbox's missing node, not a rejection of the definition.

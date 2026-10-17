@@ -1,0 +1,27 @@
+{
+  "agent": "verifier-34",
+  "phase": "5-record-verification",
+  "fingerprint": "zanary/payer-ledger-not-durable",
+  "decision": "verified",
+  "target": {"repo": "/home/kiter/hackathon/zanary", "commit": "7058406", "worktree_dirty": false},
+  "source_pins_verified": 33,
+  "own_checker": {"file": "crates/probe/src/bin/verifier34_check.rs (sandbox copy only)",
+                  "result": "56/56 pass, exit 0", "output": "scratch/check-verifier34.txt"},
+  "declared_local_plan_replayed": {"command": "cargo run --offline -p zanary-probe --bin verifier15_check (in /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2)",
+                                   "result": "51/51 pass, exit 0", "output": "scratch/check-replay15.txt"},
+  "real_cli_reobserved": {"grant": "budget 50000000, cap 10000000, allowlist [not-an-address]",
+                          "invoice": "v34-8301 receiver not-an-address amount 5000000",
+                          "observed": "ALLOW printed, then Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused, EXIT=1, --out never created"},
+  "consolidation": {"sound": true,
+                    "sibling": "crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written",
+                    "why": "one root cause: end-of-loop commit plus `?` abort ordering at payer.rs:291-411; the sibling's trace/evidence/blockers/plans all appear in the union; the extra facets (no persisted paid state, truncating overwrite at a reused --out) are consequences of the same end-of-run write design",
+                    "findings_json_records_for_root_cause": 1},
+  "non_material_notes": [
+    "blockers[2] is a dedupe note, not a validation blocker; blockers[3]/[4] restate blockers[0]/[1]",
+    "trace sink anchors at 408 while its description names the write at 409/411 (same statement block)",
+    "propagation trace items are not in line order (409 precedes 249)",
+    "validation_plan.local's promoted-artifact pointer agents/verifier-15/artifacts/check-verifier15.txt does not exist (scratch copy does); the re-run instruction itself works",
+    "deployment recipe 1 leaves $DIR/grants/garbage.json implicit and its step (4) parenthetical (the second txid) does not match the third run"
+  ],
+  "boundary_note": "no rig, no network service, no URL contacted; all execution inside the approved --network=none sandbox on the disposable copy"
+}

@@ -1,0 +1,42 @@
+verifier-24 Phase-5 record verification — crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment
+Decision: VERIFIED (record holds as written at target commit 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean)
+
+Checklist results
+1. All trace/evidence paths re-read in the target at 7058406: receipt.rs:250-256 (docs), 255-256 ("fails here rather than being
+   printed as if it were fine"), 308-310 (comment), 311 (join), 317 (contains sink), 24-29/27 (claims inside SigningPayload);
+   main.rs:110-111 (claim printed before checks), 117-118 (verify_signature / validate_claim calls), 130 (claim ok print), 200
+   (Ok(0)); schemas/zanary-receipt-v1.json:37 ("refuses a receipt whose claims contradict its body"); docs/FLOW-RUNNER-NOTES.md:352
+   (disagreement fixture -> exit 1); docs/FLOW-RUNNER-PLAN.md:127-131; crates/properties/src/properties/report_leak.rs:108-115/111
+   (claim="..." evidence string). All accurate.
+2. Entry interface verified: `zanary-report verify-receipt <file>` parses a Receipt JSON (format/body/claims/discloses/signer/signature).
+3. Reproduced end to end in the approved sandbox (build from git HEAD; sandbox receipt.rs sha256
+   f26dbc615c3ddd6a4ee4779f0eb38554abddd23e6167e3d70d42396c4bc97dac == target hash; diff crates/report and crates/observation
+   vs target: only an added test file):
+   - record payload 0 (body 4471/1234567; claim 44710/12345678): signature VALID, both `claim ok` lines, exit=0. check-cli-output.txt
+   - record payload 1 (body 9120/250000; claim 91207/2500000, signed by verifier-5 key a11032f8...): same, exit=0.
+   - verifier-24 FRESH fixture signed with verifier-24's own key (seed 0x7e, signer 0cf4430f...; own txid 0e5831a2..., memo f806e7ca...):
+     accepted, both `claim ok` lines, `signature : VALID`, exit=0.
+   - controls on the same build: claim invoice 9121 for body 9120 -> `claim : INVALID — the receipt's claims never state the invoice
+     id (9120) that its body carries`, exit=1; claim amount 250019 for body 250000 -> refused on the amount; exact-figure claim -> exit=0.
+   - unit level (crates/report/tests/verifier24_probe.rs, added only in the disposable sandbox copy): validate_claim Ok for the
+     embedding claim, Err for both absent-figure controls, Ok for the exact claim. 4 passed / 0 failed.
+   - the record's proposed `states()` boundary helper compiles and returns false for the embedding claim on invoice id and amount,
+     true for the exact-figure claim (V24-D), as the remediation states.
+4. Affected principal/resource and impact as stated, nothing stronger: the artifact's human-readable half (inside the signed payload)
+   can state different figures while verify-receipt prints `claim ok : claims: state the body's invoice id, amount and transaction`
+   and exits 0; the same tool prints the true body figures on the adjacent `claim ok : body:` line; nothing is authorized by a receipt.
+5. Severity separation consistent: likelihood medium (no key needed; producer signs its own claims; no signer pinning by default),
+   impact low, overall low <= impact. Not overstated.
+6. Remediation: boundary-aware `states()` replaces the containment test at the same decision point (validate_claim line 317) and
+   compiles/behaves as claimed; the record honestly states the residual limitation (presence checks cannot reject a claim that
+   states the body's figures plus contradicting ones) and offers schema prose or structured claims as the complete fix.
+
+Non-material transcription notes (no meaning/evidence change):
+- observed_result elides the txid on the two `claim ok : body:` lines with "44f216cc...337e" / "c0ffee...ee00"; the real output prints
+  the full 64-hex txid.
+- intended_behavior quotes `claim : INVALID - ...` with a hyphen where the CLI and docs use an em dash.
+
+Artifacts in this scratch dir: check-cli-output.txt (5 CLI runs), check-unit-output.txt (unit test log), check-probe-test.rs.txt
+(sandbox test source), check-fixture-superstring.json / check-fixture-absent-invoice.json / check-fixture-clean.json (verifier-24's
+own signed fixtures), record-payload.json / record-payload-2.json (payloads extracted programmatically from the record, byte-identical
+to the field leftovers).

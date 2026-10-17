@@ -1,0 +1,20 @@
+    Blocking waiting for file lock on build directory
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 17s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 2 tests
+V19-RANGE Some([1, 4294967295]) fixed=Some(7)
+V19-DESCRIBE jittered 1-4294967295 blocks between payments, drawn: []
+V19-DRAWS [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+V19-MAX 4085077839
+V19-MEAN 1791207489
+V19-DESCRIBE-AFTER jittered 1-4294967295 blocks between payments, drawn: [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+test flow::verifier19_tests::v19_seed7_draws ... ok
+  jitter: ignoring jitter_blocks [2, 1] (want 1 <= min <= max); falling back to the fixed three blocks
+V19-BAD-DRAWS 3 3 3
+V19-EDGE-DRAW 4294967295
+test flow::verifier19_tests::v19_bounds_are_shape_only ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+

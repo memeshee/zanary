@@ -1,0 +1,136 @@
+# hunter-video local check: published media asset container + metadata
+# date(UTC): 2026-10-17T09:52:24Z
+# image: rust:1-slim (local, no pulls) · limits: --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+# mounts: sandbox copy (disposable git archive of reviewed commit 7058406) at /t; host cargo registry ro (unused here)
+# command: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v <copy>:/t -v <registry>:ro -w /t rust:1-slim sh -c '<steps below>'
+# steps: sha256; find mp4 in tree; rustc -O atomdump.rs (read-only ISO-BMFF parser) and run on /t/video/zanary-demo.mp4; token scan over raw bytes
+
+== sha256 (copy) ==
+38a6b73fb25bab4e3888988639658e603336a8784e5503af7783179cb159ec75  /t/video/zanary-demo.mp4
+
+== mp4 files in tree ==
+/t/video/zanary-demo.mp4
+
+== container/metadata parse (atomdump, strings cap 40) ==
+file=/t/video/zanary-demo.mp4 len=3717435
+ftyp size=32 off=0
+  head: isom....isomiso2avc1mp41
+moov size=124940 off=32
+  mvhd size=108 off=40
+    v0 creation=0 mod=0
+  trak size=54374 off=148
+    tkhd size=92 off=156
+      v0 creation=0 mod=0
+    edts size=36 off=248
+      elst size=28 off=256
+    mdia size=54238 off=284
+      mdhd size=32 off=292
+        v0 timescale=15360 duration=1722368 (~112.13s)
+      hdlr size=45 off=324
+        handler_type='vide' name='VideoHandler.'
+      minf size=54153 off=369
+        vmhd size=20 off=377
+        dinf size=36 off=397
+          dref size=28 off=405
+        stbl size=54089 off=433
+          stsd size=177 off=441
+            head: ............avc1.........................@...H...H.........Lavc6
+          stts size=24 off=618
+          stss size=80 off=642
+          ctts size=26816 off=722
+          stsc size=40 off=27538
+          stsz size=13476 off=27578
+          stco size=13468 off=41054
+  trak size=70353 off=54522
+    tkhd size=92 off=54530
+      v0 creation=0 mod=0
+    edts size=36 off=54622
+      elst size=28 off=54630
+    mdia size=70217 off=54658
+      mdhd size=32 off=54666
+        v0 timescale=48000 duration=5383424 (~112.15s)
+      hdlr size=45 off=54698
+        handler_type='soun' name='SoundHandler.'
+      minf size=70132 off=54743
+        smhd size=16 off=54751
+        dinf size=36 off=54767
+          dref size=28 off=54775
+        stbl size=70072 off=54803
+          stsd size=126 off=54811
+            head: ...........nmp4a...............................6esds........%...
+          stts size=32 off=54937
+          stsc size=35332 off=54969
+          stsz size=21052 off=90301
+          stco size=13468 off=111353
+          sgpd size=26 off=124821
+          sbgp size=28 off=124847
+  udta size=97 off=124875
+    meta size=89 off=124883
+      hdlr size=33 off=124895
+        handler_type='mdir' name='.'
+      ilst size=44 off=124928
+        .too size=36 off=124936
+free size=8 off=124972
+  head: 
+mdat size=3592455 off=124980
+STR @3:  ftypisom
+STR @16: isomiso2avc1mp41
+STR @356: VideoHandler
+STR @508: Lavc63.1.101 libx264
+STR @54730: SoundHandler
+STR @90303: R<stsz
+STR @124911: mdirappl
+STR @124960: Lavf63.1.101
+STR @125013: x264 - core 165 - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=12 lookahead_threads=2 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=20.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+STR @127112: +t31%*(
+STR @128424: A^e|e?
+STR @128980: {g!;>b
+STR @130398: p1BMk"
+STR @130824: g?V]%C
+STR @131489: F}A^xbB
+STR @131963: IKQZe?qi
+STR @132040: #&XJW+A
+STR @132626: Ba`v$v
+STR @132700: XR90/*
+STR @133196: KF8r6d%'
+STR @133452: T'J/E$H
+STR @133733: Cy6]TM
+STR @134139: >p@9F`
+STR @134176: ++[b}H
+STR @134759: vT1G\e;%
+STR @136915: x&r}z0
+STR @137190: t5ViNs
+STR @137454: c:EQdz
+STR @138384: %D0DA)
+STR @138725: cN$}(u
+STR @139380: It$J%)
+STR @141513: S K'6tS
+STR @141569: b#{LK7cGxa9_$
+STR @141753: U\E<rv
+STR @141799: v`4L.X
+STR @141891: >Emxw18
+STR @142316: (E6S.u"
+STR @142975: ym%*3M
+STR @144398: S^=*r"
+STR @144517: G`svD{
+printable strings shown=40 (cap=40)
+
+== token scan over raw bytes (case-insensitive, count of occurrences) ==
+abandon              0
+seed phrase          0
+mnemonic             0
+ufvk                 0
+uview                0
+rpcpassword          0
+zanary-rehearsal     0
+kiter                0
+uregtest             0
+allowlist            0
+
+== decoder feasibility probe (same sandbox, appended) ==
+# question: can the sandbox decode the media pixels/audio at all, offline?
+ffprobe: absent
+ffmpeg:  absent
+python3: absent
+---- media-capable crates in the read-only offline registry (cache dir names):
+(end)

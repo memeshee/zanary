@@ -1,0 +1,983 @@
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+warning: constant `DEV_MNEMONIC` is never used
+  --> crates/probe/src/bin/../core.rs:63:11
+   |
+63 | pub const DEV_MNEMONIC: &str =
+   |           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `DEV_ACCOUNT_NAME` is never used
+  --> crates/probe/src/bin/../core.rs:67:11
+   |
+67 | pub const DEV_ACCOUNT_NAME: &str = "zanary-dev";
+   |           ^^^^^^^^^^^^^^^^
+
+warning: type alias `ProbeDb` is never used
+  --> crates/probe/src/bin/../core.rs:70:10
+   |
+70 | pub type ProbeDb = WalletDb<rusqlite::Connection, LocalNetwork, SystemClock, rand::rngs::OsRng>;
+   |          ^^^^^^^
+
+warning: type alias `IndexerClient` is never used
+  --> crates/probe/src/bin/../core.rs:73:10
+   |
+73 | pub type IndexerClient = CompactTxStreamerClient<tonic::transport::Channel>;
+   |          ^^^^^^^^^^^^^
+
+warning: function `endpoint` is never used
+   --> crates/probe/src/bin/../core.rs:100:8
+    |
+100 | pub fn endpoint() -> String {
+    |        ^^^^^^^^
+
+warning: function `ensure_chain_has_a_block` is never used
+   --> crates/probe/src/bin/../core.rs:111:14
+    |
+111 | pub async fn ensure_chain_has_a_block() -> Result<()> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `wait_for_indexer_height` is never used
+   --> crates/probe/src/bin/../core.rs:128:14
+    |
+128 | pub async fn wait_for_indexer_height(endpoint: &str, min_height: u32) -> Result<u32> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `data_dir` is never used
+   --> crates/probe/src/bin/../core.rs:167:8
+    |
+167 | pub fn data_dir() -> PathBuf {
+    |        ^^^^^^^^
+
+warning: function `db_path` is never used
+   --> crates/probe/src/bin/../core.rs:172:8
+    |
+172 | pub fn db_path() -> PathBuf {
+    |        ^^^^^^^
+
+warning: function `dev_seed` is never used
+   --> crates/probe/src/bin/../core.rs:177:8
+    |
+177 | pub fn dev_seed() -> Result<[u8; 64]> {
+    |        ^^^^^^^^
+
+warning: function `account_name` is never used
+   --> crates/probe/src/bin/../core.rs:184:8
+    |
+184 | pub fn account_name(account: u32) -> String {
+    |        ^^^^^^^^^^^^
+
+warning: function `dev_usk` is never used
+   --> crates/probe/src/bin/../core.rs:193:8
+    |
+193 | pub fn dev_usk(network: &LocalNetwork, account: u32) -> Result<UnifiedSpendingKey> {
+    |        ^^^^^^^
+
+warning: constant `MERCHANT_MNEMONIC` is never used
+   --> crates/probe/src/bin/../core.rs:207:11
+    |
+207 | pub const MERCHANT_MNEMONIC: &str =
+    |           ^^^^^^^^^^^^^^^^^
+
+warning: constant `BEACON_MNEMONIC` is never used
+   --> crates/probe/src/bin/../core.rs:214:11
+    |
+214 | pub const BEACON_MNEMONIC: &str = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
+    |           ^^^^^^^^^^^^^^^
+
+warning: struct `WalletProfile` is never constructed
+   --> crates/probe/src/bin/../core.rs:219:12
+    |
+219 | pub struct WalletProfile {
+    |            ^^^^^^^^^^^^^
+
+warning: associated items `dev`, `merchant`, `beacon`, `seed`, `usk`, and `db_path` are never used
+   --> crates/probe/src/bin/../core.rs:235:12
+    |
+232 | impl WalletProfile {
+    | ------------------ associated items in this implementation
+...
+235 |     pub fn dev(account: u32) -> Self {
+    |            ^^^
+...
+247 |     pub fn merchant(account: u32) -> Self {
+    |            ^^^^^^^^
+...
+267 |     pub fn beacon(account: u32) -> Self {
+    |            ^^^^^^
+...
+286 |     pub fn seed(&self) -> Result<[u8; 64]> {
+    |            ^^^^
+...
+291 |     pub fn usk(&self, network: &LocalNetwork) -> Result<UnifiedSpendingKey> {
+    |            ^^^
+...
+304 |     pub fn db_path(&self) -> PathBuf {
+    |            ^^^^^^^
+
+warning: function `seed_from_mnemonic` is never used
+   --> crates/probe/src/bin/../core.rs:310:8
+    |
+310 | pub fn seed_from_mnemonic(mnemonic: &str) -> Result<[u8; 64]> {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `open_db` is never used
+   --> crates/probe/src/bin/../core.rs:317:8
+    |
+317 | pub fn open_db(data_dir: &PathBuf) -> Result<(ProbeDb, PathBuf)> {
+    |        ^^^^^^^
+
+warning: function `open_db_for` is never used
+   --> crates/probe/src/bin/../core.rs:330:8
+    |
+330 | pub fn open_db_for(profile: &WalletProfile) -> Result<(ProbeDb, PathBuf)> {
+    |        ^^^^^^^^^^^
+
+warning: function `connect` is never used
+   --> crates/probe/src/bin/../core.rs:341:14
+    |
+341 | pub async fn connect(endpoint: &str) -> Result<IndexerClient> {
+    |              ^^^^^^^
+
+warning: struct `ImportedAccount` is never constructed
+   --> crates/probe/src/bin/../core.rs:348:12
+    |
+348 | pub struct ImportedAccount {
+    |            ^^^^^^^^^^^^^^^
+
+warning: function `import_account_if_needed` is never used
+   --> crates/probe/src/bin/../core.rs:356:14
+    |
+356 | pub async fn import_account_if_needed(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_account_for` is never used
+   --> crates/probe/src/bin/../core.rs:369:14
+    |
+369 | pub async fn import_account_for(
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `sync_wallet` is never used
+   --> crates/probe/src/bin/../core.rs:451:14
+    |
+451 | pub async fn sync_wallet(
+    |              ^^^^^^^^^^^
+
+warning: function `detect_transparent_spends` is never used
+   --> crates/probe/src/bin/../core.rs:693:10
+    |
+693 | async fn detect_transparent_spends(
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `annotate_transparent_tx_indices` is never used
+   --> crates/probe/src/bin/../core.rs:812:10
+    |
+812 | async fn annotate_transparent_tx_indices(db_path: &Path) -> Result<()> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `Probe` is never constructed
+   --> crates/probe/src/bin/../core.rs:902:12
+    |
+902 | pub struct Probe {
+    |            ^^^^^
+
+warning: function `bootstrap` is never used
+   --> crates/probe/src/bin/../core.rs:914:14
+    |
+914 | pub async fn bootstrap(account: u32) -> Result<Probe> {
+    |              ^^^^^^^^^
+
+warning: function `bootstrap_with` is never used
+   --> crates/probe/src/bin/../core.rs:924:14
+    |
+924 | pub async fn bootstrap_with(profile: WalletProfile) -> Result<Probe> {
+    |              ^^^^^^^^^^^^^^
+
+warning: function `wallet_summary` is never used
+   --> crates/probe/src/bin/../core.rs:966:8
+    |
+966 | pub fn wallet_summary(db: &ProbeDb) -> Result<Option<WalletSummary<AccountUuid>>> {
+    |        ^^^^^^^^^^^^^^
+
+warning: struct `BalanceSnapshot` is never constructed
+   --> crates/probe/src/bin/../core.rs:973:12
+    |
+973 | pub struct BalanceSnapshot {
+    |            ^^^^^^^^^^^^^^^
+
+warning: associated items `capture` and `delta` are never used
+    --> crates/probe/src/bin/../core.rs:983:12
+     |
+ 980 | impl BalanceSnapshot {
+     | -------------------- associated items in this implementation
+...
+ 983 |     pub fn capture(db: &ProbeDb, account: AccountUuid) -> Result<Self> {
+     |            ^^^^^^^
+...
+1000 |     pub fn delta(&self, after: &BalanceSnapshot) -> BalanceSnapshot {
+     |            ^^^^^
+
+warning: function `print_balances` is never used
+    --> crates/probe/src/bin/../core.rs:1011:8
+     |
+1011 | pub fn print_balances(balance: &AccountBalance) {
+     |        ^^^^^^^^^^^^^^
+
+warning: function `print_delta` is never used
+    --> crates/probe/src/bin/../core.rs:1032:8
+     |
+1032 | pub fn print_delta(delta: &BalanceSnapshot) {
+     |        ^^^^^^^^^^^
+
+warning: function `format_zec` is never used
+    --> crates/probe/src/bin/../core.rs:1043:8
+     |
+1043 | pub fn format_zec(value: Zatoshis) -> String {
+     |        ^^^^^^^^^^
+
+warning: function `format_zats_signed` is never used
+    --> crates/probe/src/bin/../core.rs:1048:8
+     |
+1048 | pub fn format_zats_signed(value: i128) -> String {
+     |        ^^^^^^^^^^^^^^^^^^
+
+warning: struct `MemoryBlockCache` is never constructed
+    --> crates/probe/src/bin/../core.rs:1061:8
+     |
+1061 | struct MemoryBlockCache {
+     |        ^^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `blocks_in` are never used
+    --> crates/probe/src/bin/../core.rs:1066:8
+     |
+1065 | impl MemoryBlockCache {
+     | --------------------- associated items in this implementation
+1066 |     fn new() -> Self {
+     |        ^^^
+...
+1073 |     fn blocks_in(&self, range: &ScanRange) -> Vec<CompactBlock> {
+     |        ^^^^^^^^^
+
+warning: struct `CacheError` is never constructed
+    --> crates/probe/src/bin/../core.rs:1093:8
+     |
+1093 | struct CacheError(String);
+     |        ^^^^^^^^^^
+
+warning: struct `InvoiceSpec` is never constructed
+  --> crates/probe/src/bin/../flow.rs:59:12
+   |
+59 | pub struct InvoiceSpec {
+   |            ^^^^^^^^^^^
+
+warning: function `default_receiver_strategy` is never used
+  --> crates/probe/src/bin/../flow.rs:68:4
+   |
+68 | fn default_receiver_strategy() -> String {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `default_receipt_account` is never used
+  --> crates/probe/src/bin/../flow.rs:74:4
+   |
+74 | fn default_receipt_account() -> u32 {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_default_receipt_account` is never used
+  --> crates/probe/src/bin/../flow.rs:78:4
+   |
+78 | fn is_default_receipt_account(value: &u32) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `default_true` is never used
+  --> crates/probe/src/bin/../flow.rs:82:4
+   |
+82 | fn default_true() -> bool {
+   |    ^^^^^^^^^^^^
+
+warning: struct `FlowDefinition` is never constructed
+  --> crates/probe/src/bin/../flow.rs:88:12
+   |
+88 | pub struct FlowDefinition {
+   |            ^^^^^^^^^^^^^^
+
+warning: struct `Jitter` is never constructed
+   --> crates/probe/src/bin/../flow.rs:154:8
+    |
+154 | struct Jitter {
+    |        ^^^^^^
+
+warning: associated items `from_definition`, `next`, and `describe` are never used
+   --> crates/probe/src/bin/../flow.rs:163:8
+    |
+162 | impl Jitter {
+    | ----------- associated items in this implementation
+163 |     fn from_definition(definition: &FlowDefinition) -> Self {
+    |        ^^^^^^^^^^^^^^^
+...
+187 |     fn next(&mut self) -> u64 {
+    |        ^^^^
+...
+199 |     fn describe(&self) -> String {
+    |        ^^^^^^^^
+
+warning: function `is_zero` is never used
+   --> crates/probe/src/bin/../flow.rs:210:4
+    |
+210 | fn is_zero(value: &u32) -> bool {
+    |    ^^^^^^^
+
+warning: method `canonical` is never used
+   --> crates/probe/src/bin/../flow.rs:216:8
+    |
+214 | impl FlowDefinition {
+    | ------------------- method in this implementation
+215 |     /// Canonical bytes of the definition: the hash of these is the run's `flow_commit`.
+216 |     fn canonical(&self) -> Result<String> {
+    |        ^^^^^^^^^
+
+warning: function `run` is never used
+   --> crates/probe/src/bin/../flow.rs:229:14
+    |
+229 | pub async fn run(raw: &[String]) -> Result<()> {
+    |              ^^^
+
+warning: function `run_recording` is never used
+   --> crates/probe/src/bin/../flow.rs:247:14
+    |
+247 | pub async fn run_recording(raw: &[String]) -> Result<crate::record::RunArtifacts> {
+    |              ^^^^^^^^^^^^^
+
+warning: function `settle_per_invoice` is never used
+   --> crates/probe/src/bin/../flow.rs:582:10
+    |
+582 | async fn settle_per_invoice(
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: struct `IssuedInvoice` is never constructed
+   --> crates/probe/src/bin/../flow.rs:765:8
+    |
+765 | struct IssuedInvoice {
+    |        ^^^^^^^^^^^^^
+
+warning: function `settle_batch` is never used
+   --> crates/probe/src/bin/../flow.rs:787:10
+    |
+787 | async fn settle_batch(
+    |          ^^^^^^^^^^^^
+
+warning: function `check_read_binds_invoice` is never used
+    --> crates/probe/src/bin/../flow.rs:1050:4
+     |
+1050 | fn check_read_binds_invoice(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `batch_order` is never used
+    --> crates/probe/src/bin/../flow.rs:1071:4
+     |
+1071 | fn batch_order(count: usize, seed: Option<u64>) -> Vec<usize> {
+     |    ^^^^^^^^^^^
+
+warning: function `default_out_dir` is never used
+    --> crates/probe/src/bin/../flow.rs:1091:8
+     |
+1091 | pub fn default_out_dir(definition: &Path) -> PathBuf {
+     |        ^^^^^^^^^^^^^^^
+
+warning: function `parse_args` is never used
+    --> crates/probe/src/bin/../flow.rs:1099:4
+     |
+1099 | fn parse_args(raw: &[String]) -> Result<(PathBuf, PathBuf, Option<u64>)> {
+     |    ^^^^^^^^^^
+
+warning: function `issue_receiver` is never used
+    --> crates/probe/src/bin/../flow.rs:1143:4
+     |
+1143 | fn issue_receiver(merchant: &mut Probe) -> Result<String> {
+     |    ^^^^^^^^^^^^^^
+
+warning: function `spendable_orchard` is never used
+    --> crates/probe/src/bin/../flow.rs:1156:8
+     |
+1156 | pub fn spendable_orchard(probe: &Probe) -> Result<u64> {
+     |        ^^^^^^^^^^^^^^^^^
+
+warning: function `fee_budget_zat` is never used
+    --> crates/probe/src/bin/../flow.rs:1172:4
+     |
+1172 | fn fee_budget_zat(invoice_count: usize, settlement: &str) -> u64 {
+     |    ^^^^^^^^^^^^^^
+
+warning: function `shortfall` is never used
+    --> crates/probe/src/bin/../flow.rs:1181:4
+     |
+1181 | fn shortfall(probe: &Probe, invoices: &[InvoiceSpec], settlement: &str) -> Result<Option<u64>> {
+     |    ^^^^^^^^^
+
+warning: function `funding_shortfall` is never used
+    --> crates/probe/src/bin/../flow.rs:1189:4
+     |
+1189 | fn funding_shortfall(probe: &Probe, definition: &FlowDefinition) -> Result<Option<u64>> {
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: function `settlement_of` is never used
+    --> crates/probe/src/bin/../flow.rs:1194:4
+     |
+1194 | fn settlement_of(definition: &FlowDefinition) -> &str {
+     |    ^^^^^^^^^^^^^
+
+warning: function `top_up_for_target` is never used
+    --> crates/probe/src/bin/../flow.rs:1202:14
+     |
+1202 | pub async fn top_up_for_target(profile: WalletProfile, at_least: u64) -> Result<Probe> {
+     |              ^^^^^^^^^^^^^^^^^
+
+warning: function `top_up_payer` is never used
+    --> crates/probe/src/bin/../flow.rs:1222:10
+     |
+1222 | async fn top_up_payer(
+     |          ^^^^^^^^^^^^
+
+warning: function `top_up_payer_impl` is never used
+    --> crates/probe/src/bin/../flow.rs:1247:10
+     |
+1247 | async fn top_up_payer_impl(profile: WalletProfile, target: u64) -> Result<Probe> {
+     |          ^^^^^^^^^^^^^^^^^
+
+warning: function `funding_target` is never used
+    --> crates/probe/src/bin/../flow.rs:1291:4
+     |
+1291 | fn funding_target(definition: &FlowDefinition, missing: u64) -> u64 {
+     |    ^^^^^^^^^^^^^^
+
+warning: function `record_funding` is never used
+    --> crates/probe/src/bin/../flow.rs:1310:15
+     |
+1310 | pub(crate) fn record_funding(payer: &Probe) -> Result<Vec<Funding>> {
+     |               ^^^^^^^^^^^^^^
+
+warning: struct `MerchantRead` is never constructed
+    --> crates/probe/src/bin/../flow.rs:1365:12
+     |
+1365 | pub struct MerchantRead {
+     |            ^^^^^^^^^^^^
+
+warning: function `merchant_outputs` is never used
+    --> crates/probe/src/bin/../flow.rs:1375:10
+     |
+1375 | async fn merchant_outputs(
+     |          ^^^^^^^^^^^^^^^^
+
+warning: function `merchant_read` is never used
+    --> crates/probe/src/bin/../flow.rs:1448:10
+     |
+1448 | async fn merchant_read(
+     |          ^^^^^^^^^^^^^
+
+warning: function `mined_height_of` is never used
+    --> crates/probe/src/bin/../flow.rs:1461:10
+     |
+1461 | async fn mined_height_of(
+     |          ^^^^^^^^^^^^^^^
+
+warning: function `sign_receipt` is never used
+    --> crates/probe/src/bin/../flow.rs:1483:4
+     |
+1483 | fn sign_receipt(
+     |    ^^^^^^^^^^^^
+
+warning: function `issue_invoice` is never used
+    --> crates/probe/src/bin/../flow.rs:1556:14
+     |
+1556 | pub async fn issue_invoice(raw: &[String]) -> Result<()> {
+     |              ^^^^^^^^^^^^^
+
+warning: function `verify_invoice` is never used
+    --> crates/probe/src/bin/../flow.rs:1654:14
+     |
+1654 | pub async fn verify_invoice(raw: &[String]) -> Result<()> {
+     |              ^^^^^^^^^^^^^^
+
+warning: associated function `from_path` is never used
+    --> crates/probe/src/bin/../flow.rs:1740:12
+     |
+1734 | impl Invoice {
+     | ------------ associated function in this implementation
+...
+1740 |     pub fn from_path(path: &str) -> Result<Self> {
+     |            ^^^^^^^^^
+
+warning: function `hex_encode` is never used
+    --> crates/probe/src/bin/../flow.rs:1773:4
+     |
+1773 | fn hex_encode(bytes: &[u8]) -> String {
+     |    ^^^^^^^^^^
+
+warning: function `hex_decode` is never used
+    --> crates/probe/src/bin/../flow.rs:1778:4
+     |
+1778 | fn hex_decode(hex: &str) -> Result<Vec<u8>> {
+     |    ^^^^^^^^^^
+
+warning: enum `Expect` is never used
+  --> crates/probe/src/bin/../gate.rs:41:6
+   |
+41 | enum Expect {
+   |      ^^^^^^
+
+warning: associated items `parse`, `as_str`, and `describe` are never used
+  --> crates/probe/src/bin/../gate.rs:47:8
+   |
+46 | impl Expect {
+   | ----------- associated items in this implementation
+47 |     fn parse(value: &str) -> Result<Self> {
+   |        ^^^^^
+...
+58 |     fn as_str(self) -> &'static str {
+   |        ^^^^^^
+...
+66 |     fn describe(self) -> &'static str {
+   |        ^^^^^^^^
+
+warning: struct `AnchorInfo` is never constructed
+  --> crates/probe/src/bin/../gate.rs:78:8
+   |
+78 | struct AnchorInfo {
+   |        ^^^^^^^^^^
+
+warning: function `test` is never used
+  --> crates/probe/src/bin/../gate.rs:87:14
+   |
+87 | pub async fn test(raw: &[String]) -> Result<i32> {
+   |              ^^^^
+
+warning: function `hostport` is never used
+   --> crates/probe/src/bin/../gate.rs:374:4
+    |
+374 | fn hostport(url: &str) -> String {
+    |    ^^^^^^^^
+
+warning: constant `DEFAULT_RPC_URL` is never used
+  --> crates/probe/src/bin/../node.rs:26:7
+   |
+26 | const DEFAULT_RPC_URL: &str = "http://127.0.0.1:18232";
+   |       ^^^^^^^^^^^^^^^
+
+warning: struct `NodeRpc` is never constructed
+  --> crates/probe/src/bin/../node.rs:29:12
+   |
+29 | pub struct NodeRpc {
+   |            ^^^^^^^
+
+warning: struct `PoolTotals` is never constructed
+  --> crates/probe/src/bin/../node.rs:38:12
+   |
+38 | pub struct PoolTotals {
+   |            ^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> crates/probe/src/bin/../node.rs:49:12
+    |
+ 45 | impl NodeRpc {
+    | ------------ associated items in this implementation
+...
+ 49 |     pub fn from_env() -> Result<Self> {
+    |            ^^^^^^^^
+...
+ 71 |     pub async fn call(&self, method: &str, params: Value) -> Result<Value> {
+    |                  ^^^^
+...
+148 |     pub async fn block_count(&self) -> Result<u64> {
+    |                  ^^^^^^^^^^^
+...
+161 |     pub async fn pool_totals(&self, height: u32) -> Result<PoolTotals> {
+    |                  ^^^^^^^^^^^
+...
+188 |     pub async fn block_hash(&self, height: u32) -> Result<String> {
+    |                  ^^^^^^^^^^
+...
+198 |     pub async fn block_txids(&self, hash: &str) -> Result<Vec<String>> {
+    |                  ^^^^^^^^^^^
+...
+215 |     pub async fn transparent_balances(&self) -> Result<(u64, u64)> {
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+231 |     pub async fn generate(&self, blocks: u64) -> Result<Vec<String>> {
+    |                  ^^^^^^^^
+...
+249 |     pub async fn send_to_address(&self, address: &str, zats: u64) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^
+
+warning: function `zec_to_zats` is never used
+   --> crates/probe/src/bin/../node.rs:260:4
+    |
+260 | fn zec_to_zats(zec: f64) -> u64 {
+    |    ^^^^^^^^^^^
+
+warning: constant `CONFIRM_BLOCKS` is never used
+  --> crates/probe/src/bin/../ops.rs:59:18
+   |
+59 | pub(crate) const CONFIRM_BLOCKS: u64 = 11;
+   |                  ^^^^^^^^^^^^^^
+
+warning: struct `Args` is never constructed
+  --> crates/probe/src/bin/../ops.rs:67:19
+   |
+67 | pub(crate) struct Args {
+   |                   ^^^^
+
+warning: associated items `parse`, `value`, `flag`, `require`, `optional_u32`, and `finish` are never used
+   --> crates/probe/src/bin/../ops.rs:73:19
+    |
+ 72 | impl Args {
+    | --------- associated items in this implementation
+ 73 |     pub(crate) fn parse(args: &[String], usage: &'static str) -> Result<Self> {
+    |                   ^^^^^
+...
+ 91 |     pub(crate) fn value(&mut self, name: &str) -> Option<String> {
+    |                   ^^^^^
+...
+ 95 |     pub(crate) fn flag(&mut self, name: &str) -> bool {
+    |                   ^^^^
+...
+ 99 |     pub(crate) fn require(&mut self, name: &str) -> Result<String> {
+    |                   ^^^^^^^
+...
+104 |     pub(crate) fn optional_u32(&mut self, name: &str) -> Result<Option<u32>> {
+    |                   ^^^^^^^^^^^^
+...
+113 |     pub(crate) fn finish(self) -> Result<()> {
+    |                   ^^^^^^
+
+warning: function `parse_zec` is never used
+   --> crates/probe/src/bin/../ops.rs:128:15
+    |
+128 | pub(crate) fn parse_zec(s: &str) -> Result<u64> {
+    |               ^^^^^^^^^
+
+warning: enum `PrivacyPolicy` is never used
+   --> crates/probe/src/bin/../ops.rs:173:17
+    |
+173 | pub(crate) enum PrivacyPolicy {
+    |                 ^^^^^^^^^^^^^
+
+warning: associated items `parse` and `name` are never used
+   --> crates/probe/src/bin/../ops.rs:183:19
+    |
+182 | impl PrivacyPolicy {
+    | ------------------ associated items in this implementation
+183 |     pub(crate) fn parse(s: &str) -> Result<Self> {
+    |                   ^^^^^
+...
+201 |     pub(crate) fn name(self) -> &'static str {
+    |                   ^^^^
+
+warning: function `check_policy` is never used
+   --> crates/probe/src/bin/../ops.rs:216:15
+    |
+216 | pub(crate) fn check_policy(
+    |               ^^^^^^^^^^^^
+
+warning: function `required_policy_for_recipient` is never used
+   --> crates/probe/src/bin/../ops.rs:237:15
+    |
+237 | pub(crate) fn required_policy_for_recipient(recipient: &Address) -> (PrivacyPolicy, &'static str) {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `describe_address` is never used
+   --> crates/probe/src/bin/../ops.rs:266:15
+    |
+266 | pub(crate) fn describe_address(recipient: &Address) -> String {
+    |               ^^^^^^^^^^^^^^^^
+
+warning: function `print_header` is never used
+   --> crates/probe/src/bin/../ops.rs:291:4
+    |
+291 | fn print_header(command: &str) {
+    |    ^^^^^^^^^^^^
+
+warning: function `transparent_receiver` is never used
+   --> crates/probe/src/bin/../ops.rs:308:4
+    |
+308 | fn transparent_receiver(
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_sign_broadcast` is never used
+   --> crates/probe/src/bin/../ops.rs:360:21
+    |
+360 | pub(crate) async fn build_sign_broadcast<FeeRuleT, NoteRefT>(
+    |                     ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `mine_and_resync` is never used
+   --> crates/probe/src/bin/../ops.rs:433:21
+    |
+433 | pub(crate) async fn mine_and_resync(probe: &mut Probe, blocks: u64) -> Result<()> {
+    |                     ^^^^^^^^^^^^^^^
+
+warning: function `memo_text` is never used
+   --> crates/probe/src/bin/../ops.rs:455:15
+    |
+455 | pub(crate) fn memo_text(bytes: &[u8]) -> String {
+    |               ^^^^^^^^^
+
+warning: function `anchor` is never used
+   --> crates/probe/src/bin/../ops.rs:481:14
+    |
+481 | pub async fn anchor(raw: &[String]) -> Result<()> {
+    |              ^^^^^^
+
+warning: function `anchor_path_for` is never used
+   --> crates/probe/src/bin/../ops.rs:618:4
+    |
+618 | fn anchor_path_for(report_path: &str) -> PathBuf {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `address` is never used
+   --> crates/probe/src/bin/../ops.rs:629:14
+    |
+629 | pub async fn address(raw: &[String]) -> Result<()> {
+    |              ^^^^^^^
+
+warning: function `fund` is never used
+   --> crates/probe/src/bin/../ops.rs:674:14
+    |
+674 | pub async fn fund(raw: &[String]) -> Result<()> {
+    |              ^^^^
+
+warning: function `shield` is never used
+   --> crates/probe/src/bin/../ops.rs:765:14
+    |
+765 | pub async fn shield(raw: &[String]) -> Result<()> {
+    |              ^^^^^^
+
+warning: function `propose_shielded_payment` is never used
+   --> crates/probe/src/bin/../ops.rs:884:15
+    |
+884 | pub(crate) fn propose_shielded_payment(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `propose_shielded_payments` is never used
+   --> crates/probe/src/bin/../ops.rs:900:15
+    |
+900 | pub(crate) fn propose_shielded_payments(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `pay` is never used
+   --> crates/probe/src/bin/../ops.rs:964:14
+    |
+964 | pub async fn pay(raw: &[String]) -> Result<()> {
+    |              ^^^
+
+warning: constant `DEFAULT_GRANT_DAYS` is never used
+  --> crates/probe/src/bin/../payer.rs:42:7
+   |
+42 | const DEFAULT_GRANT_DAYS: i64 = 30;
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: struct `Grant` is never constructed
+  --> crates/probe/src/bin/../payer.rs:50:12
+   |
+50 | pub struct Grant {
+   |            ^^^^^
+
+warning: function `default_budget` is never used
+  --> crates/probe/src/bin/../payer.rs:64:4
+   |
+64 | fn default_budget() -> u64 {
+   |    ^^^^^^^^^^^^^^
+
+warning: function `default_cap` is never used
+  --> crates/probe/src/bin/../payer.rs:68:4
+   |
+68 | fn default_cap() -> u64 {
+   |    ^^^^^^^^^^^
+
+warning: function `run` is never used
+   --> crates/probe/src/bin/../payer.rs:144:14
+    |
+144 | pub async fn run(raw: &[String]) -> Result<()> {
+    |              ^^^
+
+warning: function `load_invoices` is never used
+   --> crates/probe/src/bin/../payer.rs:495:4
+    |
+495 | fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
+    |    ^^^^^^^^^^^^^
+
+warning: function `shortfall` is never used
+   --> crates/probe/src/bin/../payer.rs:523:4
+    |
+523 | fn shortfall(payer: &core::Probe, to_pay: &[(Invoice, String)]) -> Result<Option<u64>> {
+    |    ^^^^^^^^^
+
+warning: function `mined_height_of` is never used
+   --> crates/probe/src/bin/../payer.rs:535:10
+    |
+535 | async fn mined_height_of(
+    |          ^^^^^^^^^^^^^^^
+
+warning: function `short_commit` is never used
+   --> crates/probe/src/bin/../payer.rs:554:4
+    |
+554 | fn short_commit(path: &Path) -> String {
+    |    ^^^^^^^^^^^^
+
+warning: function `hex_encode` is never used
+   --> crates/probe/src/bin/../payer.rs:560:4
+    |
+560 | fn hex_encode(bytes: &[u8]) -> String {
+    |    ^^^^^^^^^^
+
+warning: struct `RunArtifacts` is never constructed
+  --> crates/probe/src/bin/../record.rs:16:12
+   |
+16 | pub struct RunArtifacts {
+   |            ^^^^^^^^^^^^
+
+warning: function `write_run_artifacts` is never used
+  --> crates/probe/src/bin/../record.rs:36:8
+   |
+36 | pub fn write_run_artifacts(
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `print_findings` is never used
+  --> crates/probe/src/bin/../record.rs:95:8
+   |
+95 | pub fn print_findings(out_dir: &Path) -> Result<usize> {
+   |        ^^^^^^^^^^^^^^
+
+warning: function `read_report` is never used
+   --> crates/probe/src/bin/../record.rs:122:8
+    |
+122 | pub fn read_report(out_dir: &Path) -> Result<Report> {
+    |        ^^^^^^^^^^^
+
+warning: function `utc_now_rfc3339` is never used
+   --> crates/probe/src/bin/../record.rs:132:15
+    |
+132 | pub(crate) fn utc_now_rfc3339() -> Result<String> {
+    |               ^^^^^^^^^^^^^^^
+
+warning: function `run` is never used
+  --> crates/probe/src/bin/../wallet.rs:25:14
+   |
+25 | pub async fn run() -> Result<()> {
+   |              ^^^
+
+warning: `zanary-probe` (bin "verifier15_check") generated 127 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 23.96s
+     Running `target/debug/verifier15_check`
+=== verifier-15 check: zanary/payer-ledger-not-durable ===
+candidate: payments recorded only after all are broadcast; end-of-run artifact; re-run re-pays
+
+A. decide() admits what the loop cannot execute (pure, in-process)
+  A1 allowlisted non-address receiver -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A1 allowlisted garbage receiver is decided ALLOW
+  A2 empty allowlist (documented demo grant shape) -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A2 empty-allowlist grant admits the garbage receiver
+  A3 600-byte memo -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A3 over-long (600-byte) memo is decided ALLOW (memo never inspected)
+  A4 control, receiver not on allowlist -> allowed=false | refused: not-an-address is not on the allowlist (1 entries)
+  PASS A4 control: allowlist string-equality is the only receiver check
+  A5 serde intake of the same JSON (load_invoices path) -> Ok(Invoice { invoice_id: "v15-a5", amount_zat: 5000000, receiver: "not-an-address", memo: "v15 memo", uri: "zcash:?address=not-an-address&amount=0.05", issued_at_height: 1, merchant_account: 0 })
+  PASS A5 the payer's own invoice intake accepts the garbage receiver
+
+B. the payment loop's first fallible steps on the admitted invoice
+  B1 Address::decode("not-an-address") -> true
+  PASS B1 Address::decode returns None -> payer.rs:298 .ok_or_else -> Ok(Err(...)) -> `?` returns from run()
+  B2 MemoBytes::from_bytes: 512B ok=true | 513B rejected=true | 600B rejected=true
+  PASS B2 ZIP-302 cap: 512 bytes accepted, 513/600 rejected -> payer.rs:304 `?` aborts the loop
+
+C. source ordering: everything is written after the loop, nothing during it
+  PASS C01 invoice intake: payer.rs:201 | let invoices = load_invoices(&invoices_path)?;
+  PASS C02 the in-code claim: payer.rs:244 | // Decide everything first, then pay: the ledger a reviewer reads is complete before any money
+  PASS C03 decide loop: payer.rs:258 | spent = spent.saturating_add(invoice.amount_zat);
+  PASS C04 payment loop: payer.rs:291 | for (index, (invoice, allowed_reason)) in to_pay.iter().enumerate() {
+  PASS C05 Address::decode (`?`): payer.rs:298 | let recipient = Address::decode(&payer.network, &invoice.receiver).ok_or_else(|| {
+  PASS C06 MemoBytes::from_bytes (`?`): payer.rs:304 | let memo = MemoBytes::from_bytes(invoice.memo.as_bytes())
+  PASS C07 propose (`?`): payer.rs:307 | ops::propose_shielded_payment(&mut payer, &recipient, invoice.amount_zat, &memo)?;
+  PASS C08 build/broadcast (`?`): payer.rs:308 | let txid = ops::build_sign_broadcast(&mut payer, &proposal, OvkPolicy::Sender).await?;
+  PASS C09 mine (`?`): payer.rs:309 | ops::mine_and_resync(&mut payer, ops::CONFIRM_BLOCKS).await?;
+  PASS C10 refusals appended (also in memory): payer.rs:364 | for decision in decisions.iter().filter(|d| !d.paid()) {
+  PASS C11 out dir created (after the loop): payer.rs:406 | std::fs::create_dir_all(&out_dir)
+  PASS C12 ledger.jsonl write: payer.rs:409 | std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))
+  PASS C13 run/report artifacts write: payer.rs:411 | let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
+  PASS C14 default --out: payer.rs:153 | .unwrap_or_else(|| "data/runs/payer".to_string()),
+  PASS C15 record.rs: run.json: record.rs:45 | std::fs::write(&run_path, serde_json::to_string_pretty(run)?)
+  PASS C16 record.rs: findings.json: record.rs:50 | std::fs::write(&findings_path, serde_json::to_string_pretty(&findings)?)
+  PASS C17 record.rs: report.json: record.rs:61 | std::fs::write(&report_path, zanary_report::canonical_json(&report)?)
+  PASS C18 observation: PayerRun impl: observation/src/lib.rs:232 | impl PayerRun {
+  PASS C19 observation: spent_zat: observation/src/lib.rs:234 | pub fn spent_zat(&self) -> u64 {
+  PASS C20 ledger write (409) comes after the loop (291): 409 > 291
+  PASS C21 refusals (364) come after the loop (291) too: 364 > 291
+  PASS C22 decode `?` is inside the loop (291..364): line 298
+  PASS C23 memo `?` is inside the loop (291..364): line 304
+  PASS C24 propose `?` is inside the loop (291..364): line 307
+  PASS C25 broadcast `?` is inside the loop (291..364): line 308
+  PASS C26 mine `?` is inside the loop (291..364): line 309
+  PASS C27 the ONLY std::fs::write in payer.rs: 1
+  PASS C28 no File::create in payer.rs: 0
+  PASS C29 no OpenOptions in payer.rs: 0
+  PASS C30 no .append( in payer.rs: 0
+  PASS C31 record.rs writes exactly the three artifacts: 3
+  PASS C32 no OpenOptions in record.rs: 0
+  decide() body span (84-136) inspected:
+  PASS C33 decide() never mentions a memo
+  PASS C34 decide() never mentions the invoice uri
+  PASS C35 decide() never decodes an Address
+  PASS C36 the allowlist rule is a string containment test
+  --- payer.rs 244-245 (the in-code claim) ---
+      244:     // Decide everything first, then pay: the ledger a reviewer reads is complete before any money
+      245:     // moves, so a refusal cannot be an artifact of a payment that went wrong earlier.
+  --- payer.rs 406-411 (all writes, after the loop) ---
+      406:     std::fs::create_dir_all(&out_dir)
+      407:         .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
+      408:     let ledger_path = out_dir.join("ledger.jsonl");
+      409:     std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))
+      410:         .with_context(|| format!("writing {}", ledger_path.display()))?;
+      411:     let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
+  --- record.rs 41-62 (unconditional truncating writes) ---
+      41:     std::fs::create_dir_all(out_dir)
+      42:         .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
+      43: 
+      44:     let run_path = out_dir.join("run.json");
+      45:     std::fs::write(&run_path, serde_json::to_string_pretty(run)?)
+      46:         .with_context(|| format!("writing {}", run_path.display()))?;
+      47: 
+      48:     let findings = zanary_properties::evaluate(run);
+      49:     let findings_path = out_dir.join("findings.json");
+      50:     std::fs::write(&findings_path, serde_json::to_string_pretty(&findings)?)
+      51:         .with_context(|| format!("writing {}", findings_path.display()))?;
+      52: 
+      53:     let verified_at = utc_now_rfc3339()?;
+      54:     let report = zanary_report::build_with_claim(
+      55:         run,
+      56:         findings.clone(),
+      57:         Some(verified_at.clone()),
+      58:         ttl_days.map(|days| days * 86_400),
+      59:     )?;
+      60:     let report_path = out_dir.join("report.json");
+      61:     std::fs::write(&report_path, zanary_report::canonical_json(&report)?)
+      62:         .with_context(|| format!("writing {}", report_path.display()))?;
+
+D. nothing outside the artifacts remembers a paid invoice
+  PayerRun serialized keys: ["decisions", "grant", "label"]
+  PASS D1 PayerRun is exactly {decisions, grant, label} - no paid-invoice set, no timestamps
+  spent_zat() over one paid 300 + one refused 999 -> 300 (derives from the in-memory decision list)
+  PASS D2 spent_zat() counts only in-memory decisions
+  PASS D3 payer.rs calls propose_shielded_payment once (no pre-check of earlier payments): 1
+  PASS D4 payer.rs calls build_sign_broadcast once: 1
+  (excluding verifier-added scaffolding from the scan: ["crates/properties/src/bin/verifier21_check.rs", "crates/probe/src/verifier12_check.rs", "crates/probe/src/bin/verifier15_check.rs", "crates/probe/src/bin/verifier2_check.rs", "crates/probe/src/bin/verifier21_check.rs", "crates/probe/src/check_broadcast_unit.rs", "crates/probe/src/verifier1_check.rs", "crates/report/tests/verifier24_probe.rs", "crates/report/tests/verifier5_probe.rs"])
+  files in the workspace mentioning ledger.jsonl: ["crates/probe/src/payer.rs", "docs/BOUNDED-PAYER.md", "docs/SUBMISSION.md", "scripts/bounded-payer-demo.sh", "scripts/demo-run.sh"]
+  PASS D5 under crates/ the only mention of ledger.jsonl is the payer that writes it (no reader reconstructs paid state)
+  PASS D6 nothing reads a ledger file
+  PASS D7 no persisted paid-invoice set exists anywhere
+
+E. the sole writer overwrites (std::fs::write truncates, no append, no versioning)
+  after a second std::fs::write at the same path, the file holds: "run-two-ledger\n"
+  PASS E1 std::fs::write replaces the previous content (the semantics payer.rs:409 / record.rs:45,50,61 use)
+
+=== verifier-15 check summary ===
+  checks passed: 51
+  checks failed: 0
+  sandbox payer.rs line count: 655 (pristine repo file is 655 lines; verifier-14 appended a #[cfg(test)] module after line 655, so every pinned line above is the pristine text)
+  == end of verifier-15 check (no network used) ==

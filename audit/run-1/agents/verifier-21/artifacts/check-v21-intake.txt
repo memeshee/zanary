@@ -1,0 +1,25 @@
+verifier-21 own check: the payer's own intake vs the guard, receivers derived from the dev USK
+Command: docker run ... -w /t rust:1-slim sh -c 'cargo run --offline -p zanary-probe --bin verifier21_check'
+(exit=0)
+
+=== verifier-21 independent intake/guard check (offline sandbox) ===
+
+== orchard-only UA (control)
+   receiver: uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80
+   required_policy_for_recipient: FullPrivacy · would reveal: ""
+   check_policy(requested=FullPrivacy): ok (permitted)
+   ops::propose_shielded_payments (payer's own call): Err: could not propose the payment: Must scan blocks first
+
+== bare sapling address
+   receiver: zregtestsapling1j9s20dpe62kr0jhfvnqua3j8wv873ccy7u3l3fuwgvc8l4yy0dqpnaknkp3g0uaj0jynj459npt
+   required_policy_for_recipient: AllowRevealedAmounts · would reveal: "the amount (Orchard -> Sapling pool crossing)"
+   check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+   ops::propose_shielded_payments (payer's own call): Err: could not propose the payment: Must scan blocks first
+
+== sapling-only UA
+   receiver: uregtest1l408av7s9c0wk3tsmlz9hzk5vafywwjguqd5cv27vqrrq73zgzxajvhnmdjsj79t4g042cjuv2cduwl3tzeatf7xdjauw9y9v5eq78mm
+   required_policy_for_recipient: AllowRevealedAmounts · would reveal: "the amount (Orchard -> Sapling pool crossing)"
+   check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+   ops::propose_shielded_payments (payer's own call): Err: could not propose the payment: Must scan blocks first
+
+=== end of verifier-21 intake/guard check ===

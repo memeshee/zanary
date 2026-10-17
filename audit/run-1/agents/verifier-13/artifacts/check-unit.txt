@@ -1,0 +1,68 @@
+zanary run-1 · verifier-13 · local unit check (approved sandbox, --network=none)
+==============================================================================
+What this establishes, with the target's own functions (no rig, no network, no funds):
+  V13-1  real load_invoices() reads TWO files carrying ONE invoice_id (ids printed) — no
+         uniqueness check exists in intake.
+  V13-2  the production decision-loop statements (payer.rs:246-270) allow both duplicates and
+         queue both: to_pay holds 2 entries with the same id, spent=600 of the 1000 zat budget,
+         both decisions recorded as "paid".
+  V13-3  the loop's own attribution predicate (`decisions.iter_mut().find(|d| d.invoice_id ==
+         invoice.invoice_id)`, payer.rs:320-326) run over the real PayerDecision vector with two
+         payments: row0 ends with the SECOND payment's txid/height, row1 is left with no txid.
+         Control with two distinct ids: each row keeps its own txid.
+  V13-4  the real PayerPolicy::check returns Pass for the duplicated ledger (two paid rows for
+         v13-8301, one carrying the second txid, one with no txid): "2 paid · 0 refused ·
+         600 of 1000 zat spent".
+  V13-5  the full real property report (zanary_properties::evaluate) over the duplicated ledger:
+         payer-policy pass, receiver-reuse pass (the two payments carry the same label "invoice
+         v13-8301", so the label-dedupe in receiver_reuse_groups() never forms a group),
+         memo-absent pass; the ONLY failure is amount-fingerprint (W) — an amount-repeat warning
+         ("exact repeat across payments"), which names equal amounts, never the duplicate id.
+How to re-run: rebuild the disposable copy from the reviewed revision (rust-toolchain.toml
+removed), append this verifier's module (below, verbatim from the copy), then:
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v <copy>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe verifier13 -- --nocapture --test-threads=1'
+The module is crates/probe/src/payer.rs#mod verifier13_checks in the disposable copy; production
+lines 1-655 of that file are byte-identical to the worktree (diff empty).
+--- raw output (verbatim, tail of `cargo test ... verifier13 -- --nocapture --test-threads=1`) ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.03s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 5 tests
+test payer::verifier13_checks::v13_1_load_invoices_admits_two_files_with_one_invoice_id ... V13-1 load_invoices -> 2 invoices, ids ["v13-8301", "v13-8301"] (no uniqueness check)
+ok
+test payer::verifier13_checks::v13_2_one_invoice_id_queued_twice_by_the_production_loop ...   V13 loop       : ALLOW  v13-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+  V13 loop       : ALLOW  v13-8301 — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)
+V13-2 to_pay -> 2 entries ["v13-8301", "v13-8301"]; spent=600; decisions [("v13-8301", "paid", 300), ("v13-8301", "paid", 300)]
+ok
+test payer::verifier13_checks::v13_3_txid_attribution_find_overwrites_the_first_row ... V13-3 duplicate id  -> row0 txid=Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") row1 txid=None
+V13-3 distinct ids  -> row0 Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") row1 Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+ok
+test payer::verifier13_checks::v13_4_payer_policy_passes_two_paid_rows_for_one_invoice_id ... V13-4 payer-policy verdict = Pass
+V13-4 evidence = [
+    "2 paid · 0 refused · 600 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2026-11-01T00:00:00Z)",
+    "grant: budget 1000 zat · cap 400 zat · allowlist [uregtest1merchant] · expires 2026-11-01T00:00:00Z · revoked false",
+    "paid v13-8301 300 zat tx bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)",
+    "paid v13-8301 300 zat no txid — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)",
+]
+ok
+test payer::verifier13_checks::v13_5_property_report_of_the_duplicated_ledger ... V13-5 D  pass  payer-linkability      
+V13-5 D  pass  payer-policy           2 paid · 0 refused · 600 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2026-11-01T00:00:00Z)
+V13-5 D  pass  policy-downgrade       
+V13-5 D  pass  receiver-reuse         
+V13-5 D  pass  transparent-fallback   
+V13-5 D  pass  unshielding            
+V13-5 W  FAIL  amount-fingerprint     txid=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa txid=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb amount_zat=300 (exact repeat across payments)
+V13-5 W  skip  same-block-roundtrip   
+V13-5 W  skip  server-metadata        
+V13-5 W  skip  timing-correlation     
+V13-5 W  pass  memo-absent            
+V13-5 W  pass  memo-content           
+V13-5 N  skip  report-leak            
+V13-5 payer-policy over the duplicate ledger = Pass
+V13-5 properties that FAIL on this run = ["amount-fingerprint"]
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.02s
+

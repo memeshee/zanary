@@ -1,0 +1,57 @@
+verifier-5 — independent verification of candidate
+crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment
+(proposed `confirmed` by hunter-receipt)
+
+DECISION: confirmed (record corrected; fingerprint unchanged). Read-only target
+/home/kiter/hackathon/zanary @ 7058406, worktree clean.
+
+SOURCE RE-ESTABLISHED (all cited lines checked individually)
+- receipt.rs:250-256 doc: the rules are the ones in schemas/zanary-receipt-v1.json; "a claim that
+  contradicts the body ... fails here rather than being printed as if it were fine".
+- receipt.rs:308-310 comment "The words must state the figures"; 311 `let words = receipt.claims.join(" ")`;
+  312-322 loop over (txid, amount_zat, invoice_id) with 317 `if !words.contains(&needle)`. This is the
+  only agreement test; there is no "states nothing else" check.
+- receipt.rs:24-29 SigningPayload{format, body, claims, discloses}: the claim text is inside the signed
+  payload, so the receipt's producer signs its own claims.
+- main.rs:110-111 print the claims before any check; 117-118 run verify_signature + validate_claim;
+  128-131 print the acceptance notes as `claim ok`; 135-137 return exit 1 on any failure; 199-200 print
+  the summary and `Ok(0)` — acceptance is exit 0.
+- schemas/zanary-receipt-v1.json:37: "verify-receipt checks that the body's txid, amount and invoice id
+  are stated in the claims, and refuses a receipt whose claims contradict its body".
+- docs/FLOW-RUNNER-NOTES.md:352 documents the disagreement case as `claim : INVALID — the claims never
+  state the amount in zatoshis (999) that its body carries`, exit 1 — reachable only when the body's
+  figures are entirely absent.
+- report_leak.rs:108-115 renders the claims as claim="..." into that property's evidence lines.
+
+REPRODUCTION (approved sandbox; unmodified reviewed revision)
+- Source state verified inside the container: sha256(crates/report/src/receipt.rs) =
+  f26dbc615c3ddd6a4ee4779f0eb38554abddd23e6167e3d70d42396c4bc97dac = `git show HEAD:crates/report/src/receipt.rs`.
+  My probe is a new file (crates/report/tests/verifier5_probe.rs, source in check-probe-test.rs.txt);
+  no production line was changed.
+- Command: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+  -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t
+  -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c
+  'cargo build --offline -p zanary-report && cargo test --offline -p zanary-report --test verifier5_probe
+   -- --nocapture && <CLI runs>'. Full log: check-probe.txt.
+- Verifier-generated fixture (own deterministic keypair, seed 0x5a; body invoice 9120 / 250000 zatoshis;
+  claim "invoice 91207 was paid 2500000 zatoshis in transaction c0ffee...ee00"): validate_claim ACCEPTED,
+  verify_signature OK, CLI prints both `claim ok` lines + `signature : VALID` + exit=0.
+- Candidate's payload verbatim (check-record-payload.json, semantically identical to the hunter fixture,
+  sha256 3de493e91e2e1fc2fbfe78401c0b043775132e0906e3b8a26f37b8394c03aa14): CLI prints
+  `claim : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc...337e`,
+  `signature : VALID` (signer 280f51c8...602e), `claim ok : body: zanary-receipt-v1, invoice 4471,
+  1234567 zatoshis, txid 44f216cc...337e`, `claim ok : claims: state the body's invoice id, amount and
+  transaction`, exit=0. Matches the candidate's observed_result exactly.
+- Controls on the same build: claim "invoice 9121 ... 2500000" (9120 not contained) -> refused
+  "never state the invoice id (9120)"; claim "... 250019 ..." (250000 not contained) -> refused
+  "never state the amount in zatoshis (250000)"; exact-figure claim -> accepted. So the acceptance is
+  substring containment, not a missing check.
+- Proposed fix evaluated: the candidate's `states` boundary helper (copied verbatim and compiled in the
+  probe) returns false for the embedding claim on "9120" and "250000" and true for the exact-figure
+  claim; it refuses exactly the demonstrated inputs.
+- Corrections made to the candidate's citations (substance unchanged): main.rs:110 is the loop whose
+  print is 111; "main.rs:135 returns exit 0" is wrong (135-137 is the exit-1 failure branch; exit 0 is
+  main.rs:200); report_leak rendering is at line 111 (block 108-115).
+- Sandbox note: an earlier attempt to append a probe module to the shared sandbox's receipt.rs was
+  reverted (17:58:55) by concurrent activity on the shared copy; the delivered probe therefore lives in
+  a new tests/ file and was run from the source sha recorded above.

@@ -1,0 +1,35 @@
+{
+ "check": "index renderer over a claimed input: what reaches the published page",
+ "command": "./target/debug/zanary-report index --reports check-evidence/input-flat --out check-evidence/out-flat.html --now 2026-10-25T00:00:00Z",
+ "inputs": {
+  "report": "claim-input copy of data/runs/demo/demo-private/report.json (32 evidence entries incl. receivers, txids, memos, merchant fields)",
+  "anchor": "claim-input copy of data/runs/demo/demo-private/anchor.json (beacon_ufvk, payer_label, beacon_receiver, memo)",
+  "hostile": "report with <script> flow_id, markup in a finding note/title and LEAKMARKER evidence entries"
+ },
+ "exit_code": 0,
+ "must_be_present": {
+  "flow_id": true,
+  "flow_commit_short": true,
+  "report_hash_full": true,
+  "anchor_txid_full": true,
+  "anchor_height": true,
+  "evidence_count_line": true
+ },
+ "rendered_from_inputs": [],
+ "hostile_markup_checks": {
+  "script_tag_escaped": true,
+  "no_raw_script": true,
+  "img_note_escaped": true,
+  "no_raw_img": true,
+  "title_markup_escaped": true
+ },
+ "leakmarker_values_on_page": {
+  "LEAKMARKER-RECEIVER-ADDRESS": false,
+  "LEAKMARKER-MEMO-TXID": false,
+  "LEAKMARKER-MEMOHEX": false,
+  "LEAKMARKER-KEY": false,
+  "LEAKMARKER-VALUE": false,
+  "4c45414b4d41524b45522d4d454d4f": false
+ },
+ "verdict": "page renders claim metadata, hashes, the anchor txid/height and finding text only; no evidence payload, no anchor-record key material, no unescaped markup"
+}
