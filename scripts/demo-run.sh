@@ -122,7 +122,9 @@ stage "bounded payer" scripts/bounded-payer-demo.sh
 
 # --------------------------------------------------------------------------- 4
 say "4. the claims those runs made, as the page a stranger reads"
-stage "claim index" "$REPORT" index --reports "$RUNS" --out "$RUNS/index.html"
+# `--claims-prefix ""` because the page sits where the runs do: the links come out relative to the
+# page itself, so the row a viewer clicks opens the report that is on this disk.
+stage "claim index" "$REPORT" index --reports "$RUNS" --out "$RUNS/index.html" --claims-prefix ""
 
 say "summary"
 printf '   private flow   : %s\n' "$(verdict_of "$RUNS/demo-private/report.json")"

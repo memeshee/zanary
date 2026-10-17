@@ -7,16 +7,20 @@
 //!                     [--verified-at <rfc3339>] [--ttl-days <n>] [--out <report.json>]
 //! zanary-report sample-run [--out <run.json>]
 //! zanary-report index --reports <dir> --out <index.html> [--now <rfc3339>]
+//!                     [--claims-prefix <path>]  link each claim's files at <path>/…
 //! ```
 
 use anyhow::{Context, Result};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zanary_observation::FlowRun;
 use zanary_properties::Finding;
 use zanary_report::{
     build_with_claim,
-    index::render_index_with_anchors,
+    index::{render_index_full, served_claim_files, sibling_record},
     verify::{verify_report, VerifyOptions},
     Report,
 };
@@ -253,6 +257,9 @@ fn usage() {
          \x20                     [--verified-at <rfc3339>] [--ttl-days <n>] [--out <report.json>]\n\
          \x20 zanary-report sample-run [--out <run.json>]\n\
          \x20 zanary-report index --reports <dir> --out <index.html> [--now <rfc3339>]\n\
+         \x20                     [--claims-prefix <path>]  links each claim's own files at\n\
+         \x20                     <path>/<report path relative to --reports>; empty means\n\
+         \x20                     relative to the page itself (default: claims)\n\
          \x20 zanary-report matrix --runs <dir> --out <file.md>\n\
          \x20 zanary-report verify-anchor --report <report.json> [--root <hex>]\n\
          \x20                     --beacon-ufvk <ufvk> [--since <height>] [--chain regtest]\n\
@@ -689,12 +696,17 @@ fn index(args: &[String]) -> Result<i32> {
     }
     files.sort();
 
+    // The path is kept beside each report: the page's links are derived from it.
     let mut reports = Vec::new();
+    let mut parsed: Vec<PathBuf> = Vec::new();
     for path in &files {
         let text =
             fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         match serde_json::from_str::<Report>(&text) {
-            Ok(report) => reports.push(report),
+            Ok(report) => {
+                reports.push(report);
+                parsed.push(path.clone());
+            }
             Err(e) => eprintln!("warning: skipping {}: {e}", path.display()),
         }
     }
@@ -706,11 +718,7 @@ fn index(args: &[String]) -> Result<i32> {
     let mut anchors: std::collections::BTreeMap<String, zanary_report::anchor::AnchorRef> =
         std::collections::BTreeMap::new();
     for path in &files {
-        let candidate = match path.file_name().map(|n| n == "report.json") {
-            Some(true) => path.parent().map(|dir| dir.join("anchor.json")),
-            _ => Some(PathBuf::from(format!("{}.anchor.json", path.display()))),
-        };
-        let Some(candidate) = candidate else { continue };
+        let candidate = sibling_record(path, "anchor.json");
         if !candidate.is_file() {
             continue;
         }
@@ -728,7 +736,19 @@ fn index(args: &[String]) -> Result<i32> {
         }
     }
 
-    let html = render_index_with_anchors(&reports, &anchors, now)?;
+    // Where each claim's files are served, so the page can link them instead of leaving a reader
+    // to guess a URL. The `publish` job copies the reports directory to `claims/` beside the page;
+    // a caller that serves the reports the way they sit on disk passes an empty prefix.
+    let prefix = arg_value(args, "--claims-prefix").unwrap_or("claims");
+    let mut claim_files = std::collections::BTreeMap::new();
+    for (path, report) in parsed.iter().zip(&reports) {
+        claim_files.insert(
+            report.report_hash.clone(),
+            served_claim_files(Path::new(dir), path, prefix),
+        );
+    }
+
+    let html = render_index_full(&reports, &anchors, &claim_files, now)?;
     fs::write(out, html).with_context(|| format!("writing {out}"))?;
     let (claims, regressions) = zanary_report::index::index_claims(&reports, now);
     let live = claims

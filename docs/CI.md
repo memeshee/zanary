@@ -141,8 +141,12 @@ recorded claims from `crates/report/fixtures/reports/` as history, renders them 
 **<https://memeshee.github.io/zanary/>**.
 
 The page is a rendering, not the authority: each claim sits at `claims/<run>/report.json` next to
-its `anchor.json`, in the run-directory layout the index reads, so anyone can download one and
-`zanary-report verify` it. The claim's clock is on the page (`expires in 12d`, then `stale`, then
+its `anchor.json`, in the run-directory layout the index reads, and **every card links its own
+files** (`zanary-report index --claims-prefix claims`, the default), so a reader downloads the
+report and `zanary-report verify` it instead of trusting the markup. The footer carries the
+one-command reproduction, so the page is usable by someone who has never seen the repository.
+
+The claim's clock is on the page (`expires in 12d`, then `stale`, then
 `dead`), and the weekly `schedule` in the workflow is what re-issues it. A claim that stops being
 re-proved keeps its row and its countdown — that is the point of publishing it.
 

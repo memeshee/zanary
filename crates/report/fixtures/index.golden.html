@@ -27,6 +27,7 @@ code { color: #c8d3e0; }
 .meta { color: #8b96a5; font-size: .9rem; }
 .warn { color: #f4d03f; }
 .reg { border-left: 3px solid #ec7063; padding-left: .8rem; margin: .8rem 0; }
+pre { background: #10151c; border: 1px solid #262b33; border-radius: .4rem; padding: .6rem .8rem; margin: .6rem 0; overflow-x: auto; }
 footer { margin-top: 3rem; color: #8b96a5; font-size: .9rem; }
 a { color: #7fb3ff; }
 </style>
@@ -40,6 +41,7 @@ a { color: #7fb3ff; }
 <p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T20:30:00Z</code> · ttl 30d · expires in 15d 20h · <span class="meta">re-issued by <code>904274f8bff5…</code></span></p>
 <p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="8b4908e1a54a47f9a31d4c1302446b36535d4e27e8cef97559d3cc1c5afd0dd2">8b4908e1a54a…</code></p>
 <p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<p class="meta">the files behind this row: <a href="claims/report-2026-10-10.json">report.json</a> — download one and re-run <code>zanary-report verify</code> on it</p>
 <table>
 <tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
 <tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(this run made a single payment; with one payment there is no pair to cluster)</span></td></tr>
@@ -61,6 +63,7 @@ a { color: #7fb3ff; }
 <p class="meta">chain <code>regtest</code> · verified at height 273 · verified_at <code>2026-10-10T21:05:00Z</code> · ttl 30d · expires in 15d 21h</p>
 <p class="meta">evidence root <code title="a14443cbce68c58b4d6fe5813e7b48cf88e3534ff3c96103ebdeb88a88312319">a14443cbce68…</code> · report hash <code title="904274f8bff572dffb7c894bc73510569b1fa22b33c921c97cf552bcaf3bc123">904274f8bff5…</code></p>
 <p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<p class="meta">the files behind this row: <a href="claims/report-2026-10-10-regression.json">report.json</a> — download one and re-run <code>zanary-report verify</code> on it</p>
 <table>
 <tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
 <tr><td><code>receiver-reuse</code></td><td>D</td><td class="fail">FAIL</td><td>invoice 4470 was paid to the same receiver as invoice 4471 <span class="meta">(the fix is a fresh diversified receiver per invoice; the rig's own second run deliberately re-uses one to demonstrate the regression)</span></td></tr>
@@ -82,6 +85,7 @@ a { color: #7fb3ff; }
 <p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T18:00:00Z</code> · ttl 7d · expired 7d 6h ago · <span class="meta">re-issued by <code>5b0ae1c34885…</code></span></p>
 <p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="b0b053e51d4378959cfa294e939ee5a67d8787a828c980850cb5c6a9637dcdf9">b0b053e51d43…</code></p>
 <p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<p class="meta">the files behind this row: <a href="claims/report-2026-10-10-oldA.json">report.json</a> — download one and re-run <code>zanary-report verify</code> on it</p>
 <table>
 <tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
 <tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(revision 1 recorded a single payment)</span></td></tr>
@@ -97,6 +101,7 @@ a { color: #7fb3ff; }
 <p class="meta">chain <code>regtest</code> · verified at height 261 · verified_at <code>2026-10-10T18:30:00Z</code> · ttl 10d · expired 4d 5h ago</p>
 <p class="meta">evidence root <code title="4790bfdb56f320c955ed1b6d8e439fcd70957659795cc8094de84929deeb8864">4790bfdb56f3…</code> · report hash <code title="5b0ae1c348858a47c15a9437cf110922cda1af37fc4f9cdc6606ca58470b1a73">5b0ae1c34885…</code></p>
 <p class="meta">6 evidence entries · merchant side simulated (stated)</p>
+<p class="meta">the files behind this row: <a href="claims/report-2026-10-10-oldB.json">report.json</a> — download one and re-run <code>zanary-report verify</code> on it</p>
 <table>
 <tr><th>property</th><th>sev</th><th>verdict</th><th>what</th></tr>
 <tr><td><code>payer-linkability</code></td><td>D</td><td class="skip">SKIP</td><td>clustering needs at least two payments by one payer <span class="meta">(revision 1 recorded a single payment)</span></td></tr>
@@ -110,6 +115,12 @@ a { color: #7fb3ff; }
 <h2>Regressions</h2>
 <p class="meta">A property that passed earlier now fails — both runs linked, because the failure is the finding.</p>
 <div class="reg"><code>receiver-reuse</code> <span class="badge">D</span> passed at <code>8b4908e1a54a…</code> (2026-10-10T20:30:00Z) and now <span class="fail">fails</span> at <code>904274f8bff5…</code> (2026-10-10T21:05:00Z)</div>
-<footer>An unverified privacy claim decays to a liability. This page is the convenience, not the authority — every row can be re-derived from the chain by anyone with the report and a node.</footer>
+<footer>
+<p><strong>Use it.</strong> This is a CLI rig and this page is its live surface: every claim above is a file, and the whole thing reproduces from a clone — no mainnet funds, no keys, nothing to ask us for.</p>
+<pre><code>git clone https://github.com/memeshee/zanary &amp;&amp; cd zanary
+harness/up.sh &amp;&amp; scripts/demo-run.sh    # private PASS · control CAUGHT · payer ledger · index</code></pre>
+<p><a href="https://github.com/memeshee/zanary">repository</a> · <a href="https://github.com/memeshee/zanary#real-vs-mocked">what is real vs mocked</a> · <a href="video/">the two-minute demo</a></p>
+<p>An unverified privacy claim decays to a liability. This page is the convenience, not the authority — every row can be re-derived from the chain by anyone with the report and a node.</p>
+</footer>
 </body>
 </html>

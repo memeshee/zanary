@@ -151,7 +151,10 @@ jobs:
       - name: render the index
         run: |
           mkdir -p public/claims
-          ./target/release/zanary-report index --reports claim-input --out public/index.html
+          # `--claims-prefix claims` is where the links on the page point: the loop below copies the
+          # claims to exactly that path, so every card's link opens the file it was rendered from.
+          ./target/release/zanary-report index --reports claim-input --out public/index.html \
+            --claims-prefix claims
           # The claims themselves stay fetchable next to the page, in the run-directory layout the
           # index reads: a reader can download one and run `zanary-report verify` on it instead of
           # trusting a rendering of it.

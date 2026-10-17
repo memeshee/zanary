@@ -11,6 +11,12 @@
 //! A future `fail` on a property that passed earlier is shown as a **regression**, with both
 //! runs linked. The page is deliberately deterministic for the same inputs: stable ordering,
 //! one explicit `--now`, no ambient clock reads.
+//!
+//! Every claim also links the files it was rendered from (`ClaimFiles`), and the footer carries the
+//! one-command reproduction: the page is meant to be *used*, not just read.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
@@ -34,6 +40,62 @@ pub struct Regression<'a> {
     pub severity: Severity,
     pub from: &'a Report,
     pub to: &'a Report,
+}
+
+/// Where a claim's own files are served, relative to the index page.
+///
+/// The page is a rendering, not the authority (`docs/CI.md`), so each card links the files it was
+/// rendered from: a reader downloads one and re-runs `zanary-report verify` instead of trusting the
+/// markup. A claim absent from the map renders without links — a broken link is worse than none.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClaimFiles {
+    /// The report itself: `<run>/report.json` in the run-directory layout, `<name>.json` flat.
+    pub report: String,
+    /// The anchor record beside it, when the run made one (it is what dates the claim).
+    pub anchor: Option<String>,
+    /// The verdict/test record beside it, when the run wrote one.
+    pub test: Option<String>,
+}
+
+/// The record that sits beside a report, in the two layouts the CLI accepts: `<run>/anchor.json`
+/// next to `<run>/report.json`, or `<report.json>.anchor.json` beside a flat report file. One
+/// function, so the anchor lookup and the links can never disagree about where a record lives.
+pub fn sibling_record(report_file: &Path, name: &str) -> PathBuf {
+    match report_file.file_name().map(|n| n == "report.json") {
+        Some(true) => report_file
+            .parent()
+            .map(|dir| dir.join(name))
+            .unwrap_or_else(|| PathBuf::from(name)),
+        _ => PathBuf::from(format!("{}.{name}", report_file.display())),
+    }
+}
+
+/// The served paths for one claim: `prefix` + the report's path relative to the reports root.
+///
+/// The `publish` job copies the reports directory to `claims/` beside the page, so the default
+/// `claims` prefix describes the published layout. A caller serving the reports next to the page
+/// calls this with an empty prefix, and the hrefs come out relative to the page itself.
+pub fn served_claim_files(root: &Path, report_file: &Path, prefix: &str) -> ClaimFiles {
+    let href = |p: &Path| -> String {
+        let rel = p.strip_prefix(root).unwrap_or(p);
+        let mut s = String::from(prefix);
+        if !s.is_empty() && !s.ends_with('/') {
+            s.push('/');
+        }
+        s.push_str(&rel.to_string_lossy().replace('\\', "/"));
+        s
+    };
+    // A record that is not on disk gets no href: the card must not advertise a file the page
+    // cannot serve.
+    let side = |name: &str| -> Option<String> {
+        let path = sibling_record(report_file, name);
+        path.is_file().then(|| href(&path))
+    };
+    ClaimFiles {
+        report: href(report_file),
+        anchor: side("anchor.json"),
+        test: side("test.json"),
+    }
 }
 
 /// Sort key: stable, clock-first ordering. Unparseable clocks sort first, by string.
@@ -188,7 +250,7 @@ fn countdown(report: &Report, now: OffsetDateTime) -> String {
 
 /// Render the whole index as one self-contained HTML page.
 pub fn render_index(reports: &[Report], now: OffsetDateTime) -> Result<String> {
-    render_index_with_anchors(reports, &std::collections::BTreeMap::new(), now)
+    render_index_with_anchors(reports, &BTreeMap::new(), now)
 }
 
 /// [`render_index`], with the anchors each report has on chain.
@@ -199,7 +261,22 @@ pub fn render_index(reports: &[Report], now: OffsetDateTime) -> Result<String> {
 /// reproduces the earlier pages byte for byte.
 pub fn render_index_with_anchors(
     reports: &[Report],
-    anchors: &std::collections::BTreeMap<String, crate::anchor::AnchorRef>,
+    anchors: &BTreeMap<String, crate::anchor::AnchorRef>,
+    now: OffsetDateTime,
+) -> Result<String> {
+    render_index_full(reports, anchors, &BTreeMap::new(), now)
+}
+
+/// [`render_index_with_anchors`], with the path each claim's files are served at.
+///
+/// `claim_files` is what turns the page from a rendering into something a reader can *use*: each
+/// card links its own `report.json` and the `anchor.json`/`test.json` beside it, so the evidence is
+/// a click away instead of a guessed URL away. Keys are report hashes; [`served_claim_files`]
+/// derives the paths from a reports directory.
+pub fn render_index_full(
+    reports: &[Report],
+    anchors: &BTreeMap<String, crate::anchor::AnchorRef>,
+    claim_files: &BTreeMap<String, ClaimFiles>,
     now: OffsetDateTime,
 ) -> Result<String> {
     let (claims, regressions) = index_claims(reports, now);
@@ -250,6 +327,8 @@ pub fn render_index_with_anchors(
          .meta { color: #8b96a5; font-size: .9rem; }\n\
          .warn { color: #f4d03f; }\n\
          .reg { border-left: 3px solid #ec7063; padding-left: .8rem; margin: .8rem 0; }\n\
+         pre { background: #10151c; border: 1px solid #262b33; border-radius: .4rem; \
+         padding: .6rem .8rem; margin: .6rem 0; overflow-x: auto; }\n\
          footer { margin-top: 3rem; color: #8b96a5; font-size: .9rem; }\n\
          a { color: #7fb3ff; }\n",
     );
@@ -360,6 +439,26 @@ pub fn render_index_with_anchors(
             },
         ));
 
+        // The page is a rendering, not the authority: link the files it was rendered from, so a
+        // reader downloads one and re-derives the row instead of trusting the markup.
+        if let Some(files) = claim_files.get(&report.report_hash) {
+            let mut links = vec![format!(
+                "<a href=\"{}\">report.json</a>",
+                esc(&files.report)
+            )];
+            if let Some(anchor) = &files.anchor {
+                links.push(format!("<a href=\"{}\">anchor.json</a>", esc(anchor)));
+            }
+            if let Some(test) = &files.test {
+                links.push(format!("<a href=\"{}\">test.json</a>", esc(test)));
+            }
+            html.push_str(&format!(
+                "<p class=\"meta\">the files behind this row: {} — download one and re-run \
+                 <code>zanary-report verify</code> on it</p>\n",
+                links.join(" · "),
+            ));
+        }
+
         if report.findings.is_empty() {
             html.push_str("<p class=\"meta\">no findings recorded in this report</p>\n");
         } else {
@@ -413,9 +512,19 @@ pub fn render_index_with_anchors(
     }
 
     html.push_str(
-        "<footer>An unverified privacy claim decays to a liability. This page is the \
-         convenience, not the authority — every row can be re-derived from the chain by anyone \
-         with the report and a node.</footer>\n",
+        "<footer>\n\
+         <p><strong>Use it.</strong> This is a CLI rig and this page is its live surface: every \
+         claim above is a file, and the whole thing reproduces from a clone — no mainnet funds, no \
+         keys, nothing to ask us for.</p>\n\
+         <pre><code>git clone https://github.com/memeshee/zanary &amp;&amp; cd zanary\n\
+         harness/up.sh &amp;&amp; scripts/demo-run.sh    # private PASS · control CAUGHT · payer ledger · index</code></pre>\n\
+         <p><a href=\"https://github.com/memeshee/zanary\">repository</a> · \
+         <a href=\"https://github.com/memeshee/zanary#real-vs-mocked\">what is real vs mocked</a> · \
+         <a href=\"video/\">the two-minute demo</a></p>\n\
+         <p>An unverified privacy claim decays to a liability. This page is the convenience, not \
+         the authority — every row can be re-derived from the chain by anyone with the report and \
+         a node.</p>\n\
+         </footer>\n",
     );
     html.push_str("</body>\n</html>\n");
     Ok(html)
