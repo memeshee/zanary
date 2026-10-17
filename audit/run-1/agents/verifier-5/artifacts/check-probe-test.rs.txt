@@ -1,0 +1,188 @@
+//! verifier-5 independent reproduction for the candidate
+//! `crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment`.
+//!
+//! Added only in the disposable sandbox copy; production source is untouched. Uses the public
+//! API of `zanary-report` (`validate_claim`, `verify_signature`, `signing_payload`,
+//! `signature_to_hex`, `hex_encode`, `ak_of_orchard_fvk`) so the check is exercised exactly as
+//! the CLI exercises it. `v5_d` evaluates the candidate's proposed boundary-aware helper on the
+//! exact strings from the reproduction.
+
+use orchard::keys::{FullViewingKey, SpendAuthorizingKey, SpendingKey};
+use zanary_observation::Receipt;
+use zanary_report::receipt::{
+    ak_of_orchard_fvk, hex_encode, signature_to_hex, signing_payload, validate_claim,
+    verify_signature,
+};
+
+/// A 64-hex txid/memo that belongs to no chain: values only need to satisfy the format.
+const TX: &str = "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00";
+const MEMO: &str = "0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d";
+
+fn keypair(seed_byte: u8) -> (SpendingKey, String) {
+    let sk = SpendingKey::from_bytes([seed_byte; 32])
+        .into_option()
+        .expect("a valid spending key");
+    let ak = ak_of_orchard_fvk(&FullViewingKey::from(&sk));
+    (sk, hex_encode(&ak))
+}
+
+fn sign_with(sk: &SpendingKey, payload: &[u8]) -> String {
+    let key = SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64));
+    signature_to_hex(&key.sign(rand::rngs::OsRng, payload))
+}
+
+fn body(invoice_id: &str, amount_zat: u64) -> String {
+    serde_json::json!({
+        "invoice_id": invoice_id,
+        "amount_zat": amount_zat,
+        "txid": TX,
+        "memo_sha256": MEMO,
+    })
+    .to_string()
+}
+
+/// A receipt signed by verifier-5's own deterministic key: the producer is the signer, so it can
+/// sign whatever claims it likes, including figures that contradict the body.
+fn signed(seed: u8, body: String, claims: Vec<String>) -> Receipt {
+    let (sk, ak) = keypair(seed);
+    let mut r = Receipt {
+        label: "verifier-5 probe".to_string(),
+        format: "zanary-receipt-v1".to_string(),
+        body,
+        claims,
+        discloses: Vec::new(),
+        signer: Some(ak),
+        signature: None,
+        attestation: None,
+    };
+    let payload = signing_payload(&r).expect("payload");
+    r.signature = Some(sign_with(&sk, &payload));
+    r
+}
+
+fn dump(name: &str, r: &Receipt) {
+    let dir = std::path::Path::new("/t/verifier");
+    std::fs::create_dir_all(dir).expect("mkdir /t/verifier");
+    let text = serde_json::to_string_pretty(r).expect("serialize");
+    std::fs::write(dir.join(name), &text).expect("write fixture");
+}
+
+fn verdict(r: &Receipt) -> String {
+    match validate_claim(r) {
+        Ok(notes) => format!("validate_claim ACCEPTED {notes:?}"),
+        Err(e) => format!("validate_claim refused: {e:#}"),
+    }
+}
+
+#[test]
+fn v5_a_contradicting_but_embedding_claim_is_accepted() {
+    let r = signed(
+        0x5a,
+        body("9120", 250_000),
+        vec![format!(
+            "invoice 91207 was paid 2500000 zatoshis in transaction {TX}"
+        )],
+    );
+    dump("probe-superstring.json", &r);
+    println!("V5-A body invoice 9120 / 250000 zatoshis; claim states invoice 91207 / 2500000");
+    println!("V5-A {}", verdict(&r));
+    match verify_signature(&r) {
+        Ok(c) => println!("V5-A verify_signature OK (signer {})", c.signer),
+        Err(e) => println!("V5-A verify_signature ERR: {e:#}"),
+    }
+}
+
+#[test]
+fn v5_b_acceptance_is_substring_containment_not_the_absence_of_a_check() {
+    // body invoice 9120 / 250000 throughout.
+    // (a) 91207 / 2500000: both figures differ from the body and both embed it -> accepted.
+    // (b) 9120 / 2500000: invoice exact, amount differs and embeds -> accepted.
+    // (g) 19120 / 250000: invoice differs and embeds the body id as a suffix -> accepted.
+    // (c) 9121 / 2500000: invoice differs and does NOT embed 9120 -> refused.
+    // (d) 91207 / 250019: amount differs and does NOT embed 250000 -> refused.
+    // (e) 9120 / 250000: the claim that actually agrees -> accepted.
+    let cases: [(&str, &str, u64); 6] = [
+        ("a", "91207", 2_500_000),
+        ("b", "9120", 2_500_000),
+        ("g", "19120", 250_000),
+        ("c", "9121", 2_500_000),
+        ("d", "91207", 250_019),
+        ("e", "9120", 250_000),
+    ];
+    for (id, invoice, amount) in cases {
+        let r = signed(
+            0x5b,
+            body("9120", 250_000),
+            vec![format!(
+                "invoice {invoice} was paid {amount} zatoshis in transaction {TX}"
+            )],
+        );
+        println!(
+            "V5-B({id}) claim invoice {invoice} / {amount} -> {}",
+            verdict(&r)
+        );
+    }
+}
+
+#[test]
+fn v5_c_documented_refusal_direction_and_clean_control() {
+    let bad = signed(
+        0x5c,
+        body("9120", 250_000),
+        vec![format!(
+            "invoice 7777 was paid 888888 zatoshis in transaction {TX}"
+        )],
+    );
+    dump("probe-absent-figures.json", &bad);
+    println!("V5-C(absent figures) {}", verdict(&bad));
+
+    let clean = signed(
+        0x5d,
+        body("9120", 250_000),
+        vec![format!(
+            "invoice 9120 was paid 250000 zatoshis in transaction {TX}"
+        )],
+    );
+    dump("probe-clean.json", &clean);
+    println!("V5-C(clean) {}", verdict(&clean));
+}
+
+/// The candidate's proposed replacement for `words.contains(&needle)`, evaluated on the exact
+/// strings of the reproduction (copied from the candidate's remediation block).
+fn states(words: &str, needle: &str) -> bool {
+    words.match_indices(needle).any(|(start, _)| {
+        let before_ok = words[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        let after_ok = words[start + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        before_ok && after_ok
+    })
+}
+
+#[test]
+fn v5_d_proposed_fix_refuses_the_demonstrated_claims() {
+    let embedding = format!("invoice 91207 was paid 2500000 zatoshis in transaction {TX}");
+    let clean = format!("invoice 9120 was paid 250000 zatoshis in transaction {TX}");
+    let cases = [
+        ("embedding claim, needle 9120 (body id)", states(&embedding, "9120")),
+        (
+            "embedding claim, needle 250000 (body amount)",
+            states(&embedding, "250000"),
+        ),
+        ("embedding claim, needle txid", states(&embedding, TX)),
+        ("clean claim, needle 9120", states(&clean, "9120")),
+        ("clean claim, needle 250000", states(&clean, "250000")),
+        ("clean claim, needle txid", states(&clean, TX)),
+    ];
+    for (what, ok) in cases {
+        println!("V5-D states({what}) = {ok}");
+    }
+    // The old test accepted the embedding claim; the proposed one must not.
+    assert!(embedding.contains("9120") && embedding.contains("250000"));
+    assert!(!states(&embedding, "9120") && !states(&embedding, "250000"));
+    assert!(states(&clean, "9120") && states(&clean, "250000") && states(&clean, TX));
+}

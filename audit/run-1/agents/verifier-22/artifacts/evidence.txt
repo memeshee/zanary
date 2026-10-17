@@ -1,0 +1,30 @@
+verifier-22 Phase-5 record verification — crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields
+Target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean (git status empty). READ-ONLY; no target file touched.
+
+1) SOURCE RE-DERIVATION (all line/scope claims re-read in target at 7058406):
+- main.rs:49-55 exit contract Ok(code)->exit(code) / Err->exit(2). main.rs:517 fn verify; 518-523 read+serde parse report, no validation; 545 short(&report.flow_commit) in banner println (542-546).
+- main.rs:760-765 short(): line 762 `format!("{}…", &hash[..12])`; main.rs:283-288 short_tail(): line 287 `&value[..8]` / `&value[value.len()-8..]`.
+- main.rs:226 `&column.commit[..8.min(column.commit.len())]` (CLI summary). main.rs:629 build short(&report.flow_commit); 625 writes artifact first. main.rs:392-393 verify-anchor short(&root); 375-376 short_tail(arg)/short_tail(&root) in root-mismatch check; 306 `--root` taken with no validation; 711-714 anchor sidecar from directory entry.
+- verify.rs:195 struct Verifier, 205 impl, 657 async fn run; mismatch branch 673 short(&report.report_hash) with recomputed from hash_report (lib.rs:158 sha256_hex -> 64-char ASCII hex, so a multibyte report_hash always takes the mismatch branch); verify.rs:849-855 second short() copy, `&hash[..12]` at 851.
+- matrix.rs:49-73 collect() reads run.json FlowRun, 60-66 optional report.json report_hash, 69 `commit: run.flow_commit`; 109 and 148 `&column.commit[..8.min(len)]`; main.rs:222-231 render then summary loop (226).
+- lib.rs:33-55 Report plain derive (flow_commit 36, report_hash 54); lib.rs:10 "Nothing here may depend on the reporter's honesty". observation/src/lib.rs:152-157 FlowRun plain derive.
+- index.rs:136-138 third copy (slices at 138), applied at 298/314/326; receipt.rs:188-190 fourth copy (`&hex[..8]`/`[len-8..]` at 190), applied at 145-153.
+- No ASCII/hex validation of any report/run hash field exists anywhere in crates/report/src (only receipt.rs:301 validates receipt txid/memo_sha256, node.rs parses RPC hex). fixtures README.md:47 invites editing a report and re-running.
+
+2) INDEPENDENT SANDBOX REPRODUCTION (own fixtures /t/verifier22-checks/..., run in the approved w2 copy; docker --network=none; binary sha256 2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60 re-verified before each batch; production sources of the copy diff as identical to HEAD):
+- verify v1 flow_commit="aaaaaaaaaaa\u00e9": exit 101, stdout EMPTY, "panicked at crates/report/src/main.rs:762:29: end byte index 12 is not a char boundary".
+- verify v2 report_hash="bbbbbbbbbbb\u00e9" flow_commit ASCII: exit 101, stdout banner+chain line only, "panicked at crates/report/src/verify.rs:851:29".
+- build --run hostile flow_commit: stdout "built out22/b1_report.json", artifact written (4114 bytes, carries the multibyte field), exit 101, main.rs:762:29.
+- matrix --runs runs22-hostile (my first fixture layout was flat; after correcting to runs/<run-1>/run.json, as the --runs contract expects): exit 101, stdout EMPTY, "panicked at crates/report/src/matrix.rs:109:27", out22/m1.md NOT written (render_markdown runs before fs::write at main.rs:223-224).
+- verify-anchor --root "ccccccccccc\u00e9" (argv bytes via printf octal): exit 101, stdout EMPTY, main.rs:762:29.
+- verify-anchor --report benign --root "aaaaaaa\u00e9zzzzzzzzzzzzzzzz": exit 101, stdout EMPTY, main.rs:287:28 short_tail.
+- Controls: benign verify exit 1 with full check list ("1 pass · 3 fail · 0 skip → NOT VERIFIED"); missing file exit 2; benign build exit 0 (artifact 4117 bytes, flow line); benign matrix exit 0 (out22/m0.md 641 bytes). Panics occurred with no node, no indexer, no keys, no network.
+Record's observed_result matches on every point (exit codes, stdout state, panic file:line:col, artifact presence).
+
+3) IMPACT/SEVERITY: safe Rust abort (exit 101) replacing the documented 0/1/2 contract; no verdict emitted; fail-closed for a verifier; no memory-safety, confidentiality or privilege effect. likelihood low (adversarial/hand-authored claimant; the rig itself emits ASCII hex) / impact low / overall low — record neither overstates nor understates.
+
+4) REMEDIATION: char-safe truncation (.chars().take(..)) or intake rejection (exit 2) plus regression per command; names every duplicated copy (main.rs, verify.rs, matrix.rs incl. main.rs:226, index.rs, receipt.rs). The proposed code is correct Rust and behavior-preserving for ASCII; it does not move trust. Non-material nit: code_changes samples do not show index.rs/receipt.rs edits, but the strategy text explicitly includes them.
+
+5) NON-MATERIAL DRIFT: the w2 copy's crates/probe/src/main.rs cfg(test) mods cited in the record's instructions were no longer present at my check time (concurrent agents); current extra files are test/bin-only (crates/probe/src/bin/*.rs, crates/report/tests/*.rs) and are not inputs to `cargo build -p zanary-report` — production sources byte-identical to HEAD, binary hash matches the record.
+
+DECISION: verified. Fingerprint kept.

@@ -1,0 +1,42 @@
+verifier-26 — phase-5 record verification of probe/payer.rs:load_invoices:unbounded-intake-memory
+decision: verified. Target /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (read-only, worktree clean).
+crates/probe/src/payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 (== git blob at HEAD).
+
+1. Source re-read in the target, every trace/evidence line confirmed as written:
+   150 --invoices -> invoices_path (args.require); 187-191 revoked/kill-file state computed;
+   201 load_invoices(&invoices_path) — no grant parameter, not conditional on 187-199;
+   244-245 comment "Decide everything first, then pay"; 249-250 decide loop after intake;
+   259 to_pay.push((invoice.clone(), decision.reason.clone())); 273-277 wallet/node work after decisions;
+   495-520 load_invoices: 498-506 read_dir + extension filter only (503), 510 sort, 513
+   std::fs::read_to_string per file, 515 serde_json::from_str, 517 Vec push — no size cap, no count cap,
+   no metadata/regular-file check, no memory budget in 495-520; 119-128 decide()'s only accumulation
+   (monetary budget over amount_zat). load_invoices has exactly one caller (payer.rs:201).
+   flow.rs:1554-1555 quote confirmed ("The merchant side of an agent payment ... no channel other than
+   the file"). No cap knob anywhere: grep max_bytes|max_files|max_invoices|ZANARY_MAX|MAX_INVOICE over
+   crates/ scripts/ schemas/ -> no hits. scripts/bounded-payer-demo.sh issues its own 4 invoices into
+   data/payer-demo/invoices and the CI payer job (.github/workflows/privacy-gate.yml:220-242) runs that
+   script — the shipped/demo configuration authors the directory itself, as the likelihood reason says.
+
+2. Sandbox reproduction (docker rust:1-slim, --network=none --cpus=6 --memory=3500m --pids-limit=1024,
+   only /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 mounted at /t + read-only registry).
+   The shared copy was contaminated (other agents had appended #[cfg(test)] modules to payer.rs, main.rs,
+   payer_policy.rs); I restored those three files from git archive HEAD (verified == HEAD blob ids) and
+   rebuilt: cargo build --offline -p zanary-probe --bin zanary-probe
+   -> sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416, exactly the record's hash.
+   Fixtures mine, /t/ver26-fx; logs in check-intake-memory.txt. Results (VmHWM sampled 50 ms):
+   C0 control 3 tiny, full grant: "invoices : 3", 3 ALLOW, exit 1 at node connect.
+   C1 revoked grant + 256 MiB invoice: intake completes, VmHWM 526 MB, "REFUSE v26big - refused: the
+      grant was revoked (kill switch)", then the RPC error — work not conditional on authority.
+   C2 same file, ulimit -v 262144: exit 1 <1 s, whole log "Error: reading the invoice .../big.json /
+      Caused by: out of memory", 0 decision lines, no header. C2b ulimit -v 700000: same failure.
+   C3 5000 tiny zero-amount invoices: 5000 ALLOW, "invoices : 5000". C4 kill-file + 3 tiny: 3 REFUSE
+      after reading. C5 mixed 5001 entries (282284 KiB): 5001 decisions, VmHWM 532 MB.
+   All runs stopped at "connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused".
+
+3. Only non-material imprecision found (notes): conditions[1] says "the debug binary's own VmPeak is
+   already about 547 MiB on a 3-invoice run" — VmPeak here is unstable (my 3-invoice runs: 87 MB x4,
+   219 MB, 419 MB; 547 MB on the 5000-file run). The condition's argument rests on the reproduced
+   VmHWM figures (526/532 MB) and the RLIMIT_AS aborts, which all hold as written. No change to root
+   cause, trace, evidence, execution, impact, severity (likelihood low / impact low / overall low — no
+   stronger than the demonstrated loss of one operator-local run) or remediation (metadata caps before
+   any read, non-regular entries rejected, enforced in the payer itself, not trust moved elsewhere).

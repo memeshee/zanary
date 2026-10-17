@@ -1,0 +1,45 @@
+verifier-7 - count/scale/clone checks (logs in /t/v7-fx/out; excerpts only, full logs stay in the sandbox copy)
+
+===== r4-count-5000 =====
+log bytes: 550463  lines: 5013  ALLOW: 5000  REFUSE: 0
+-- head --
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v7-fx/grant-ok.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+-- tail --
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+===== r5-mix-full =====
+log bytes: 550570  lines: 5014  ALLOW: 5001  REFUSE: 0
+-- head --
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/v7-fx/grant-ok.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+-- tail --
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+===== r6-mix-700m =====
+log bytes: 83  lines: 4  ALLOW: 0  REFUSE: 0
+-- head --
+Error: reading the invoice /t/v7-fx/inv-mix/big.json
+
+Caused by:
+-- tail --
+Error: reading the invoice /t/v7-fx/inv-mix/big.json
+
+Caused by:
+    out of memory
+
+===== r7-baseline-tiny / r8-count-5000 (checks3.sh output) =====
+[r7-baseline-tiny] exit=1 VmPeak_MB=547 VmHWM_MB=5 decisions=3
+[r8-count-5000] exit=1 VmPeak_MB=547 VmHWM_MB=20 decisions=5000
+
+Peak RSS (VmHWM, sampled by the harness):
+r2 revoked 256 MiB: 525 MiB; r5 mixed full grant: 545332 kB raw = 532 MiB; r3 under ulimit -v 262144:
+about 2 MiB sampled before the ENOMEM; r4 5000 tiny: 19 MiB; r0/r1b tiny: a few MiB (short runs).

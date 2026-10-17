@@ -1,0 +1,69 @@
+{
+  "run_id": "zanary-run-1",
+  "repo": "zanary",
+  "target": "/home/kiter/hackathon/zanary",
+  "source_ref": {
+    "commit": "7058406",
+    "worktree_dirty": false
+  },
+  "profile": "standard",
+  "scope_paths": [],
+  "budget": 60,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "prior_runs": [],
+  "shared_file_owners": {
+    "run-metadata.json": "parent",
+    "architecture.md": "parent",
+    "coverage-ledger.json": "parent",
+    "findings.json": "parent",
+    "REPORT.md": "parent",
+    "FINDINGS-DETAIL.md": "parent",
+    "NEEDS-VALIDATION.md": "parent"
+  },
+  "run_status": "complete",
+  "resume": {
+    "resumed_by": "hunter-payer seat, acting as parent at operator direction",
+    "resumed_at": "2026-10-17T16:20:00+07:00",
+    "reason": "Wave 1 finished at 01:21 but the orchestrator session (20261016_160423_48972e66) never received the five hunter results: delegation row deleg_4398ffbc has state=completed, delivery_state=dropped, delivery_attempts=1. The run sat idle for ~15h with every unit still planned.",
+    "operator_instruction": "operator asked for the run to be resumed and driven through the full loop",
+    "wave1_recovery": "all five hunter results recovered by parent-side code from the local delegation store (async_delegations.result_json); hunter-ci, hunter-evidence and hunter-rig left no scratch result file, so their records come from that store. Raw copies are in the parent working directory ~/.hermes/cache/scratch/hunter-payer-review/",
+    "budget_changes": [
+      {
+        "from": 14,
+        "to": 50,
+        "why": "14 could not fund wave-1 validation (10 candidates), the hunter-proposed wave-2 units, the critic calls and their validation; at operator direction the run continues to a terminal state instead of stopping incomplete on budget"
+      },
+      {
+        "from": 50,
+        "to": 60,
+        "why": "wave 2 carries 8 units (7 from wave-1 hunters' uncovered returns, 1 accepted from the post-wave critic). Accounting after the wave-2 dispatch: 14 spent (5 wave-1 hunters, 1 wave-1 post-wave critic, 8 wave-2 hunters) + 2 reserved critics (wave-2 post-wave, final-clean) + validation reserve for ~18 candidates at ~2 passes = 60. Recorded so the report can state planned versus spent"
+      }
+    ],
+    "agents_spent_before_resume": 5
+  },
+  "completion": {
+    "completed_at": "2026-10-17T19:45:00+07:00",
+    "agents_spent": 56,
+    "budget": 60,
+    "terminal_state": "all Phase 6 artifacts written and both validators pass",
+    "validators": {
+      "validate-findings.cjs": "PASS: 19 findings valid",
+      "validate-coverage-ledger.cjs": "PASS: 20 coverage units valid"
+    },
+    "outcome": {
+      "confirmed": 11,
+      "needs_validation": 8,
+      "rejected": 0,
+      "records_verified_in_phase_5": 19,
+      "coverage_units_covered": 2,
+      "coverage_units_candidate": 11,
+      "coverage_units_deferred": 7,
+      "fingerprint_consolidations": 1
+    },
+    "notes": [
+      "every retained record was independently verified twice: once by a fresh Phase-3 candidate verifier and once by a distinct Phase-5 record verifier; no Phase-5 verifier requested a replacement",
+      "the reviewed revision was never modified: the target worktree stayed clean at 7058406 for the whole run; everything target-controlled ran inside a disposable copy with --network=none",
+      "four agent invocations of the raised budget remain unspent; the deferred units are disclosed in REPORT.md section 7 with their source-backed reasons"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+verifier-8 — local check: the grant bounds the SUM of amounts, not the payment COUNT
+same target 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, same sandbox (--network=none), same fresh binary
+cf54ecd0ec1b9f634f2892c06068022959fea95f6e1571dd7323df82207a8716
+
+fixture: /t/v8fx/inv-one-300 = 300 files v8o001.json..v8o300.json, 140 B each, amount_zat 1
+grant:   /t/v8fx/grant-150.json = {"budget_zat":150,"per_payment_cap_zat":10,"allowlist":[],
+  "expires_at":"2030-01-01T00:00:00Z","revoked":false}
+command: zanary-probe payer --grant /t/v8fx/grant-150.json --invoices /t/v8fx/inv-one-300 \
+           --out /t/v8fx/out/one --now 2026-10-17T00:00:00Z
+
+RESULT: exit=1  elapsed_s=0, log_lines=313
+  150 ALLOW lines + 150 REFUSE lines (of 300 files)
+  boundary:
+    "ALLOW    v8o150 — paid: within the cap (10 zat) and the budget (150 of 150 zat spent after this)"
+    "REFUSE   v8o151 — refused: paying 1 zat would take this run to 151 of a 150 zat budget"
+    (v8o152 onward: same reason; spent stays 150 once refusals start)
+  tail: "Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Caused by: Connection refused (os error 111)"
+
+Read: the only thing that ever stops a run from queueing payments is the sum-of-amounts budget
+(payer.rs:119-128, saturating_add). Payment count admitted = floor(budget / amount_zat): 50,000,000 one-zat
+invoices fit the default budget (payer.rs:64-66) and any number of zero-zat invoices fits any budget
+(check-count-queue.txt: 5000/5000 ALLOW). No count cap exists on to_pay or on the payment loop.

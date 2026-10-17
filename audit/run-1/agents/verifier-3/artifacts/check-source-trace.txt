@@ -1,0 +1,41 @@
+verifier-3 — trace/evidence line verification against /home/kiter/hackathon/zanary @ 7058406 (read-only)
+Format: cited line(s) -> verdict -> what the line actually is (verbatim expression where decisive).
+
+TRACE
+1. entrypoint main.rs:517 `async fn verify(args: &[String])` -> OK. `~fn verify` at 517; report read at 521-523
+   via fs::read_to_string + serde_json::from_str with no field validation before use.
+2. propagation main.rs:542 (banner println; exact short() call at 545) -> OK (line refined to 545). Lines
+   542-546: `println!("zanary-report verify — {} @ {}", report.flow_id, short(&report.flow_commit));`.
+3. propagation verify.rs:673 -> OK. 668-676: mismatch branch `Ok(recomputed) => self.push("report hash",
+   Verdict::Fail, format!("stored {} but the canonical JSON hashes to {}", short(&self.report.report_hash),
+   short(&recomputed)))`; short() copy at 849-855 slices `&hash[..12]` at 851. Branch always taken for a
+   hostile report_hash: recomputed is a 64-char hex ASCII digest (lib.rs:158-162 clears report_hash and
+   sha256s canonical JSON), so a 13-byte multibyte value can never equal it.
+4. propagation matrix.rs:109 -> OK. `&column.commit[..8.min(column.commit.len())]`; commit := run.flow_commit
+   at matrix.rs:69 from the parsed run.json (FlowRun read at matrix.rs:48-52). Same expression at matrix.rs:148
+   and main.rs:226. render_markdown runs (main.rs:218) before fs::write (219) and before the summary print.
+5. sink main.rs:762 -> OK. `format!("{}…", &hash[..12])` inside `if hash.len() > 12` (760-765). Panic observed
+   in my run at exactly 762:29 and the process exits 101 (panic, not the Err path -> exit 2 branch).
+
+EVIDENCE
+- main.rs:762 `&hash[..12]` -> OK; call sites verified: 545 (verify), 629 (build), 392 (verify-anchor).
+- main.rs:287 -> OK: `format!("{}…{}", &value[..8], &value[value.len() - 8..])` at 287; short_tail entered when
+  len > 20 (283-288); reached at 375-376 with `--root` vs report root mismatch.
+- verify.rs:851 -> OK: second copy; used at 673 (also 665, 686 pass branches on ASCII digests).
+- matrix.rs:109 -> OK: commit from matrix.rs:69 (`commit: run.flow_commit`, FlowRun.flow_commit =
+  observation/src/lib.rs:157).
+- lib.rs:33 -> OK: `pub struct Report` (derive at 32); flow_commit at 36, report_hash at 54; both plain
+  `String`, no validator, no deny_unknown_fields or custom Deserialize.
+- main.rs:49 -> OK: `Ok(code) => std::process::exit(code)`, `Err(e) => { eprintln...; exit(2) }` (49-55).
+- exit contract corroborated by fixtures README line 47 and by my controls (v0 exit 1, missing-file exit 2,
+  b0/m0 exit 0).
+
+ADDITIONAL COPIES OF THE SAME SHAPE (source-verified, not executed here):
+- index.rs:136-138 `fn short` with `&hash[..12]` at 138; applied to report.flow_commit / report_hash at
+  index.rs:298, 314, 326, 409, 411 (reports read from disk by `zanary-report index`).
+- receipt.rs:188-190 `pub fn short` with `&hex[..8]`/`&hex[hex.len()-8..]` at 190; applied to attestation key
+  strings at receipt.rs:145-153.
+
+CONTROLS SEARCHED, NONE PRESENT: no `catch_unwind`/`panic::set_hook` in crates/report/src; no ASCII/hex
+validation of flow_commit/report_hash (only receipt.rs:301 validates receipt signature fields); no size cap
+before slicing; deserialization for Report/FlowRun is derive-only.

@@ -1,0 +1,45 @@
+verifier-15 — independent verification notes for candidate `zanary/payer-ledger-not-durable`
+target: /home/kiter/hackathon/zanary @ 7058406 (read-only; worktree clean)
+sandbox: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (approved disposable copy), docker --network=none, rust:1-slim
+checker: crates/probe/src/bin/verifier15_check.rs (added by this verifier; sha256 3a1d31060b94cc3fb6f6a27d33a83f9daf708d793db2b58ca12f0b75646003cb; no production line touched)
+result: 51/51 checks pass, exit 0 (raw sandbox output in check-verifier15.txt)
+
+Pristine-region pinning (host-side, read-only):
+- sandbox crates/probe/src/payer.rs lines 1-655 sha256 == 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 == the target file.
+  Other agents appended #[cfg(test)] modules after line 655 (file now 840 lines); every pinned line above is pristine text.
+- sandbox crates/probe/src/record.rs sha256 a27e4ed3c3b2d2c345ee240412135be85eb274de91bc6ee6448198d7d66216cb and
+  crates/observation/src/lib.rs sha256 2a1c27c2adcd84ff3c58c6ae5520c51da5b10c85c0b699e7d699b27a543f4ce9 match the target files exactly.
+
+Verified in-process against target code (no network, no wallet):
+- A1/A2: decide() with allowlist=[literal "not-an-address"] and with an empty allowlist decides that receiver ALLOW.
+- A3: a 600-byte memo is decided ALLOW (decide never inspects memo/uri — C33/C34); A4 control: an off-allowlist receiver is refused,
+  i.e. string equality (payer.rs:100) is the only receiver check.
+- A5: the payer's own serde intake accepts that invoice JSON (the load_invoices path).
+- B1: Address::decode("not-an-address") = None -> payer.rs:298 .ok_or_else -> `?` returns from run().
+- B2: MemoBytes::from_bytes: 512B accepted, 513B and 600B rejected -> payer.rs:304 `?` aborts the loop.
+
+Structural facts (include_str! over the target's own files; exact line pins C01-C36):
+- payer.rs: 201 load_invoices, 244 the in-code claim, 258 spent counted before any payment, 291 payment loop,
+  298/304/307/308/309 the five `?` steps inside the loop, 364 refusals appended (in memory, after the loop),
+  406 create_dir_all, 409 the ONLY std::fs::write in the file (ledger.jsonl), 411 record::write_run_artifacts,
+  153 the default --out data/runs/payer.
+- record.rs: 45/50/61 the three unconditional std::fs::write (run.json/findings.json/report.json); no OpenOptions/append anywhere;
+  std::fs::write truncates (E1 demonstrated).
+- observation/src/lib.rs: 222-230 PayerRun = {label, grant, decisions}; 234-240 spent_zat derives from the in-memory decisions;
+  serialized shape is exactly [decisions, grant, label].
+- Workspace scan (verifier-added files excluded; the pristine repo contains no such names — checked on the read-only copy):
+  under crates/ the only file mentioning ledger.jsonl is the payer that writes it; nothing reads a ledger file;
+  no persisted paid-invoice set anywhere (D1-D7).
+
+Calibration: the flow runner commits through the same record::write_run_artifacts at end-of-run (flow.rs:502), so the
+end-of-run commit pattern is shared — but the re-pay / double-spend consequence belongs to the payer. Not grounds to dismiss.
+
+Duplication (explicit): same source-derived root cause as sibling candidate
+`crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written` (hunter-broadcast, wave 2):
+end-of-loop commit plus `?` abort ordering at payer.rs:291-411. This candidate's two extra facets (no persisted paid-invoice
+set; truncating overwrite at a reused --out) are consequences of the same single end-of-run write design, not a distinct defect.
+Recommend dedupe/merge rather than counting two findings.
+
+Blocked (decisive, outside source/local observation): the running regtest rig (containers zanary-zcashd/zanary-lwd; host ports
+18232/18233/9067/9068) — needed for the end-to-end observations (chain vs artifact divergence after a mid-loop abort;
+the second on-chain payment for the same invoice after a re-run). Not reachable in a --network=none sandbox.

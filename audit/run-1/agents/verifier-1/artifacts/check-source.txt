@@ -1,0 +1,84 @@
+zanary run-1 · verifier-1 · source verification
+================================================
+Target        : /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean (git status --porcelain: 0)
+Sandbox copy  : /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (payer.rs `cmp` against the worktree: identical)
+Candidate     : crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written
+Method        : read the whole of crates/probe/src/payer.rs; line-numbered quotes below are verbatim.
+
+== payer.rs 244-250 (the design comment + decide loop start) ==
+244| // Decide everything first, then pay: the ledger a reviewer reads is complete before any money
+245| // moves, so a refusal cannot be an artifact of a payment that went wrong earlier.
+246| let mut decisions: Vec<PayerDecision> = Vec::new();
+247| let mut spent: u64 = 0;
+248| let mut to_pay: Vec<(Invoice, String)> = Vec::new();
+249| for invoice in &invoices {
+250| let decision = decide(&grant, spent, invoice, &now);
+
+== payer.rs 291-310 (the payment loop: every step propagates with `?`) ==
+291|     for (index, (invoice, allowed_reason)) in to_pay.iter().enumerate() {
+298|         let recipient = Address::decode(&payer.network, &invoice.receiver).ok_or_else(|| {
+299|             anyhow!(
+300|                 "the invoice's receiver is not a valid address on this chain: {}",
+301|                 invoice.receiver
+302|             )
+303|         })?;
+304|         let memo = MemoBytes::from_bytes(invoice.memo.as_bytes())
+305|             .map_err(|e| anyhow!("the invoice's memo was rejected: {e}"))?;
+306|         let proposal =
+307|             ops::propose_shielded_payment(&mut payer, &recipient, invoice.amount_zat, &memo)?;
+308|         let txid = ops::build_sign_broadcast(&mut payer, &proposal, OvkPolicy::Sender).await?;
+309|         ops::mine_and_resync(&mut payer, ops::CONFIRM_BLOCKS).await?;
+310|         let height = mined_height_of(&mut payer, txid).await?;
+(lines 311-362: println, decisions.iter_mut().find, ledger.push(json!{...}) — no fallible call;
+ line 364 begins the post-loop refusal listing.)
+
+== payer.rs 406-411 (the only writes to --out; both after the loop) ==
+406|     std::fs::create_dir_all(&out_dir)
+407|         .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
+408|     let ledger_path = out_dir.join("ledger.jsonl");
+409|     std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))
+410|         .with_context(|| format!("writing {}", ledger_path.display()))?;
+411|     let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
+
+== payer.rs 469-478 (--expect-refused, after the artifacts) ==
+469|     if let Some(expected) = expect_refused {
+470|         if refused != expected as usize {
+471|             bail!( ... );
+477|         println!("  expectation       : refused exactly {expected} invoice(s) ✓");
+478|     }
+
+== structural greps on payer.rs ==
+- `grep -n 'error:' crates/probe/src/payer.rs` -> (none): the string the payer-policy detector looks for
+  exists nowhere in the payer, whose only decision reasons come from decide() ("paid: ..." / "refused: ...").
+- `grep -n 'fs::write|create_dir_all|read_to_string' payer.rs` -> 165 (grant), 406/409 (the two --out writes),
+  513 (invoice files). No other --out write anywhere; nothing reads a previous ledger.
+- `grep -n 'spent' payer.rs` -> 247 (`let mut spent: u64 = 0;` — resets every invocation), 250, 258.
+- No Drop impl, no panic hook, no error-capture path in payer.rs (whole file read).
+- payer's intake is plain serde: load_invoices -> `serde_json::from_str` at 515-516, for both the
+  directory and single-file forms; unlike flow.rs:1740-1768 (Invoice::from_path, the `pay --invoice`
+  path) it does not cross-check the file against its ZIP-321 URI and validates no receiver.
+
+== ops.rs 407-423 (build_sign_broadcast really broadcasts, inside the loop) ==
+407|     let response = probe
+408|         .client
+409|         .send_transaction(RawTransaction { data: bytes.clone(), height: 0 })
+413|         .await
+414|         .context("SendTransaction to the indexer")?
+415|         .into_inner();
+416|     if response.error_code != 0 { bail!("the indexer rejected the transaction: ..."); }
+
+== properties/src/properties/payer_policy.rs 66-74 (the detector the payer cannot feed) ==
+66|                 // A refusal is a *result* only when a grant rule produced it. "could not pay" is the
+68|                 if decision.reason.starts_with("error:") {
+69|                     violations.push(format!(
+70|                         "invoice {} was not paid because of an internal error, not a grant rule: {}", ...));
+
+== docs/BOUNDED-PAYER.md 50 (the contract) ==
+50| Every invoice produces exactly one ledger line — `paid` or `refused` — with the rule in it, the amount,
+   [continuation] the receiver, and the txid when there is one. The ledger is written to `ledger.jsonl`
+   and recorded in the run as `payer`, which is where `payer-policy` reads it.
+   (line 28: "budget — the most the run may spend in total, checked cumulatively in ledger order" — per run.)
+
+== who reads a previous ledger ==
+Only display/summary code: scripts/bounded-payer-demo.sh and scripts/demo-run.sh read ledger.jsonl to
+print its lines; no Rust path reads a ledger, so a re-run cannot know what an aborted run paid.

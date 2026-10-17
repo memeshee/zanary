@@ -1,0 +1,117 @@
+
+// ===========================================================================
+// verifier-14 independent reproduction (appended to a DISPOSABLE sandbox copy
+// at /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2, never to the repo)
+// Exercises the real `decide()` and the real `time` parser, so both the
+// observed (text) verdict and the intended (instant) verdict come from target
+// code in the same process.
+// ===========================================================================
+#[cfg(test)]
+mod verifier14_checks {
+    use super::*;
+    use time::format_description::well_known::Rfc3339;
+
+    fn g(expires_at: &str) -> PayerGrant {
+        PayerGrant {
+            budget_zat: 1000,
+            per_payment_cap_zat: 400,
+            allowlist: vec!["uregtest1merchant".to_string()],
+            expires_at: expires_at.to_string(),
+            revoked: false,
+        }
+    }
+
+    fn i(id: &str) -> Invoice {
+        Invoice {
+            invoice_id: id.to_string(),
+            amount_zat: 10,
+            receiver: "uregtest1merchant".to_string(),
+            memo: "v14".to_string(),
+            uri: "zcash:uregtest1merchant".to_string(),
+            issued_at_height: 1,
+            merchant_account: 0,
+        }
+    }
+
+    fn inst(s: &str) -> time::OffsetDateTime {
+        time::OffsetDateTime::parse(s, &Rfc3339).unwrap_or_else(|e| panic!("{s}: {e}"))
+    }
+
+    /// V14-1: the same expiry instant, two valid RFC3339 encodings, opposite
+    /// verdicts. The `time` parser proves the instants are equal and that the
+    /// clock is already past them, i.e. the documented rule ("now >= expires_at
+    /// -> refuse", docs/BOUNDED-PAYER.md:43) requires refusal in BOTH cases.
+    #[test]
+    fn v14_same_instant_two_encodings() {
+        let now = "2026-11-02T00:00:00Z";
+        let canonical = "2026-11-01T23:00:00Z";
+        let offset = "2026-11-02T13:00:00+14:00";
+        assert_eq!(inst(canonical), inst(offset), "must be one instant");
+        assert!(
+            inst(now) >= inst(canonical),
+            "clock is at/past the expiry instant"
+        );
+
+        let a = decide(&g(canonical), 0, &i("v14-1a"), now);
+        let b = decide(&g(offset), 0, &i("v14-1b"), now);
+        println!("V14-1 canonical {canonical} -> allowed={} [{ }]", a.allowed, a.reason);
+        println!("V14-1 offset    {offset} -> allowed={} [{}]", b.allowed, b.reason);
+        assert!(!a.allowed, "canonical past expiry must refuse");
+        assert!(b.allowed, "offset encoding of the SAME past instant is allowed");
+    }
+
+    /// V14-2: at the exact expiry second, the payer's own clock text has
+    /// fractional seconds and a whole-second grant no longer compares as
+    /// expired, though the instant is already past.
+    #[test]
+    fn v14_fractional_clock_current_second() {
+        let now = "2026-11-01T00:00:00.300715717Z";
+        let exp = "2026-11-01T00:00:00Z";
+        assert!(inst(now) >= inst(exp), "clock is 0.3s past the expiry instant");
+        let d = decide(&g(exp), 0, &i("v14-2"), now);
+        println!("V14-2 now {now} vs expires {exp} -> allowed={} [{}]", d.allowed, d.reason);
+        assert!(d.allowed);
+    }
+
+    /// V14-3: nothing validates `expires_at`; any text sorting after the clock
+    /// lets the payer keep paying.
+    #[test]
+    fn v14_malformed_expiry_never_expires() {
+        let now = "2026-11-02T00:00:00Z";
+        for exp in ["never", "2030-99-99T00:00:00Z", "9999-01-01T00:00:00Z", ""] {
+            let d = decide(&g(exp), 0, &i("v14-3"), now);
+            println!("V14-3 expires_at {exp:?} -> allowed={} [{}]", d.allowed, d.reason);
+            if exp == "" {
+                // control: the empty string sorts BEFORE the clock, so it refuses
+                // (proving the rule really is a text comparison, not a parse).
+                assert!(!d.allowed);
+            } else {
+                assert!(d.allowed);
+            }
+        }
+    }
+
+    /// V14-4: control — an ordinary past instant in canonical whole-second Z form
+    /// is refused, and a future one is allowed. The rule works only inside the
+    /// canonical encoding the repo's own grants use.
+    #[test]
+    fn v14_canonical_encoding_works() {
+        let now = "2026-11-02T00:00:00Z";
+        let past = decide(&g("2026-11-01T23:59:59Z"), 0, &i("v14-4a"), now);
+        let future = decide(&g("2030-01-01T00:00:00Z"), 0, &i("v14-4b"), now);
+        println!("V14-4 past   -> allowed={} [{}]", past.allowed, past.reason);
+        println!("V14-4 future -> allowed={} [{}]", future.allowed, future.reason);
+        assert!(!past.allowed);
+        assert!(future.allowed);
+    }
+
+    /// V14-5: the comparison is a plain `&str` ordering — show the two orderings
+    /// that decide everything, with no parsing anywhere in decide().
+    #[test]
+    fn v14_ordering_facts() {
+        assert!("2026-11-02T00:00:00Z" < "2026-11-02T13:00:00+14:00");
+        assert!("2026-11-01T00:00:00.300715717Z" < "2026-11-01T00:00:00Z");
+        assert!("2026-11-02T00:00:00Z" >= "2026-11-01T23:00:00Z");
+        println!("V14-5 str-ordering facts hold ('.' < 'Z', '0' < '1')");
+    }
+}

@@ -1,0 +1,9 @@
+check: zanary-report index over a crafted report whose flow_commit carries a multi-byte character straddling byte 12
+command: docker run --rm --network=none -v $SB:/t -w /t rust:1-slim sh -c './target/debug/zanary-report index --reports check-evidence/input-utf8 --out check-evidence/out-utf8.html --now 2026-10-25T00:00:00Z'
+input: report.json copy with flow_commit = 11x'a' + U+00E9 + '0123456789abcdef'
+
+observed stderr:
+thread 'main' (49) panicked at crates/report/src/index.rs:138:29:
+end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+
+UTF8_EXIT:101 (publish step would fail; no page is written)

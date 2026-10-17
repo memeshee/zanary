@@ -1,0 +1,86 @@
+{
+ "decision": "needs_validation",
+ "record": {
+  "verdict": "needs_validation",
+  "fingerprint": "zanary/payer-ledger-not-durable",
+  "title": "Payments are recorded only after all of them are broadcast: an aborted or repeated run leaves on-chain payments with no ledger and re-pays them",
+  "description": "The payer decides every invoice first and keeps every decision in memory (payer.rs:244-270), then pays the allowed ones in a loop that propagates every step with `?` (291-363): Address::decode (298), MemoBytes::from_bytes (304), propose (306-307), build+broadcast (308), mine_and_resync (309, 11 blocks, ops::CONFIRM_BLOCKS). ledger.jsonl is the only ledger persistence and, with run.json/findings.json/report.json, is written once, after the loop (409; 411 -> record.rs:45/50/61) with unconditional truncating std::fs::write. A run that dies inside the loop - decide admits an invoice the loop cannot pay (a receiver that does not decode under an allowlist containing that literal, or a memo over the ZIP-302 cap; both re-verified ALLOW offline and the payer's own intake accepts the JSON), an indexer failure, a timeout, or SIGINT - exits with no artifact at all, while any earlier iteration's payment is already broadcast and mined. Nothing outside those artifacts remembers a paid invoice (PayerRun is label+grant+decisions, observation/src/lib.rs:222-230; spent_zat derives from the in-memory decisions, 234-240; no file under crates/ reads a ledger), so re-running the same command re-decides from spent=0 and broadcasts the same payments again; and a completed re-run into the same --out (default data/runs/payer, payer.rs:151-153) replaces the earlier ledger/run/report wholesale. The grant budget is a per-run bound, not a lifetime one, and no source-visible control dedupes invoices or bounds re-execution (companion RESOURCE-EXHAUSTION rules: input = caller-supplied invoice JSON directory; amplification = up to budget_zat re-paid per completed re-run plus the payments of every aborted run; retained state = none, which is the defect itself; recovery = manual reconciliation against the chain; the failure is process-fatal with no supervisor). Calibration: the flow runner commits through the same end-of-run record::write_run_artifacts (flow.rs:502), but the re-pay consequence is the payer's. Same source-derived root cause as sibling candidate `crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written` (hunter-broadcast, wave 2); the two records should be deduped/merged.",
+  "claimed_root_cause": "The spend record is an end-of-run artifact rather than a durable append-only journal written before each broadcast: decisions and refusal lines are buffered in memory (payer.rs:291-379), every payment step returns early through `?` with the chain effect already committed (298-310), the only persistence is after the loop (409, 411) via unconditional truncating std::fs::write, nothing persists a paid-invoice set for the next run to consult (PayerRun = label + grant + decisions), and a reused --out erases the previous evidence. This is the same source-derived root cause as the sibling candidate `crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written` (hunter-broadcast, wave 2): both are the end-of-loop commit plus `?` abort ordering at payer.rs:291-411; the no-persisted-paid-state and overwrite facets here are consequences of the same single end-of-run write design, not a genuinely different defect - dedupe/merge the two records.",
+  "trace": [
+   {
+    "kind": "entrypoint",
+    "file": "crates/probe/src/payer.rs",
+    "line": 201,
+    "scope": "invoice intake (load_invoices) and the decide phase",
+    "description": "the CLI loads caller-supplied invoice JSON (201) and decides every invoice before any money moves (244-270), fixing the payable set and `spent` in memory; decide validates only the grant fields - never the receiver's address form or the memo - so an allowlisted non-address receiver and a 600-byte memo are decided ALLOW (re-verified offline by this audit's own checker, A1-A3/A5/B1-B2)."
+   },
+   {
+    "kind": "propagation",
+    "file": "crates/probe/src/payer.rs",
+    "line": 291,
+    "scope": "payment loop",
+    "description": "each to_pay entry is decoded (298), memo-encoded (304), proposed (306-307), built and broadcast (308) and mined (309); every step returns through `?` with the ledger still only in the in-memory Vec."
+   },
+   {
+    "kind": "propagation",
+    "file": "crates/probe/src/payer.rs",
+    "line": 364,
+    "scope": "refusals appended (in memory, after the loop)",
+    "description": "refusal lines are buffered in the same in-memory ledger only after the payment loop (364-379), so a run that dies mid-loop has no ledger lines of any kind."
+   },
+   {
+    "kind": "sink",
+    "file": "crates/probe/src/payer.rs",
+    "line": 409,
+    "scope": "artifact write (only persistence)",
+    "description": "ledger.jsonl (409) and run.json/findings.json/report.json (411 -> record.rs:45/50/61) are written once, after the loop, with unconditional std::fs::write; nothing is written on any earlier exit and a re-run into the same --out replaces the previous evidence."
+   }
+  ],
+  "evidence": [
+   {
+    "file": "crates/probe/src/payer.rs",
+    "line": 244,
+    "description": "the in-code claim 'the ledger a reviewer reads is complete before any money moves' holds only in memory - the file is written at 409."
+   },
+   {
+    "file": "crates/probe/src/payer.rs",
+    "line": 298,
+    "description": "Address::decode returns None for an admitted receiver that is not a decodable address (re-verified, B1); the loop's first fallible step, reached after earlier iterations may already have broadcast."
+   },
+   {
+    "file": "crates/probe/src/payer.rs",
+    "line": 304,
+    "description": "MemoBytes::from_bytes rejects a memo over the ZIP-302 cap (512 accepted / 513 and 600 rejected, re-verified B2) at the same point."
+   },
+   {
+    "file": "crates/probe/src/payer.rs",
+    "line": 409,
+    "description": "std::fs::write(&ledger_path, ...) is the only ledger persistence and the only std::fs::write in payer.rs (re-verified C27), and it truncates."
+   },
+   {
+    "file": "crates/probe/src/record.rs",
+    "line": 45,
+    "description": "write_run_artifacts writes run.json (45), findings.json (50) and report.json (61) with unconditional std::fs::write (3 truncating writes, no OpenOptions/append, re-verified C31-C32), so a later run at the same --out erases the earlier one."
+   },
+   {
+    "file": "crates/observation/src/lib.rs",
+    "line": 234,
+    "description": "PayerRun::spent_zat derives from the in-memory decisions (234-240); PayerRun carries only label + grant + decisions (222-230) - no persisted paid-invoice set exists (re-verified D1-D2)."
+   },
+   {
+    "file": "crates/probe/src/payer.rs",
+    "line": 153,
+    "description": "the default --out is data/runs/payer (151-153), so a plain re-run shares the output path with the previous run."
+   }
+  ],
+  "blockers": [
+   "The decisive end-to-end observations need the running regtest rig, which is out of bounds: run() reaches the payment loop only through core::bootstrap_with (a real funded, synced wallet database) and NodeRpc::from_env (ZANARY_LWD_URL -> host port 9067), and every payment mines 11 blocks (ops::CONFIRM_BLOCKS = 11, ops.rs:59; payer.rs:309). In a --network=none sandbox with no access to the zanary-zcashd/zanary-lwd containers or ports 18232/18233/9067/9068 it cannot be observed that (a) a mid-loop abort leaves the earlier payment mined while --out holds no ledger.jsonl/run.json/report.json, and (b) a re-run broadcasts a second payment for the same invoice under the same grant.",
+   "No offline harness reaches run(): the loop's first iteration is a wallet-backed payment; only its preconditions are observable offline (this record's local plan and the hunter's check-payer-decide.txt H8 line agree on them).",
+   "Duplicate root cause (see claimed_root_cause): the same source-derived defect as `crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written` (hunter-broadcast, wave 2, itself proposed needs_validation) - dedupe/merge; do not count as two independent findings."
+  ],
+  "validation_plan": {
+   "local": "Re-established in the disposable sandbox copy during this verification (this verifier's own checker, 51/51 checks, no network): decide() with an allowlist containing the literal non-address receiver and with an empty allowlist decides it ALLOW (A1/A2); a 600-byte memo is decided ALLOW (A3); Address::decode returns None for that receiver (B1); MemoBytes::from_bytes accepts 512 bytes and rejects 513/600 (B2); the source ordering is exact - payer.rs:201/244/258/291/298/304/307/308/309/364/406/409/411, record.rs:45/50/61, observation/src/lib.rs:222-240 (C01-C36) - with the only std::fs::write in payer.rs at 409 after the loop, no File::create/OpenOptions/append, PayerRun serializing to exactly {decisions,grant,label} and no ledger reader anywhere under crates/ (D1-D7). Re-run: `cargo run --offline -p zanary-probe --bin verifier15_check` inside the sandbox copy (checker source: crates/probe/src/bin/verifier15_check.rs there; promoted output: agents/verifier-15/artifacts/check-verifier15.txt, scratch copy agents/verifier-15/scratch/check-verifier15.txt). The hunter's proposed filter (`cargo test -p zanary-probe -- hunter_payer`) no longer applies - that test module is not present in the sandbox copy; use the checker above.",
+   "deployment": "Owner-observed on the owner's own throwaway regtest rig, non-destructively (fresh ZANARY_PAYER_DEMO_DIR throughout; never the repo's default data/payer-demo; nothing deleted or edited in place): (1) `ZANARY_PAYER_DEMO_DIR=<fresh>/payer-demo scripts/bounded-payer-demo.sh` to build the layout, then add a fifth invoice $DIR/invoices/8305.json (create with `zanary-probe invoice --id 8305 --amount-zec 0.02` and set its \"receiver\" to the literal not-an-address; the payer ignores uri) and a grant file copied from grants/allowed.json whose allowlist additionally contains that same literal. (2) `./target/release/zanary-probe payer --grant $DIR/grants/garbage.json --invoices $DIR/invoices --out $DIR/runs/abort --ttl-days 30`: expect exit non-zero at 8305 with 'the invoice's receiver is not a valid address on this chain', $DIR/runs/abort containing no ledger.jsonl/run.json/report.json (the directory itself may not exist), and the 'paid : <txid>' line printed for 8301 resolving on chain (zcash-cli -regtest getrawtransaction <txid>). (3) Re-run the identical command unchanged: 8301 receives a second, different txid and again nothing is written - the double payment under one grant file is the decisive fact. (4) Remove 8305.json and re-run once more into the same --out: the completed run's ledger.jsonl holds exactly one paid line for 8301 (the second txid) and payer-policy passes, because the only ledger that exists is that run's own. (5) Overwrite facet, independent of any abort: run the two-invoice demo twice into the same --out and observe the second run's ledger.jsonl/run.json/report.json replace the first at the same paths (new report_hash) while the first run's payments stay on chain."
+  }
+ }
+}

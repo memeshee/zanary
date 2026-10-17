@@ -1,0 +1,39 @@
+verifier-32 — Phase-5 record verification, zanary/payer-duplicate-invoice-id-replay
+Target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean, read-only).
+Sandbox: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2, docker --network=none rust:1-slim.
+
+DECISION: verified (record holds as written; two non-material wording notes below).
+
+SOURCE RE-CHECKS (all at commit 7058406)
+- payer.rs:495-520 load_invoices: extension=="json" filter (503), read+parse each file (511-518), no cap, no id uniqueness. fn starts 495. OK
+- payer.rs:84-136 decide(): invoice_id appears only inside the cap-refusal reason (115); never used as a key. OK
+- payer.rs:246-270 decision loop: fresh `spent = 0` (247), decide() per invoice (250), spent += amount (258), to_pay.push (259), id stored as label (262). No dedupe.
+- payer.rs:291-363 payment loop: every to_pay entry proposed/signed/broadcast (306-310) with no per-entry guard; attribution find() at 320-326 (exact `decisions.iter_mut().find(|d| d.invoice_id == invoice.invoice_id)` at 322); ledger.push per payment at 327-338.
+- payer.rs:406-411 out dir/artifacts written only after the payment loop; property fail bails at 479-486 (after artifacts).
+- payer.rs:523-533 shortfall(): sums to_pay + 10_000 zat per entry (530) -> funds every entry incl. duplicate.
+- observation/src/lib.rs:202-230 PayerDecision/PayerRun: label + grant + decisions only; no persisted decided/paid id set.
+- payer_policy.rs:63 for decision in &payer.decisions — no invoice-identity notion; summary format at 105-116; internal-error rule keys on "error:" (68).
+- amount_fingerprint.rs:64-75 exact-repeat pair loop; line 70 format "…(exact repeat across payments)"; severity Warn (34).
+- receiver_reuse grouping (observation lib.rs:252-257) keeps only groups with >1 distinct payment label — duplicate-id payments share one label ("invoice <id>", payer.rs:340), so it passes.
+- flow.rs:1554-1555 "issue an invoice the payer can act on with no channel other than the file" (verbatim).
+- grep crates/: no dedupe/seen-set/uniqueness of invoice identity in the payer path; the only `seen` sets are flow.rs:279 (batch settlement requires distinct amounts per invoice in one batch) and receiver-reuse evidence label dedupe — unrelated subsystems (note 2).
+
+SANDBOX REPRODUCTIONS (real code from the reviewed revision)
+Fixtures: /t/v32-scratch/grant.json (budget 1000, cap 400, allowlist [uregtest1merchant], expires 2030-01-01) + invoices/a.json, invoices/b.json (byte-identical, invoice_id v13-8301, amount 300).
+(R1) Real CLI, run twice:
+  cargo build --offline -p zanary-probe --bin zanary-probe
+  ./target/debug/zanary-probe payer --grant /t/v32-scratch/grant.json --invoices /t/v32-scratch/invoices --out /t/v32-scratch/out
+  Both runs: "invoices : 2", then ALLOW v13-8301 "paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)", ALLOW v13-8301 "…600 of 1000…", then Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused — exit 1, --out never created (checked). Second run prints the same 300 -> 600 sequence. -> record's CLI claim reproduced (see note 1 re "node-RPC bootstrap").
+(R2) appended test module verifier32_checks (REMOVED after; payer.rs restored byte-identical, sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720, diff vs `git show HEAD:` empty):
+  cargo test --offline -p zanary-probe --bin zanary-probe verifier32 -- --nocapture --test-threads=1  -> 3 passed; 0 failed.
+  V32-1 real load_invoices -> 2 invoices, ids ["v13-8301","v13-8301"]; production loop statements -> to_pay 2, spent 600, both "paid" (300/1000 then 600/1000).
+  V32-2 loop's own attribution predicate, two payments (tx-first/h11, tx-second/h12) over the duplicated decisions: row0 txid=Some("tx-second") height=Some(12), row1 txid=None height=None; control with a distinct second id: row0=tx-first, row1=tx-second.
+  V32-3 real zanary_properties::evaluate over the duplicated ledger (payer run, 2 payments, same amount/receiver/label):
+    payer-policy: Pass — "2 paid · 0 refused · 600 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2030-01-01T00:00:00Z)", exactly one row echoed "no txid".
+    ONLY failure: amount-fingerprint W Fail — "txid=tx-first txid=tx-second amount_zat=300 (exact repeat across payments)" (names amounts, never the id).
+    receiver-reuse Pass; memo-absent Pass; memo-content Pass; payer-linkability/policy-downgrade/transparent-fallback/unshielding Pass; same-block-roundtrip/server-metadata/timing-correlation/report-leak Skip (fixture has no funding/merchant events/artifacts — unexecuted layers).
+(R3) Schema: record from findings.json conforms to the `confirmed` branch (all required keys, no extras, allowed enums, uniqueItems) — validated programmatically.
+
+NOTES (non-material, meaning/evidence unchanged)
+1. observed_result "(b) …aborts at the node-RPC bootstrap": NodeRpc::from_env() itself succeeds from defaults; the exit-1 abort is the first RPC call node.block_count() (payer.rs:275-276). Same effect; --out never created; reproduced.
+2. description "the repo has no dedupe, seen-set or uniqueness rule anywhere (grep over crates/)": grep does show a seen-vec at flow.rs:279 (batch settlement demands distinct amounts per invoice) and label dedupes in receiver-reuse grouping (lib.rs:255 / receiver_reuse.rs:55). None concerns invoice identity in the payer path, so the operative claim — nothing in the payer keys on invoice_id — holds.

@@ -1,0 +1,36 @@
+VERIFIER-33 — Phase-5 record verification of zanary/payer-expiry-text-compare (decision: verified)
+
+TARGET: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean, untouched (git status --porcelain empty).
+SANDBOX: disposable git-archive copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2/verifier33-src (rust-toolchain.toml removed);
+         my own target dir; all docker runs --network=none; no rig contact (regtest containers never used).
+
+WHAT WAS CHECKED AND REPRODUCED
+1. Source re-read: all 4 trace entries and all 6 evidence entries match file:line at 7058406 (see check-source.txt); md5s of
+   payer.rs (54d121450a61b6fb35395a40c94ee710) and payer_policy.rs (0000a14d897c48f6fec7c39dd58929bc) match the record's claim.
+2. Real decide() (appended unit module, real crate): 4/4 passed (check-decide.txt) —
+   - now 2026-11-02T00:00:00Z: expires 2026-11-01T23:00:00Z -> REFUSE (reason exactly as the record quotes);
+     the SAME instant as 2026-11-02T13:00:00+14:00 -> ALLOW ("paid: within the cap (400 zat) and the budget ..."),
+     after asserting both strings parse (time::OffsetDateTime::parse) to one instant and clock >= that instant;
+   - "never" / "9999-01-01T00:00:00Z" / "2030-99-99T00:00:00Z" -> ALLOW; "" -> REFUSE (control: pure string ordering);
+   - fractional clock "2026-11-01T00:00:00.300715717Z" vs whole-second expiry -> ALLOW (timing_dependency reproduced).
+3. Real binary (built in the sandbox): grant-canonical -> "REFUSE v33-8301 — refused: the grant expired at
+   2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)"; grant-offset (+14:00) -> "ALLOW v33-8301 — paid:
+   within the cap (400 zat) ..."; grant-never -> ALLOW; each failed only afterwards at the node RPC ("Connection refused"),
+   i.e. decisions precede wallet use (check-cli.txt).
+4. Real payer-policy: a paid decision under a grant that expired 2020-01-01T00:00:00Z -> Verdict::Pass, expiry echoed in the
+   evidence text only (check-property.txt) — the post-hoc control cannot re-derive the expiry rule.
+5. Named lower-trust principal: run-dir architecture.md boundary 3 "Untrusted data <-> the probe CLI ... grants ... are JSON
+   files that a user (or a judge, or CI) supplies; --out/--definition/--grant are caller-controlled paths" — the record's
+   "whoever supplies the grant JSON" holds as written.
+6. Remediation: the record's fixed snippet (parse both sides as RFC3339, fail closed) compiled and behaved in the sandbox —
+   refuses expired-canonical, +14:00, "never", "2030-99-99T00:00:00Z", ""; still pays genuine future instants; fix is at the
+   decision point (decide()) and does not merely move trust.
+7. Severity: likelihood medium / impact medium / overall medium — overall not greater than impact; both reasons hold
+   (repo's own grants/fixtures/demo data are canonical whole-second Z; failure is silent afterwards: no decision time in
+   PayerDecision, no expiry rule in payer-policy).
+8. Record JSON validates against the confirmed schema branch (required fields, enums, no additionalProperties, uniqueItems).
+
+NOT MATERIAL / NOTES
+- payer.rs module doc line 18 says "now > expires_at" while code and docs/BOUNDED-PAYER.md:43 use ">=" (pre-existing target nit).
+- The impact sentence bounds the realistic failure at the offset window; the malformed-text case ("never") has no time bound —
+  the description and conditions already state both, so no change is needed.

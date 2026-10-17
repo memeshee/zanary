@@ -1,0 +1,65 @@
+### verifier-24 Phase-5 CLI reproduction (sandbox /t, build from git HEAD 7058406; target receipt.rs sha256 f26dbc615c3ddd6a4ee4779f0eb38554abddd23e6167e3d70d42396c4bc97dac)
+
+=== verify-receipt /t/verifier24/record-payload.json ===
+receipt   : /t/verifier24/record-payload.json
+format    : zanary-receipt-v1
+claim     : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+
+=== verify-receipt /t/verifier24/record-payload-2.json ===
+receipt   : /t/verifier24/record-payload-2.json
+format    : zanary-receipt-v1
+claim     : invoice 91207 was paid 2500000 zatoshis in transaction c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : a11032f8472dac59c147446a31e9d5216ad3633d23fea457c09687ed20de4e30
+claim ok  : body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+
+=== verify-receipt /t/verifier24/probe-superstring.json ===
+receipt   : /t/verifier24/probe-superstring.json
+format    : zanary-receipt-v1
+claim     : invoice 91207 was paid 2500000 zatoshis in transaction 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 0cf4430f19218c28247783d800fe839e78359ee6cf8836d94133cfe633ab9233
+claim ok  : body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+
+=== verify-receipt /t/verifier24/probe-absent-invoice.json ===
+receipt   : /t/verifier24/probe-absent-invoice.json
+format    : zanary-receipt-v1
+claim     : invoice 9121 was paid 2500000 zatoshis in transaction 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 0cf4430f19218c28247783d800fe839e78359ee6cf8836d94133cfe633ab9233
+claim     : INVALID — the receipt's claims never state the invoice id (9120) that its body carries
+
+  FAIL — the receipt does not check out (see the lines above)
+exit=1
+
+=== verify-receipt /t/verifier24/probe-clean.json ===
+receipt   : /t/verifier24/probe-clean.json
+format    : zanary-receipt-v1
+claim     : invoice 9120 was paid 250000 zatoshis in transaction 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 0cf4430f19218c28247783d800fe839e78359ee6cf8836d94133cfe633ab9233
+claim ok  : body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+exit=0
+

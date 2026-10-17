@@ -1,0 +1,35 @@
+### incremental build with the proposed fix applied (verifier-11 sandbox copy only)
+   Compiling zanary-probe v0.0.1 (/t/v11-pristine/crates/probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 08s
+
+### payload against the fixed build: --txid aéb (61 c3 a9 62)
+EXIT=1
+
+### payload against the fixed build: --txid —a (e2 80 94 61)
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: incomplete utf-8 byte sequence from index 1
+Error: decoding the txid
+
+Caused by:
+    invalid hex at byte 0: incomplete utf-8 byte sequence from index 0
+EXIT=1
+
+### positive control: valid 64-hex txid still decodes then fails at wallet setup (no network)
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1
+
+### unit test added by the proposed fix
+   Compiling zanary-probe v0.0.1 (/t/v11-pristine/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.20s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 1 test
+test flow::hex_decode_tests::rejects_multibyte_input_without_panicking ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+

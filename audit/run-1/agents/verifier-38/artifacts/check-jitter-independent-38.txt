@@ -1,0 +1,33 @@
+# local check (verifier-38, Phase-5, independent) — the missing-bound half of record zanary/unbounded-jitter-block-mining
+# reviewed revision: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean
+# command:
+#   docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+#     -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro \
+#     -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe verifier38 -- --nocapture'
+# control: sandbox flow.rs sha256 at run start = b26fa2d1074c7cc7f964de67e5b39451e0dedd89e21c75e0e22e77ae696f8ab4,
+#   which re-verifies byte-for-byte as (HEAD flow.rs, sha256 6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782) + the appended
+#   verifier38 module alone — so the pre-append file was exactly the reviewed HEAD file, with no other residue.
+#   a uniquely named #[cfg(test)] mod verifier38_tests (scratch/check-jitter-test-module.txt) was appended to the
+#   DISPOSABLE COPY only; the copy is restored to the HEAD sha afterwards; the reviewed repo is never modified.
+=== raw output ===
+    Blocking waiting for file lock on build directory
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 01s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 2 tests
+V38-EDGE 4294967295
+V38-BAD [3, 3, 3]
+V38-DESCRIBE jittered 1-4294967295 blocks between payments, drawn: []
+  jitter: ignoring jitter_blocks [2, 1] (want 1 <= min <= max); falling back to the fixed three blocks
+test flow::verifier38_tests::verifier38_range_is_shape_only ... ok
+V38-DRAWS [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+V38-FIRST 1789459390 V38-MAX 4085077839 V38-SUM 57318639679
+test flow::verifier38_tests::verifier38_seed7_reproduces_recorded_draws ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+DOCKER_EXIT=0
+=== restore sandbox copy to HEAD flow.rs ===
+post-restore flow.rs sha256: 6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782
+expected HEAD sha256:          6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782

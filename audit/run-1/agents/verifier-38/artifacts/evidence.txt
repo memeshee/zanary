@@ -1,0 +1,40 @@
+# verifier-38 Phase-5 record verification — zanary/unbounded-jitter-block-mining
+# target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean (re-checked after my run)
+# decision: VERIFIED (record kept as written; fingerprint unchanged)
+#
+# What I did (fresh eyes; I did not hunt this candidate and did not run its Phase-3 validation):
+# 1. Source re-read of every trace/evidence citation in the target at 7058406:
+#    flow.rs:133 Option<[u32;2]> field; 166-176 from_definition with the acceptance arm at 167
+#    (1 <= min <= max, held verbatim; malformed -> fixed 3 at 168-176); 192 gen_range(min..=max),
+#    195 drawn.push, 196 as u64 (no clamp; no other jitter bound anywhere in the crate — verified by grep);
+#    645 / 883 the mine_and_resync(payer, jitter.next()) calls; ops.rs:436 node.generate(blocks) (fn at 433);
+#    node.rs:231-232 generate -> call("generate", json!([blocks])) (request built 80-92);
+#    300 s read timeout node.rs:122-125, 30 s connect node.rs:94-95; no cancel/shutdown path in the probe
+#    (only 'kill' hits are payer.rs's unrelated --kill-file grant switch). flow.rs:253-297 validation never
+#    inspects jitter_blocks. action.yml:113 `timeout "$GATE_TIMEOUT"` (2700 s), 122-124 (124 -> 2);
+#    gate.rs:133 flow::run_recording. harness/docker-compose.yml pins electriccoinco/zcashd:latest; no
+#    zcashd implementation in the repository (only the pinned image + a runtime datadir under data/).
+# 2. Arithmetic of the record's numbers recomputed from both artifacts (hunter + verifier-19, lists identical):
+#    n=32, first=1,789,459,390, max=4,085,077,839, sum=57,318,639,679, floor(mean)=1,791,207,489.
+# 3. Independent reproduction (my own, not trusting either artifact): appended a uniquely named
+#    #[cfg(test)] mod verifier38_tests to the DISPOSABLE sandbox copy and ran
+#    `cargo test --offline -p zanary-probe --bin zanary-probe verifier38 -- --nocapture` in the approved
+#    --network=none sandbox. Both tests pass: the seed-7 draws equal the artifact sequence draw-for-draw
+#    (full-vector assert_eq), [4294967295,4294967295] draws exactly u32::MAX, [2,1] falls back to 3,3,3,
+#    describe() shows the range held verbatim. Raw run: scratch/check-jitter-independent-38.txt;
+#    module: scratch/check-jitter-test-module.txt. Control: pre-append sandbox flow.rs was exactly HEAD
+#    (sha256 6fe40483...; HEAD bytes + my module hash to the run-start value b26fa2d1...), and the copy
+#    was restored to the HEAD sha byte-for-byte afterwards. The reviewed repository was never modified.
+# 4. Record vs checklist: single claimed root cause = shape-only bound + unscaled draw + no client-side
+#    cancellation; supported exactly. Blockers decisive: zcashd's large-count/socket-close/rate behaviour
+#    is not in this repository and is not measurable in the approved sandbox (no node, no network, no
+#    pulls; rig containers/ports out of bounds — I never ran a node). Boundary + concrete result named.
+#    validation_plan non-destructive: local uses a throwaway container/volume, bounded counts, explicitly
+#    "never request the drawn ~4.29e9"; deployment forbids the full draw against shared/retained rig state
+#    and asks the owner to measure per-block time/disk on a disposable node, then extrapolate arithmetically.
+#    Fingerprint stable across hunter artifacts, ledger result_fingerprints, verifier-19 prompt/verdict and
+#    findings.json record 17 (deep-equal to my prompt's copy).
+#
+# Non-material note: the record's pointer "agents/verifier-19/artifacts/check-jitter-independent.txt" currently
+# resolves under agents/verifier-19/scratch/ (parent-side promotion pending; same for sibling verifier records).
+# The raw file exists and is draw-for-draw consistent with the record.

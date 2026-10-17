@@ -1,0 +1,68 @@
+# verifier-14 CLI runs — real zanary-probe binary, rust:1-slim, --network=none
+# build: cargo build --offline -p zanary-probe --bin zanary-probe
+# invocation (per grant): timeout 90 /t/target/debug/zanary-probe payer --grant /t/verifier14-cli/grants/grant-<g>.json --invoices /t/verifier14-cli/invoices --now 2026-11-02T00:00:00Z --out /t/verifier14-cli/out-<g>
+
+### fixture invoice (v14-8301.json):
+{
+  "invoice_id": "v14-8301",
+  "amount_zat": 10,
+  "receiver": "uregtest1merchant",
+  "memo": "v14",
+  "uri": "zcash:uregtest1merchant?amount=0.0000001",
+  "issued_at_height": 1,
+  "merchant_account": 0
+}
+
+### grant-canonical.json:
+{"budget_zat":1000,"per_payment_cap_zat":400,"allowlist":["uregtest1merchant"],"expires_at":"2026-11-01T23:00:00Z"}
+### output:
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier14-cli/grants/grant-canonical.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2026-11-01T23:00:00Z
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier14-cli/invoices
+
+  REFUSE   v14-8301 — refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+### grant-offset.json:
+{"budget_zat":1000,"per_payment_cap_zat":400,"allowlist":["uregtest1merchant"],"expires_at":"2026-11-02T13:00:00+14:00"}
+### output:
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier14-cli/grants/grant-offset.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2026-11-02T13:00:00+14:00
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier14-cli/invoices
+
+  ALLOW    v14-8301 — paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+
+### grant-never.json:
+{"budget_zat":1000,"per_payment_cap_zat":400,"allowlist":["uregtest1merchant"],"expires_at":"never"}
+### output:
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier14-cli/grants/grant-never.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : never
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier14-cli/invoices
+
+  ALLOW    v14-8301 — paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)

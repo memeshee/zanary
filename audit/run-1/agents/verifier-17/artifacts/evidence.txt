@@ -1,0 +1,54 @@
+verifier-17 — independent re-derivation for zanary/rig-image-tags-unpinned
+target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean; verified)
+date: 2026-10-17
+method: read-only source inspection (git grep, nl/sed line reads, sha256sum) on the target checkout.
+No target code executed; no registry contact; no image pull or inspect; no network; rig ports untouched.
+
+1. Every trace/evidence line re-read and confirmed:
+   - harness/docker-compose.yml:9  `image: electriccoinco/zcashd:latest`; :34 `image: electriccoinco/lightwalletd:latest`;
+     full file (58 lines) contains no @sha256, no pull_policy, no platform. Only pins: container_name/user/restart/healthcheck.
+   - harness/up.sh:60 `docker compose up -d` (only resolution point; compose default pull policy = missing);
+     :116 `docker inspect -f '{{.State.Running}}' zanary-lwd` — only docker inspect in the tree (git grep 'docker inspect': 1 hit).
+     Full file read: no digest/version identity recorded anywhere; readiness = streak (answer, .State.Running, answer).
+   - action.yml:85 `run: harness/up.sh` in "start the throwaway chain" (working-directory ${{ github.action_path }});
+     header :1 documents `uses: memeshee/zanary@main` as the whole setup; rig-diagnostics (:157) prints {{.Image}} only (name:tag, no digest).
+   - .github/workflows/privacy-gate.yml:87 `- uses: ./` (gate job, id at :64); :239 `run: harness/up.sh` (payer job at :220);
+     publish job (:110) renders claims to Pages (deploy-pages :215); schedule :21-23 cron "17 4 * * 1" (weekly re-probe on fresh runners).
+   - crates/report/src/lib.rs:33-54 Report struct: version, flow_id, flow_commit, chain, verified_at_height, verified_at,
+     ttl_seconds, findings, evidence, merchant_is_simulated, report_hash — no image/digest/container identity.
+   - crates/probe/src/gate.rs:165 `let chain_verified = verification.verified();` — verdict source; verify at :156 verify_report(&report,&opts);
+     anchor step :181-206 writes evidence root as shielded memo and re-scans the chain on the same node; summary :332-360 carries no digest.
+   - harness/HARNESS.md:54-55 `:latest` (v6.20.0) / `:latest` (v0.5.5); README.md:75 same; README.md:111/114 one-command;
+     docs/SUBMISSION.md:36 one command; docs/CI.md:113 "timestamp nobody had to be trusted for";
+     scripts/phase0-warmup.sh:29 bare `docker pull` of the same floating tag (only docker pull in the tree).
+
+2. Mechanical claims re-established by me (git grep over tracked tree @ 7058406):
+   '@sha256:' -> 0 hits; 'pull_policy' -> 0 hits; 'repoDigests' -> 0 hits; 'docker inspect' -> only up.sh:116;
+   'docker pull' -> only scripts/phase0-warmup.sh:31 (no digest recorded); 'image:' -> only compose :9/:34; no docker build / local image build.
+   Full history (git rev-list --all): '@sha256:' 0 hits in any commit. `git log -S':latest' -- harness/docker-compose.yml`
+   -> e79f4e6 2026-10-11 "CANARY: harness + walkthrough skeleton" first introduced the floating tags (blocker text confirmed).
+
+3. Strongest controls on the path, reconstructed and read:
+   - compose: user/restart/healthcheck/depends_on — liveness/lifecycle only, no identity.
+   - up.sh: bounded waits, streak readiness, docker logs on failure — no identity.
+   - client side: crates/probe/src/main.rs:100-105 prints indexer chain_name/version/vendor, compares to nothing;
+     crates/probe/src/core.rs:128-160 wait_for_indexer_height waits for a tip height only;
+     crates/report/src/verify.rs:697 the strongest chain check is string equality between the node's self-reported
+     getblockchaininfo.chain (node.rs:161-167) and the report's own self-asserted 'regtest' (flow.rs:396, payer.rs:394) —
+     a substituted node answers 'regtest' trivially; no image/version/digest control exists.
+     Verification connects to opts.node / opts.indexer_url = env (ZANARY_NODE_*/ZANARY_LWD_URL) or localhost defaults
+     (verify.rs:122-131) — the same rig endpoints the unpinned containers serve.
+
+4. Revision binding: sha256 of cited files match the hunter artifact section 7 exactly
+   (docker-compose.yml 7d6e6470…, up.sh 0958b05d…, HARNESS.md ad14f80e…, action.yml 1c58ef49…, privacy-gate.yml f7886764…,
+   README.md b1ac3ac3…, CI.md 89a829a0…, phase0-warmup.sh 66df5b65…, lib.rs 365028e4…); gate.rs b8164598… (re-read by me).
+
+5. What could NOT be observed in-bounds (decisive, hence needs_validation):
+   current manifest digests the two tags resolve to; whether either tag was re-pointed since e79f4e6; who can write
+   those Docker Hub repos / tag immutability; whether any run (weekly cron, push, third-party action caller) consumed
+   shifted content. The runtime experiment (substituted node/indexer on host ports 18232/18233/9067/9068) and any
+   registry/image access are explicitly out of bounds; the --network=none sandbox cannot pull or run the rig images.
+
+6. Disposition: source does not refute the trace; every line, scope and description checks out. The missing fact remains
+   decisive (it decides whether a lower-trust tag writer/drift exists at all), so: keep needs_validation, fingerprint
+   unchanged; plans tightened to exact, read-only/owner-observed steps.

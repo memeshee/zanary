@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.29s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 3 tests
+test payer::verifier32_checks::v32_1_intake_and_loop_keep_the_duplicate ... V32-1 real load_invoices -> 2 invoices, ids ["v13-8301", "v13-8301"]
+V32-1 production loop statements: to_pay 2 entries, spent 600
+V32-1 decision: v13-8301 300 -> paid (paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this))
+V32-1 decision: v13-8301 300 -> paid (paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this))
+ok
+test payer::verifier32_checks::v32_2_txid_attribution_finds_the_first_row ... V32-2 duplicate id: row0 txid=Some("tx-second") height=Some(12) | row1 txid=None height=None
+V32-2 control (distinct ids): row0 txid=Some("tx-first") | row1 txid=Some("tx-second")
+ok
+test payer::verifier32_checks::v32_3_report_over_the_duplicated_ledger ... V32-3 D Pass payer-linkability — no pair reached threshold=0.70; highest pair confidence=0.55 across 2 payments
+V32-3 D Pass payer-policy — 2 paid · 0 refused · 600 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2030-01-01T00:00:00Z)
+V32-3 D Pass policy-downgrade — every recorded policy token was checked against the downgrade fragments; none matched, and no shielded→transparent/cross-pool spend was observed
+V32-3 D Pass receiver-reuse — no receiver repeats among 2 payments; note the spec calls for N>=5 payments (two payers, two amounts) for a meaningful reuse window
+V32-3 D Pass transparent-fallback — checked 2 observed addresses (payment recipients/senders, funding receivers, observed values); none transparent
+V32-3 D Pass unshielding — 2 payments checked; no transparent pool_out, no shielded→transparent movement across 0 pool snapshots, no transparent hop between shielded legs
+V32-3 W Fail amount-fingerprint — txid=tx-first txid=tx-second amount_zat=300 (exact repeat across payments)
+V32-3 W Skip same-block-roundtrip — no funding heights recorded; heights cannot be compared
+V32-3 W Skip server-metadata — no merchant-side requests recorded; there is nothing the third party is known to have received
+V32-3 W Skip timing-correlation — no funding heights recorded; there is no inflow to measure a delay against
+V32-3 W Pass memo-absent — 2 invoice-bearing payments checked; every one carries a memo that contains its invoice id
+V32-3 W Pass memo-content — 2 memo(s) decoded and scanned for emails, phone/gov-id shapes, long digit runs, key-like labels and free text; none flagged
+V32-3 N Skip report-leak — no exported artifacts recorded; there is nothing to inspect
+V32-3 payer-policy summary: 2 paid · 0 refused · 600 of 1000 zat spent (cap 400 per payment, 1 receiver(s) allowed, expires at 2030-01-01T00:00:00Z)
+V32-3 payer-policy rows without txid: ["paid v13-8301 300 zat no txid — paid: within the cap (400 zat) and the budget (600 of 1000 zat spent after this)"]
+V32-3 receiver-reuse verdict: Pass
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+

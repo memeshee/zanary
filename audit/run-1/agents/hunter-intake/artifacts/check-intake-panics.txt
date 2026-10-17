@@ -1,0 +1,55 @@
+hunter-intake local check A — report/run JSON display helpers byte-slice untrusted fields
+Target: /home/kiter/hackathon/zanary @ 7058406 (worktree clean). Reviewed revision extracted to the
+approved disposable copy with `git archive HEAD` (rust-toolchain.toml removed); crates/report/src and
+crates/properties/src diff-verified identical to /tmp/za-review (== git archive HEAD) before running.
+
+Sandbox (only place target code ran; approved recipe flags unchanged):
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+    -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'sh /t/hunter-intake-checks/run_checks.sh'
+Binary: /t/target/debug/zanary-report (built offline from the reviewed revision; 122 MB).
+
+Fixtures written inside the copy at /t/hunter-intake-checks/ (minimal, all other fields valid):
+  v0_benign_report.json      flow_commit "deadbeefcafebabe00112233", report_hash "0"*64
+  v1_hostile_commit_report.json  flow_commit "aaaaaaaaaaaé"  (11 ASCII 'a' + U+00E9, 13 bytes)
+  v2_hostile_hash_report.json    flow_commit "deadbeefcafebabe0011", report_hash "bbbbbbbbbbbé" (13 bytes)
+  hostile_run_build.json     FlowRun with flow_commit "aaaaaaaaaaaé"
+  benign_report_for_anchor.json  benign report, used with a hostile --root
+Commands (each run with cwd /t/hunter-intake-checks, stdout/stderr captured separately):
+
+  v0  zanary-report verify v0_benign_report.json
+      exit=1 (documented "NOT VERIFIED"); full check list printed; no panic.
+  v1  zanary-report verify v1_hostile_commit_report.json
+      exit=101. stdout EMPTY (no banner, no check line, no verdict).
+      stderr: thread 'main' (16) panicked at crates/report/src/main.rs:762:29:
+              end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+  v2  zanary-report verify v2_hostile_hash_report.json
+      exit=101. stdout: banner + chain line only (panic before the check list / summary).
+      stderr: thread 'main' (23) panicked at crates/report/src/verify.rs:851:29:
+              end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)
+      (reached from verify.rs:673, the `report hash` FAIL branch — the branch that exists to report
+       an altered claim; it aborts instead of printing the mismatch).
+  b1  zanary-report build --run hostile_run_build.json --out out/b1_report.json
+      exit=101. stdout: "built out/b1_report.json"  (out/b1_report.json EXISTS, 4122 bytes)
+      stderr: thread 'main' (44) panicked at crates/report/src/main.rs:762:29: same boundary panic.
+      (the command reported success, wrote its artifact, then died: exit 101 with output on disk)
+  a1  zanary-report verify-anchor --root "cccccccccccé" --beacon-ufvk uview1invalid
+      exit=101, stdout empty, same panic at main.rs:762:29 — offline, before any node contact.
+  a2  zanary-report verify-anchor --report benign_report_for_anchor.json \
+        --root "aaaaaaaézzzzzzzzzzzzzzzz" --beacon-ufvk uview1invalid   (25-byte --root)
+      exit=101, stdout empty.
+      stderr: thread 'main' (58) panicked at crates/report/src/main.rs:287:28:
+              end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)
+
+Sink expressions (reviewed revision):
+  crates/report/src/main.rs:760-765  fn short:     if hash.len() > 12 { &hash[..12] }
+  crates/report/src/main.rs:283-288  fn short_tail: &value[..8], &value[value.len() - 8..]
+  crates/report/src/verify.rs:849-855 fn short (copy), used at verify.rs:673
+Untrusted sources (no validation): Report.flow_commit / Report.report_hash (crates/report/src/lib.rs:33-55),
+FlowRun.flow_commit (crates/observation/src/lib.rs:154-157), operator-supplied --root.
+
+No memory unsafety, disclosure or privilege effect observed: the panic is a safe process
+termination (exit 101) that suppresses the documented 0/1 verdict; exit-code contract at
+crates/report/src/main.rs:49-55.
+Scratch file check-intake-panics.txt — 64 KiB/256 KiB limits respected.

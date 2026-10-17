@@ -1,0 +1,112 @@
+=== verifier-34 check: zanary/payer-ledger-not-durable (Phase-5) ===
+record claim: end-of-loop commit + `?` abort at payer.rs:291-411; no durable paid state;
+              re-run into the same --out replaces the evidence
+
+1. every file/line the record and its trace/evidence name
+  PASS payer.rs load_invoices intake: line 201 (expected 201)
+  PASS payer.rs in-code claim: line 244 (expected 244)
+  PASS payer.rs spent starts at 0: line 247 (expected 247)
+  PASS payer.rs decide loop: line 249 (expected 249)
+  PASS payer.rs decide() call: line 250 (expected 250)
+  PASS payer.rs spent counted at decide time: line 258 (expected 258)
+  PASS payer.rs payment loop: line 291 (expected 291)
+  PASS payer.rs Address::decode (`?`): line 298 (expected 298)
+  PASS payer.rs MemoBytes::from_bytes (`?`): line 304 (expected 304)
+  PASS payer.rs propose (`?`): line 307 (expected 307)
+  PASS payer.rs broadcast (`?`): line 308 (expected 308)
+  PASS payer.rs mine_and_resync (`?`): line 309 (expected 309)
+  PASS payer.rs refusals buffered after the loop: line 364 (expected 364)
+  PASS payer.rs create_dir_all (after the loop): line 406 (expected 406)
+  PASS payer.rs ledger_path join: line 408 (expected 408)
+  PASS payer.rs ledger write (truncating): line 409 (expected 409)
+  PASS payer.rs run artifacts write: line 411 (expected 411)
+  PASS payer.rs default --out: line 153 (expected 153)
+  PASS payer.rs fee margin 10_000/payment: line 530 (expected 530)
+  PASS record.rs run.json write: line 45 (expected 45)
+  PASS record.rs findings.json write: line 50 (expected 50)
+  PASS record.rs report.json write: line 61 (expected 61)
+  PASS observation PayerRun struct: line 224 (expected 224)
+  note: observation/src/lib.rs:225-226 = ["/// What the payer is, in its own words (e.g. \"zanary bounded payer (reference subject)\").", "pub label: String,"]
+  PASS observation PayerRun body starts at 225-226 (doc + `pub label: String,`)
+  PASS observation decisions field: line 229 (expected 229)
+  PASS observation spent_zat: line 234 (expected 234)
+  PASS observation spent_zat sums decisions: line 235 (expected 235)
+  PASS ops.rs CONFIRM_BLOCKS = 11: line 59 (expected 59)
+  PASS ops.rs send_transaction broadcast: line 409 (expected 409)
+  PASS flow.rs shared end-of-run commit: line 502 (expected 502)
+  PASS payer_policy.rs 'error:' detector: line 68 (expected 68)
+  PASS docs contract line: line 50 (expected 50)
+  note: payer.rs:408 is `let ledger_path = out_dir.join("ledger.jsonl");`
+  note: payer.rs:409 is `std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))`
+
+2. the spend record is an end-of-run artifact (structure, not prose)
+  PASS payer.rs has exactly one std::fs::write (at line 409)
+  PASS that write is the ledger.jsonl write at 409
+  PASS no File::create in payer.rs
+  PASS no OpenOptions in payer.rs
+  PASS no .append( in payer.rs
+  PASS no 'error:' string anywhere in payer.rs
+  PASS the ledger write (409) comes after the payment loop (291)
+  PASS the ledger write (409) comes after the refusal buffer (364)
+  PASS no Drop impl / panic hook / signal handler in payer.rs
+  PASS decide() never inspects memo length
+  PASS decide() never decodes an Address
+  PASS the allowlist rule is string containment
+  files under crates/ mentioning ledger.jsonl (scaffolding excluded): ["crates/probe/src/payer.rs"]
+  PASS the only file under crates/ that mentions ledger.jsonl is the payer that writes it
+  PASS no file under crates/ reads a ledger file back
+
+3. decide() admits an invoice the payment loop cannot pay (pure, in-process)
+  A1 literal receiver on the allowlist -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A1 allowlisted non-address receiver is decided ALLOW
+  A2 empty allowlist -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A2 empty allowlist admits the non-address receiver
+  A3 600-byte memo -> allowed=true | paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+  PASS A3 a 600-byte memo is decided ALLOW
+  A4 control (receiver not on the allowlist) -> allowed=false | refused: not-an-address is not on the allowlist (1 entries)
+  PASS A4 control: string equality is the only receiver check
+  A5 serde intake (the load_invoices shape) -> ok=true
+  PASS A5 the payer's own intake accepts that invoice JSON
+
+4. the loop's first fallible steps fail on exactly that invoice
+  B1 Address::decode("not-an-address") -> is_none=true
+  PASS B1 Address::decode returns None (payer.rs:298 `?` returns from run())
+  B2 MemoBytes::from_bytes: 512 ok=true 513 err=true 600 err=true
+  PASS B2 the ZIP-302 cap is 512 bytes (payer.rs:304 `?` aborts the loop)
+
+5. nothing outside the artifacts remembers a paid invoice; the writer overwrites
+  PayerRun serializes to keys ["decisions", "grant", "label"]
+  PASS PayerRun carries exactly {decisions, grant, label} - no paid-invoice set, no time
+  spent_zat() = 300 (300 paid + 999 refused)
+  PASS spent_zat derives from the in-memory decisions only
+  after a second std::fs::write the file holds "second-run-ledger\n"
+  PASS std::fs::write truncates (the semantics of payer.rs:409 / record.rs:45,50,61)
+
+=== verifier-34 check summary ===
+  checks passed: 56
+  checks failed: 0
+  == end of verifier-34 check (no network used) ==
+CHECKER_EXIT=0
+=== real CLI: post-decision failure in --network=none ===
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier34-cli/grant.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : not-an-address
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier34-cli/invoices
+
+  ALLOW    v34-8301 — paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+CLI_EXIT=1
+=== --out contents after the abort ===
+total 16
+drwxrwxr-x  3 1000 1000 4096 Oct 17 12:26 .
+drwxrwxr-x 49 1000 1000 4096 Oct 17 12:28 ..
+-rw-rw-r--  1 1000 1000  159 Oct 17 12:26 grant.json
+drwxrwxr-x  2 1000 1000 4096 Oct 17 12:26 invoices
+ls: cannot access '/t/verifier34-cli/out': No such file or directory

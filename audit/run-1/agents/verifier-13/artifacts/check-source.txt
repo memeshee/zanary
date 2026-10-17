@@ -1,0 +1,305 @@
+zanary run-1 · verifier-13 · source check on the read-only target
+==============================================================================
+Target : /home/kiter/hackathon/zanary @ commit 7058406 (worktree clean)
+Claim  : every trace/evidence line of candidate
+         zanary/payer-duplicate-invoice-id-replay re-read here verbatim; the production
+         lines 1-655 of crates/probe/src/payer.rs are byte-identical in the sandbox copy
+         (diff of `head -655` against the worktree: empty).
+
+--- crates/probe/src/payer.rs:246-270  (the decision loop: one decide() per invoice, id recorded as a label at 262, spent+= and to_pay.push at 258-259) ---
+  246|    let mut decisions: Vec<PayerDecision> = Vec::new();
+  247|    let mut spent: u64 = 0;
+  248|    let mut to_pay: Vec<(Invoice, String)> = Vec::new();
+  249|    for invoice in &invoices {
+  250|        let decision = decide(&grant, spent, invoice, &now);
+  251|        println!(
+  252|            "  {:<8} {} — {}",
+  253|            if decision.allowed { "ALLOW" } else { "REFUSE" },
+  254|            invoice.invoice_id,
+  255|            decision.reason
+  256|        );
+  257|        if decision.allowed {
+  258|            spent = spent.saturating_add(invoice.amount_zat);
+  259|            to_pay.push((invoice.clone(), decision.reason.clone()));
+  260|        }
+  261|        decisions.push(PayerDecision {
+  262|            invoice_id: invoice.invoice_id.clone(),
+  263|            amount_zat: invoice.amount_zat,
+  264|            receiver: invoice.receiver.clone(),
+  265|            decision: if decision.allowed { "paid" } else { "refused" }.to_string(),
+  266|            reason: decision.reason.clone(),
+  267|            txid: None,
+  268|            height: None,
+  269|        });
+  270|    }
+
+--- crates/probe/src/payer.rs:289-338  (the payment loop: every to_pay entry is proposed/signed/broadcast (306-308), then attributed by find() on invoice_id (320-326); ledger.jsonl gets its own row per iteration (327-338)) ---
+  289|    let mut payments: Vec<Payment> = Vec::new();
+  290|    let mut ledger: Vec<String> = Vec::new();
+  291|    for (index, (invoice, allowed_reason)) in to_pay.iter().enumerate() {
+  292|        println!(
+  293|            "  --- paying invoice {} ({}/{}) ---",
+  294|            invoice.invoice_id,
+  295|            index + 1,
+  296|            to_pay.len()
+  297|        );
+  298|        let recipient = Address::decode(&payer.network, &invoice.receiver).ok_or_else(|| {
+  299|            anyhow!(
+  300|                "the invoice's receiver is not a valid address on this chain: {}",
+  301|                invoice.receiver
+  302|            )
+  303|        })?;
+  304|        let memo = MemoBytes::from_bytes(invoice.memo.as_bytes())
+  305|            .map_err(|e| anyhow!("the invoice's memo was rejected: {e}"))?;
+  306|        let proposal =
+  307|            ops::propose_shielded_payment(&mut payer, &recipient, invoice.amount_zat, &memo)?;
+  308|        let txid = ops::build_sign_broadcast(&mut payer, &proposal, OvkPolicy::Sender).await?;
+  309|        ops::mine_and_resync(&mut payer, ops::CONFIRM_BLOCKS).await?;
+  310|        let height = mined_height_of(&mut payer, txid).await?;
+  311|        println!(
+  312|            "  paid              : {} · {} · height {}",
+  313|            txid,
+  314|            core::format_zats_signed(invoice.amount_zat as i128),
+  315|            height
+  316|                .map(|h| h.to_string())
+  317|                .unwrap_or_else(|| "unmined".into())
+  318|        );
+  319|
+  320|        if let Some(entry) = decisions
+  321|            .iter_mut()
+  322|            .find(|d| d.invoice_id == invoice.invoice_id)
+  323|        {
+  324|            entry.txid = Some(txid.to_string());
+  325|            entry.height = height;
+  326|        }
+  327|        ledger.push(
+  328|            serde_json::json!({
+  329|                "invoice_id": invoice.invoice_id,
+  330|                "amount_zat": invoice.amount_zat,
+  331|                "receiver": invoice.receiver,
+  332|                "decision": "paid",
+  333|                "reason": allowed_reason,
+  334|                "txid": txid.to_string(),
+  335|                "height": height,
+  336|            })
+  337|            .to_string(),
+  338|        );
+
+--- crates/probe/src/payer.rs:405-413  (the ledger and the run/report artifacts are written only after the payment loop) ---
+  405|
+  406|    std::fs::create_dir_all(&out_dir)
+  407|        .with_context(|| format!("creating the run directory {}", out_dir.display()))?;
+  408|    let ledger_path = out_dir.join("ledger.jsonl");
+  409|    std::fs::write(&ledger_path, format!("{}\n", ledger.join("\n")))
+  410|        .with_context(|| format!("writing {}", ledger_path.display()))?;
+  411|    let artifacts = crate::record::write_run_artifacts(&run, &out_dir, ttl_days)?;
+  412|    let report = crate::record::read_report(&out_dir)?;
+  413|    let expires_at = zanary_report::expires_at_rfc3339(&report);
+
+--- crates/probe/src/payer.rs:469-487  (a property FAIL aborts the run only here, after the payments and after the artifacts are written) ---
+  469|    if let Some(expected) = expect_refused {
+  470|        if refused != expected as usize {
+  471|            bail!(
+  472|                "the payer refused {} invoice(s), not the {expected} this run expected — a payer that \
+  473|                 refuses the wrong set is as broken as one that pays too much",
+  474|                refused
+  475|            );
+  476|        }
+  477|        println!("  expectation       : refused exactly {expected} invoice(s) ✓");
+  478|    }
+  479|    if artifacts.fail > 0 {
+  480|        bail!(
+  481|            "{} propert{} FAILED on this payer run ({}): see the report above",
+  482|            artifacts.fail,
+  483|            if artifacts.fail == 1 { "y" } else { "ies" },
+  484|            artifacts.failed_properties.join(", ")
+  485|        );
+  486|    }
+  487|    Ok(())
+
+--- crates/probe/src/payer.rs:494-533  (load_invoices: every *.json entry, parsed, no count cap, no invoice_id uniqueness check; shortfall() funds every to_pay entry (including a duplicate)) ---
+  494|/// Invoices from a directory (`*.json`) or from a single file, sorted by name so a run is reproducible.
+  495|fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
+  496|    let mut files: Vec<PathBuf> = Vec::new();
+  497|    if path.is_dir() {
+  498|        for entry in std::fs::read_dir(path)
+  499|            .with_context(|| format!("reading the invoice directory {}", path.display()))?
+  500|        {
+  501|            let entry = entry?;
+  502|            let candidate = entry.path();
+  503|            if candidate.extension().is_some_and(|e| e == "json") {
+  504|                files.push(candidate);
+  505|            }
+  506|        }
+  507|    } else {
+  508|        files.push(path.to_path_buf());
+  509|    }
+  510|    files.sort();
+  511|    let mut invoices = Vec::new();
+  512|    for file in &files {
+  513|        let text = std::fs::read_to_string(file)
+  514|            .with_context(|| format!("reading the invoice {}", file.display()))?;
+  515|        let invoice: Invoice = serde_json::from_str(&text)
+  516|            .with_context(|| format!("parsing the invoice {}", file.display()))?;
+  517|        invoices.push(invoice);
+  518|    }
+  519|    Ok(invoices)
+  520|}
+  521|
+  522|/// What the payer needs in its Orchard pool to pay every allowed invoice (plus a fee margin).
+  523|fn shortfall(payer: &core::Probe, to_pay: &[(Invoice, String)]) -> Result<Option<u64>> {
+  524|    let needed: u64 = to_pay.iter().map(|(invoice, _)| invoice.amount_zat).sum();
+  525|    if needed == 0 {
+  526|        return Ok(None);
+  527|    }
+  528|    // The same fee budget the flow runner uses, plus the anchoring margin: one ZIP-317 fee per
+  529|    // payment at 2 actions.
+  530|    let needed = needed.saturating_add(10_000 * to_pay.len() as u64);
+  531|    let available = crate::flow::spendable_orchard(payer)?;
+  532|    Ok((available < needed).then(|| needed - available))
+  533|}
+
+--- crates/properties/src/properties/payer_policy.rs:57-103  (payer-policy iterates decisions with no notion of invoice identity) ---
+   57|        let grant = &payer.grant;
+   58|        let mut violations: Vec<String> = Vec::new();
+   59|        let mut spent: u64 = 0;
+   60|        let mut paid = 0usize;
+   61|        let mut refused = 0usize;
+   62|
+   63|        for decision in &payer.decisions {
+   64|            if !decision.paid() {
+   65|                refused += 1;
+   66|                // A refusal is a *result* only when a grant rule produced it. "could not pay" is the
+   67|                // payer failing at the one thing the grant allows it to do.
+   68|                if decision.reason.starts_with("error:") {
+   69|                    violations.push(format!(
+   70|                        "invoice {} was not paid because of an internal error, not a grant rule: {}",
+   71|                        decision.invoice_id, decision.reason
+   72|                    ));
+   73|                }
+   74|                continue;
+   75|            }
+   76|            paid += 1;
+   77|            spent = spent.saturating_add(decision.amount_zat);
+   78|            if decision.amount_zat > grant.per_payment_cap_zat {
+   79|                violations.push(format!(
+   80|                    "invoice {} paid {} zat, above the per-payment cap of {}",
+   81|                    decision.invoice_id, decision.amount_zat, grant.per_payment_cap_zat
+   82|                ));
+   83|            }
+   84|            if spent > grant.budget_zat {
+   85|                violations.push(format!(
+   86|                    "invoice {} took the run to {} zat, past the budget of {} (cumulative, in ledger \
+   87|                     order)",
+   88|                    decision.invoice_id, spent, grant.budget_zat
+   89|                ));
+   90|            }
+   91|            if !grant.allowlist.is_empty() && !grant.allowlist.contains(&decision.receiver) {
+   92|                violations.push(format!(
+   93|                    "invoice {} paid a receiver that is not on the allowlist: {}",
+   94|                    decision.invoice_id, decision.receiver
+   95|                ));
+   96|            }
+   97|            if grant.revoked {
+   98|                violations.push(format!(
+   99|                    "invoice {} was paid while the grant was revoked (the kill switch was thrown)",
+  100|                    decision.invoice_id
+  101|                ));
+  102|            }
+  103|        }
+
+--- crates/observation/src/lib.rs:201-230  (PayerDecision (202) carries the id as a label; PayerRun (224) holds label + grant + decisions only) ---
+  201|#[derive(Debug, Clone, Serialize, Deserialize)]
+  202|pub struct PayerDecision {
+  203|    pub invoice_id: String,
+  204|    pub amount_zat: u64,
+  205|    pub receiver: String,
+  206|    /// `paid` or `refused`.
+  207|    pub decision: String,
+  208|    /// The grant rule (or its absence) that produced this decision, verbatim.
+  209|    pub reason: String,
+  210|    #[serde(default, skip_serializing_if = "Option::is_none")]
+  211|    pub txid: Option<String>,
+  212|    #[serde(default, skip_serializing_if = "Option::is_none")]
+  213|    pub height: Option<u32>,
+  214|}
+  215|
+  216|impl PayerDecision {
+  217|    pub fn paid(&self) -> bool {
+  218|        self.decision == "paid"
+  219|    }
+  220|}
+  221|
+  222|/// A bounded payer's run: the grant it held and one decision per invoice it was shown.
+  223|#[derive(Debug, Clone, Serialize, Deserialize)]
+  224|pub struct PayerRun {
+  225|    /// What the payer is, in its own words (e.g. "zanary bounded payer (reference subject)").
+  226|    pub label: String,
+  227|    pub grant: PayerGrant,
+  228|    #[serde(default)]
+  229|    pub decisions: Vec<PayerDecision>,
+  230|}
+
+--- crates/probe/src/flow.rs:1552-1556  (the merchant side issues invoices with no channel other than the file (1554-1555)) ---
+ 1552|/// `zanary-probe invoice --out <file> [--id <id>] [--amount-zec <zec>] [--account N]`
+ 1553|///
+ 1554|/// The merchant side of an agent payment: issue an invoice the payer can act on with no channel
+ 1555|/// other than the file.
+ 1556|pub async fn issue_invoice(raw: &[String]) -> Result<()> {
+
+--- docs/BOUNDED-PAYER.md:44-53  (the documented contract: every invoice produces exactly one ledger line) ---
+   44|receiver not on allowlist?  → refuse (stranger)
+   45|amount > per_payment_cap?   → refuse (per-payment cap)
+   46|spent + amount > budget?    → refuse (budget)
+   47|otherwise                   → pay: shielded, ZIP-302 memo from the invoice, fresh invoice receiver
+   48|```
+   49|
+   50|Every invoice produces exactly one ledger line — `paid` or `refused` — with the rule in it, the amount,
+   51|the receiver, and the txid when there is one. The ledger is written to `ledger.jsonl` and recorded in the
+   52|run as `payer`, which is where `payer-policy` reads it (see below). A refusal is a *result*: `--expect-refused N`
+   53|is how a caller says "this run was supposed to refuse exactly N invoices", and the exit code says whether
+
+--- crates/properties/src/properties/amount_fingerprint.rs:62-76  (the only property that reacts to the duplicate shape flags equal amounts (W), never the repeated id) ---
+   62|        }
+   63|
+   64|        // Exact repeats across payments.
+   65|        for i in 0..run.payments.len() {
+   66|            for j in (i + 1)..run.payments.len() {
+   67|                let (a, b) = (&run.payments[i], &run.payments[j]);
+   68|                if a.amount_zat > 0 && a.amount_zat == b.amount_zat {
+   69|                    evidence.push(format!(
+   70|                        "txid={} txid={} amount_zat={} (exact repeat across payments)",
+   71|                        a.txid, b.txid, a.amount_zat
+   72|                    ));
+   73|                }
+   74|            }
+   75|        }
+   76|
+
+--- every use of `invoice_id` in crates/probe/src/payer.rs (grep -n) ---
+115:                invoice.invoice_id, invoice.amount_zat, grant.per_payment_cap_zat
+254:            invoice.invoice_id,
+262:            invoice_id: invoice.invoice_id.clone(),
+294:            invoice.invoice_id,
+322:            .find(|d| d.invoice_id == invoice.invoice_id)
+329:                "invoice_id": invoice.invoice_id,
+340:            label: format!("invoice {}", invoice.invoice_id),
+348:            invoice_id: Some(invoice.invoice_id.clone()),
+367:            decision.invoice_id, decision.reason
+371:                "invoice_id": decision.invoice_id,
+422:            decision.invoice_id,
+570:            invoice_id: id.to_string(),
+
+--- no uniqueness/dedupe control anywhere (grep -rni over crates/, matches that matter) ---
+crates/properties/src/properties/receiver_reuse.rs:54:            // the same label twice; dedupe by label for the evidence line.
+crates/properties/src/lib.rs:165:        ids.dedup();
+crates/probe/src/ops.rs:85:                bail!("duplicate argument `{arg}`\nusage: {usage}");
+crates/probe/src/flow.rs:285:                         duplicates cannot be told apart in one transaction",
+crates/probe/src/flow.rs:891:    //    inside a batch (duplicates are refused before a payment is ever built).
+crates/observation/src/lib.rs:255:            labels.dedup();
+
+(nothing above is an invoice_id uniqueness check: ops.rs:85 is a duplicate *CLI argument*, flow.rs:285
+ refuses duplicate *amounts* in a batch settlement, observer lib.rs:255 dedupes payment *labels*.)
+--- git state ---
+70584064b8d5d4a2c96c49ad16ad531573cdc5ef docs: the re-derivable numbers, with the paths a judge will actually find
+(worktree clean)

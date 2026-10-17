@@ -1,0 +1,83 @@
+CHECK: untrusted receipt JSON -> byte-offset slicing of UTF-8 strings in verify_signature /
+verify_attestation (hex_decode) and in the display short() -> Rust panic, exit 101, no verdict.
+Clearance: the two sinks are one-line slices whose only guard is a byte length; the panic message
+names the exact slice, so attribution needed no further investigation.
+
+SOURCE (crates/report/src/receipt.rs, reviewed revision 7058406)
+  352-363 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
+  353     if !hex.len().is_multiple_of(2) { return Err(anyhow!("hex string has an odd length")); }
+  356-362 (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(&hex[i..i + 2], 16) ...)
+              ^ byte indices into a str; index i+2 is not required to be a char boundary
+  188-194 pub fn short(hex: &str) -> String {
+  189     if hex.len() > 20 { format!("{}…{}", &hex[..8], &hex[hex.len() - 8..]) }
+              ^ &hex[..8] and &hex[len-8..] are byte slices too
+  Reachability of hex_decode from a caller-supplied file:
+    main.rs:104-106  std::fs::read_to_string(path) -> serde_json::from_str::<Receipt>(&text)
+    observation/src/lib.rs:115,118,124-141  signer/signature/attestation.* are plain `String`s
+    main.rs:117      zanary_report::receipt::verify_signature(&receipt)   <- first call
+    receipt.rs:65    hex_decode(signer_hex)                                <- sink 1
+    receipt.rs:72,157,165  hex_decode(signature / attestation.wallet_ak / attestation.signature)
+  Reachability of short() from a caller-supplied file:
+    main.rs:184-190  no --fvk + receipt.attestation.is_some()
+                     -> println!("attested : receipt key {} ...", short(&att.receipt_key), short(&att.wallet_ak))
+    receipt.rs:145-154  the same short() on attestation.receipt_key / wallet_ak in verify_attestation's
+                        mismatch messages (reached with --fvk)
+  What makes the graft reachable without touching signed bytes: receipt.rs:488-504
+  (the crate's own test) proves the attestation is NOT part of the receipt signature, and without
+  --fvk the attestation is never validated - it is only echoed.
+
+EXECUTED — sandbox, unit level (a probe module appended to the sandbox copy; no production edit)
+cmd (docker, --network=none, copy mounted at /t, registry read-only):
+  CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-report receipt::hunter_probe -- --nocapture --test-threads=1
+observed (full unit-level log: check-probe-log.txt; verbatim):
+  probe_a:
+    thread 'receipt::hunter_probe::probe_a_hex_decode_panics_on_a_multibyte_signer' panicked at
+    crates/report/src/receipt.rs:359:36:
+    end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+    PROBE-A verify_signature(signer="a<euro>", 4 bytes) -> PANICKED: end byte index 2 is not a char boundary
+  probe_b:
+    thread 'receipt::hunter_probe::probe_b_short_panics_on_a_multibyte_key' panicked at
+    crates/report/src/receipt.rs:190:30:
+    end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+  probe_d (the graft): verify_signature=true validate_claim=true on a valid receipt carrying a
+    bogus attestation whose receipt_key is "aaaaaaa<euro>bbbbbbbbbbbbbb"
+  test result: ok. 7 passed; 0 failed  (probes pass because the panic is caught and recorded)
+
+EXECUTED — sandbox, CLI level (./target/debug/zanary-report, built with cargo build --offline)
+  A) variant A, no valid signature needed (payload in the candidate's `payloads`):
+     $ zanary-report verify-receipt /t/hunter/bad-hex-signer.json ; echo exit=$?
+     receipt   : /t/hunter/bad-hex-signer.json
+     format    : zanary-receipt-v1
+     claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc...337e
+     (blank line, then:)
+     thread 'main' (23) panicked at crates/report/src/receipt.rs:359:36:
+     end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+     exit=101
+     NB: no `signature : INVALID` line was printed — the process died before the verdict.
+  B) variant B, an otherwise perfect receipt (signature VALID, claim ok) plus a grafted attestation:
+     $ zanary-report verify-receipt /t/hunter/grafted-attestation.json ; echo exit=$?
+     signature : VALID (Orchard RedPallas over the receipt's own fields)
+     signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+     claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc...337e
+     claim ok  : claims: state the body's invoice id, amount and transaction
+     thread 'main' (30) panicked at crates/report/src/receipt.rs:190:30:
+     end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+     exit=101
+  C) control, same build, clean receipt:  `verify-receipt /t/hunter/clean.json` -> signature VALID,
+     `binding : none …`, exit 0 (see check-cli-run.txt §1).
+
+SIBLING SITES (same root cause, NOT this unit's surface -> filed as `uncovered`)
+  $ zanary-report verify /t/bad-report-hash.json --node http://127.0.0.1:1 --indexer http://127.0.0.1:1
+  thread 'main' (7) panicked at crates/report/src/verify.rs:851:29:
+  end byte index 12 is not a char boundary; it is inside '€' (bytes 11..14 of string)      exit=101
+  $ zanary-report verify-anchor --beacon-ufvk x --root "$(printf 'aaaaaaaaaaa\342\202\254bbb')"
+  thread 'main' (7) panicked at crates/report/src/main.rs:762:29:  ... same message          exit=101
+  $ zanary-report verify /t/bad-flow-commit.json --node http://127.0.0.1:1 --indexer http://127.0.0.1:1
+  thread 'main' (14) panicked at crates/report/src/main.rs:762:29: ... same message          exit=101
+  (raw logs: check-siblings.txt, check-siblings2.txt)
+
+MINIMUM RESULT / IMPACT AS OBSERVED
+  Process aborts (SIGABRT-free Rust panic -> exit 101) with a panic message that includes the source
+  location; no verdict line and no FAIL line are printed. No memory corruption, no code execution, no
+  wrong PASS was observed or claimed; exit 101 is non-zero, so a caller keying on exit 0 is not
+  fooled into accepting — the effect is that the receipt cannot be verified by this tool at all.

@@ -1,0 +1,36 @@
+
+#[cfg(test)]
+mod verifier4_fixcheck {
+    use super::*;
+
+    #[test]
+    fn v4_fix_behaviour() {
+        // variant A input: must now be a clean error, not a panic
+        let mut a = Receipt {
+            label: "fixcheck".into(),
+            format: "zanary-receipt-v1".into(),
+            body: "{\"amount_zat\":1,\"invoice_id\":\"1\",\"memo_sha256\":\"00\",\"txid\":\"11\"}".into(),
+            claims: vec!["invoice 1 was paid 1 zatoshi".into()],
+            discloses: Vec::new(),
+            signer: Some("a\u{20ac}".into()),
+            signature: Some("00".into()),
+            attestation: None,
+        };
+        let err = verify_signature(&a).expect_err("non-ASCII signer must be an error now");
+        println!("FIX-A verify_signature -> Err: {err:#}");
+        a.signer = Some("zz".into());
+        let err = verify_signature(&a);
+        println!("FIX-A2 signer=zz -> {:?}", err.map(|_| ()).map_err(|e| format!("{e:#}")));
+
+        // variant B string: short() must not panic and must keep both ends visible
+        let s = short("aaaaaaa\u{20ac}bbbbbbbbbbbbbb");
+        println!("FIX-B short(key) = {s} (len {} chars)", s.chars().count());
+        assert!(s.contains('\u{2026}'));
+
+        // ascii behaviour preserved
+        let ascii = "280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e";
+        assert_eq!(short(ascii), "280f51c8\u{2026}55ae602e");
+        assert_eq!(short("abcdef"), "abcdef");
+        println!("FIX-ctrl ascii unchanged: {}", short(ascii));
+    }
+}

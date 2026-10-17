@@ -1,0 +1,66 @@
+EVIDENCE — verifier-4, independent verification of candidate
+  crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields
+Reviewed revision: /home/kiter/hackathon/zanary @ 7058406 (worktree clean, re-checked).
+
+DECISION: confirmed (the hunter's trace, sinks, conditions and impact reproduce exactly).
+Method: source re-derivation over the reviewed revision + bounded local execution in the approved
+sandbox (--network=none, disposable copy verified byte-identical to HEAD, my own fixtures generated
+by the target's own signing code, pristine rebuilt CLI). No hunter artifact was used as evidence:
+check-cli-repro.txt / check-unit-probe.txt / check-fix-verify.txt are all my own runs.
+
+LINE-BY-LINE VERIFICATION OF THE CANDIDATE (trace + evidence)
+  main.rs:104    read_to_string(caller path)                -> exact
+  main.rs:105    serde_json::from_str::<Receipt> (104-106)   -> exact; Receipt fields unvalidated
+  observation/src/lib.rs:115 signer: Option<String>          -> exact (signature 118, attestation
+                 124, receipt_key 136, wallet_ak 138, attestation.signature 140 - all plain Strings)
+  main.rs:117    verify_signature(&receipt)                  -> exact
+  receipt.rs:65  hex_decode(signer_hex), first sink call     -> exact (call sites 72, 157, 165 also)
+  receipt.rs:353 guard hex.len().is_multiple_of(2)           -> exact (only guard before the slice)
+  receipt.rs:359 &hex[i..i + 2]  (sink 1)                    -> exact, panics at 359:36
+  receipt.rs:189 guard hex.len() > 20                        -> exact
+  receipt.rs:190 &hex[..8] AND &hex[hex.len() - 8..] (sink 2) -> exact, panics at 190:30
+                 (CORRECTION: both slices are on line 190; the hunter's evidence item pointing
+                  the second slice at line 191 is off by one - 191 is `} else {`.)
+  main.rs:184    no---fvk branch echoing attestation (184-190) -> exact
+  main.rs:188    short(&att.receipt_key)                      -> exact
+  receipt.rs:145 short() in verify_attestation mismatch msgs  -> exact (145-146, 151-154)
+  receipt.rs:488 test the_attestation_is_not_part_of_the_receipt_signature (487-504)
+                 -> exact; empirically re-established: my fixture was signed before the
+                    attestation was attached and still prints `signature : VALID`
+  schemas/zanary-receipt-v1.json:46-54, 65-79 require ^[0-9a-f]{64}$/^[0-9a-f]{128}$, but grep
+                 shows no runtime schema validation anywhere: validate_claim re-implements only
+                 body/claims/discloses rules, and it never inspects signer/attestation values.
+  exit-code contract main.rs:49-55 (Ok(code)/Err->2), 135-137 (FAIL->1), 199-200 (summary, 0)
+                 -> exact; a panic yields 101, none of these.
+
+REFUTATION ATTEMPTS (all failed to refute)
+  1. "Some earlier validation rejects non-ASCII": receipt.rs:353/189 are the only guards on those
+     strings; "a<euro>" is 4 bytes (even) and passes; nothing inspects char content before slicing.
+  2. "A panic is contained or converted": grep over tracked .rs/.toml finds no catch_unwind, no
+     panic::set_hook, no panic = "abort" profile -> default unwind, exit 101 (observed).
+  3. "Only hand-crafted receipts hit it / no realistic entry": verify-receipt's entire purpose is
+     checking a receipt supplied by someone else (module doc receipt.rs:1-12, docs table
+     FLOW-RUNNER-NOTES.md:343-355 lists malformed-receipt rows answered with exit 1); the entry
+     point is argv file read (main.rs:104-106), so the input is untrusted by construction.
+  4. "The graft is not reachable": my fixture attached the attestation after signing; the CLI
+     printed `signature : VALID` and both `claim ok` lines before the panic - reachability shown.
+  5. "Stronger effect than observed?": no memory unsafety, no false PASS, exit 101 is non-zero;
+     the candidate claims only a process abort, which is what was observed. Not strengthened.
+  6. "Build-config dependent": same result in the rebuilt pristine CLI (debug) and the test build;
+     controls with ASCII input exit 0 in the same binaries.
+
+SIBLING SITES (same class, not this unit's surface): the hunter filed verify.rs:851,
+main.rs:762 short_tail/main short() and verify-anchor/matrix paths as uncovered - consistent with
+what I saw at source level; not part of this candidate's claim.
+
+NOTED LIMITATION OF MY OWN RUN: stdout is block-buffered when piped, so in my captured combined
+output the stderr panic text appears ahead of the buffered stdout verdict lines for the second
+variant. Content and exit codes match the candidate's observed_result; only display interleaving
+differs. Unit-level probes recorded both panics with catch_unwind as well.
+
+ARTIFACTS (mine, in verifier-4/scratch; parent promotes):
+  check-cli-repro.txt    — verbatim CLI runs (both variants + two controls), binary sha256
+  check-unit-probe.txt   — verbatim unit probe run (both panics, exact file:line:col)
+  check-fix-verify.txt   — remediation applied in the sandbox: full suite green, behaviour fixed
+  check-probe-module.txt — source of the appended verifier-4 probe module
+  check-fix-module.txt   — source of the fix-verification test module

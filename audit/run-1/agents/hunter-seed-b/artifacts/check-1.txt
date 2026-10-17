@@ -1,0 +1,169 @@
+# check-1.txt — hunter-seed-b (wave 2)
+# Unit: crates/probe/src/bin/zanary-seed.rs#cli-and-wallet-writes
+# Local check: staged malformed-argument matrix vs filesystem writes, run on the real binary
+# inside the approved sandbox (docker rust:1-slim, --network=none --cpus=6 --memory=3500m
+# --memory-swap=5g --pids-limit=1024, cargo registry mounted read-only, writes only under /t).
+# Copy: /t = git archive HEAD @ reviewed commit 7058406 (rust-toolchain.toml removed).
+# Raw transcript follows; binary sha256 and every observed exit code included.
+unit: crates/probe/src/bin/zanary-seed.rs#cli-and-wallet-writes(self-seeding CLI)
+sandbox: docker rust:1-slim, --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+copy: /t = git archive HEAD of reviewed commit 7058406 (rust-toolchain.toml removed)
+binary: /t/target/debug/zanary-seed
+binary sha256: 95fbbd8958be39beaeefce48a654c77221453134062995cb327a7d699f02cbbc
+cwd: /t/hunter-seed-b-w2/stage
+
+=== stage A: invoke, capture, then snapshot (expect: nothing but transcripts) ===
+### zanary-seed 
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: usage: zanary-seed addr | sync | learn-coinbase | shield | tx
+
+### zanary-seed bogus
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: unknown subcommand `bogus` — usage: zanary-seed addr | sync | learn-coinbase --from <h> --to <h> | shield --memo <text> [--to <addr>] [--limit <n>] | tx --txid <txid>
+
+### zanary-seed learn-coinbase
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: learn-coinbase requires --from <height>
+
+### zanary-seed learn-coinbase --from
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: learn-coinbase requires --from <height>
+
+### zanary-seed learn-coinbase --from x --to y
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: parsing --from
+
+Caused by:
+    invalid digit found in string
+
+### zanary-seed learn-coinbase --from 5 --to 4
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: --to 4 is below --from 5
+
+### zanary-seed learn-coinbase --from 4294967296 --to 5
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: parsing --from
+
+Caused by:
+    number too large to fit in target type
+
+### zanary-seed shield
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: shield requires --memo <text>
+
+### zanary-seed shield --memo hi --limit -1
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: parsing --limit
+
+Caused by:
+    invalid digit found in string
+
+### zanary-seed shield --memo hi --limit 99999999999999999999999999
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: parsing --limit
+
+Caused by:
+    number too large to fit in target type
+
+### zanary-seed tx
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: tx requires --txid <txid>
+
+### zanary-seed tx --txid
+exit_code=1
+--- stdout ---
+--- stderr ---
+Error: tx requires --txid <txid>
+
+--- files after stage A ---
+./stderr.txt
+./stdout.txt
+STAGE A RESULT: no wallet tree written by any rejected invocation
+
+=== stage B: invocations that pass argument validation (expected to open/create the wallet) ===
+### zanary-seed tx --txid abcd
+exit_code=1
+--- stderr ---
+Error: connecting to indexer at http://127.0.0.1:9067
+
+Caused by:
+    0: transport error
+    1: tcp connect error
+    2: tcp connect error
+    3: Connection refused (os error 111)
+
+### zanary-seed learn-coinbase --from 5 --to 4294967295
+exit_code=1
+--- stderr ---
+Error: connecting to indexer at http://127.0.0.1:9067
+
+Caused by:
+    0: transport error
+    1: tcp connect error
+    2: tcp connect error
+    3: Connection refused (os error 111)
+
+--- files after stage B ---
+./data
+./data/wallet-seed
+./data/wallet-seed/zanary-seed.db
+./stderr.txt
+./stdout.txt
+
+### addr with default db path (ZANARY_SEED_DB unset)
+exit_code=1
+--- stderr ---
+Error: connecting to indexer at http://127.0.0.1:9067
+
+Caused by:
+    0: transport error
+    1: tcp connect error
+    2: tcp connect error
+    3: Connection refused (os error 111)
+
+### addr with ZANARY_SEED_DB=/t/hunter-seed-b-w2/stage/custom/deep/seed.db
+exit_code=1
+--- stderr ---
+Error: connecting to indexer at http://127.0.0.1:9067
+
+Caused by:
+    0: transport error
+    1: tcp connect error
+    2: tcp connect error
+    3: Connection refused (os error 111)
+
+--- files after env-path addr ---
+./custom
+./custom/deep
+./custom/deep/seed.db
+./data
+./data/wallet-seed
+./data/wallet-seed/zanary-seed.db
+./stderr.txt
+./stdout.txt
+--- db files (all writes) ---
+./custom/deep/seed.db
+./data/wallet-seed/zanary-seed.db
+=== check 1 done ===

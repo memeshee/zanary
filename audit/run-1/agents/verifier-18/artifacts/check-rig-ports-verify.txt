@@ -1,0 +1,66 @@
+verifier-18 — mechanical re-derivation (sandbox), raw output
+command shape (approved sandbox; script passed via base64, executes inside the container):
+docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+  -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro \
+  -w /t rust:1-slim sh -c "CARGO_BUILD_JOBS=6 echo <b64-script> | base64 -d | sh"
+No external network; no host ports contacted; no writes performed inside the sandbox.
+
+host-side revision check (read-only, for pinning):
+sha256sum harness/docker-compose.yml harness/zcash.conf   [target checkout]
+  7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3  harness/docker-compose.yml
+  b635374be07b159cc1df0c9f02fd634134b3f8b66ac1cbb197690c528345461b  harness/zcash.conf
+git log -1: 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+wc -l: docker-compose.yml 58, zcash.conf 44, up.sh 153
+
+sandbox output:
+== revision hashes (sandbox copy) ==
+7d6e6470093047ccad07583d621a0ae2afd29ba3fd0c88f74e061a08f030aad3  harness/docker-compose.yml
+b635374be07b159cc1df0c9f02fd634134b3f8b66ac1cbb197690c528345461b  harness/zcash.conf
+== published port specs ==
+20:      - "18232:18232" # JSON-RPC
+21:      - "18233:18233" # P2P (unused: regtest has no peers)
+46:      - "9067:9067" # gRPC CompactTxStreamer — what our Rust code speaks
+47:      - "9068:9068" # HTTP
+publish_spec_count=4
+hostip_qualified_spec_count=0
+loopback_occurrences_in_compose=0
+host_ip_key_occurrences=0
+== every dotted-quad in compose ==
+50:      - --grpc-bind-addr=0.0.0.0:9067
+51:      - --http-bind-addr=0.0.0.0:9068
+== conf bind/allow ==
+15:rpcbind=0.0.0.0
+16:rpcallowip=0.0.0.0/0
+== conf seed step in up.sh ==
+27:CONF_DIR="$ROOT/data/zcashd/.zcash"
+28:CONF="$CONF_DIR/zcash.conf"
+50:  cp zcash.conf "$CONF"
+== credential equality (values never printed) ==
+conf_user_eq_compose_user=yes
+conf_pass_eq_compose_pass=yes
+conf_user_eq_probe_default=yes
+conf_pass_eq_probe_default=yes
+credential_values_nonempty=yes
+== consumer loopback defaults ==
+crates/probe/src/ops.rs:610, crates/probe/src/main.rs:86, crates/probe/src/bin/zanary-seed.rs:129,368,
+crates/probe/src/payer.rs:465, crates/probe/src/flow.rs:232, crates/probe/src/node.rs:10,26,47,
+crates/probe/src/core.rs:99,101, crates/probe/src/wallet.rs:10, crates/report/src/main.rs:267,269,
+crates/report/src/node.rs:186, crates/report/src/verify.rs:127, harness/up.sh:25,26, docs/* (many),
+scripts/agent-pay-loop.sh:18 — every endpoint is http://127.0.0.1:18232 or http://127.0.0.1:9067
+== 18233 / 9068 references in tracked tree ==
+harness/HARNESS.md:54 (18233 P2P), harness/docker-compose.yml:21 (18233 spec)
+harness/HARNESS.md:55 (9068 HTTP), harness/docker-compose.yml:47 (9068 spec), :51 (in-container bind)
+== lightwalletd entrypoint lines ==
+49:      - --no-tls-very-insecure
+50:      - --grpc-bind-addr=0.0.0.0:9067
+51:      - --http-bind-addr=0.0.0.0:9068
+
+copy-drift check (target git ls-files vs sandbox copy file list): the copy additionally contains
+files not in the reviewed revision, e.g. crates/probe/src/bin/verifier15_check.rs,
+crates/probe/src/bin/verifier2_check.rs, crates/probe/src/verifier12_check.rs,
+crates/probe/src/verifier1_check.rs, crates/probe/src/check_broadcast_unit.rs,
+crates/report/tests/verifier5_probe.rs, hunter*/ and atomdump.rs — added by earlier agents in this
+run. Every file this verification cites was sha256-compared target-vs-copy and matches (docker-compose.yml,
+zcash.conf, up.sh, seed.sh, node.rs, core.rs, report node.rs/verify.rs, README.md, THREAT-MODEL.md,
+HARNESS.md, action.yml, CI.md): no drift on any cited file.

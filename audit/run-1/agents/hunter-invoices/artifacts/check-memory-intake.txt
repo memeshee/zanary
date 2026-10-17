@@ -1,0 +1,60 @@
+hunter-invoices — local check: unbounded invoice intake (memory), work-before-authority, ulimit isolation
+target: zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+binary: /t/target/debug/zanary-probe sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416
+sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+  -v <w2 copy>:/t -v <registry>:ro -w /t rust:1-slim sh -c 'sh w2fs/check.sh; sh w2fs/check2.sh'
+
+fixtures (inside /t only):
+  inv-small/{a,b,c}.json      161 B each, amount_zat 1
+  inv-big/big.json            268435600 B (256 MiB 'a' memo), amount_zat 1
+  inv-huge/huge.json          805306513 B (768 MiB 'a' memo), amount_zat 1
+  grant-ok.json               budget 50000000, cap 10000000, allowlist [], expires 2030-01-01Z, !revoked
+  grant-revoked.json          same, revoked true
+invoice template: {"invoice_id":"<id>","amount_zat":1,"receiver":"uregtest1noreceivercheck","memo":"<pad>","uri":"zcash:test","issued_at_height":1,"merchant_account":0}
+RSS = /proc/<pid>/status VmHWM sampled every 50 ms; each process killed only if it outlived its harness limit.
+
+===== CHK0 control: 3 tiny invoices, full-authority grant =====
+[chk0-ctrl] exit=1 elapsed_s=0 peak_RSS_MB=7 harness_killed=no
+[chk0] ALLOW lines: 3
+  invoices          : 3 in /t/w2-invoices-fx/inv-small
+[chk0 tail] Caused by:
+[chk0 tail]     Connection refused (os error 111)
+
+===== CHK1 revoked grant + 256 MiB invoice: is intake still done? =====
+[chk1-revoked-big] exit=1 elapsed_s=6 peak_RSS_MB=526 harness_killed=no
+[chk1]   REFUSE   big — refused: the grant was revoked (kill switch)
+  invoices          : 1 in /t/w2-invoices-fx/inv-big
+[chk1 tail] Caused by:
+[chk1 tail]     Connection refused (os error 111)
+
+===== CHK1b full-authority grant + 256 MiB invoice: retained twice? =====
+[chk1b-allowed-big] exit=1 elapsed_s=13 peak_RSS_MB=527 harness_killed=no
+[chk1b]   ALLOW    big — paid: within the cap (10000000 zat) and the budget (1 of 50000000 zat spent after this)
+[chk1b tail]     Connection refused (os error 111)
+
+===== CHK2 process death under a strict address-space limit (ulimit -v 1200000) + 768 MiB invoice =====
+[chk2-ulimit-kill] exit=1 elapsed_s=1 peak_RSS_MB=2 harness_killed=no
+[chk2 tail] Error: reading the invoice /t/w2-invoices-fx/inv-huge/huge.json
+[chk2 tail]
+[chk2 tail] Caused by:
+[chk2 tail]     out of memory
+
+===== CHK2-ctl ulimit -v 1200000, tiny fixture (3 invoices): limit alone must not block =====
+[chk2ctl] exit=1 elapsed_s=0 peak_RSS_MB=8 harness_killed=no
+[chk2ctl] ALLOW lines: 3
+  invoices          : 3 in /t/w2-invoices-fx/inv-small
+[chk2ctl tail]     Connection refused (os error 111)
+
+===== CHK2c ulimit -v 1200000, 256 MiB invoice =====
+[chk2c] exit=1 elapsed_s=16 peak_RSS_MB=527 harness_killed=no
+[chk2c tail]     Connection refused (os error 111)   # intake + decisions completed under the same limit
+
+===== CHK2d ulimit -v 1200000, 768 MiB invoice (re-run for a clean stderr record) =====
+[chk2d] exit=1 elapsed_s=0 peak_RSS_MB=1 harness_killed=no
+[chk2d log] Error: reading the invoice /t/w2-invoices-fx/inv-huge/huge.json
+[chk2d log]
+[chk2d log] Caused by:
+[chk2d log]     out of memory
+
+note: in every run the node error ("Connection refused") appears strictly after the intake/decision output,
+      i.e. after payer.rs:201 (load_invoices) and payer.rs:249-270 (decide loop), before payer.rs:276.

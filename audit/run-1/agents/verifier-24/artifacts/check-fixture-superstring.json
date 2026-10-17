@@ -1,0 +1,11 @@
+{
+  "label": "verifier-24 probe",
+  "format": "zanary-receipt-v1",
+  "body": "{\"amount_zat\":250000,\"invoice_id\":\"9120\",\"memo_sha256\":\"f806e7ca274202a42738da3b8bf8585b83d1c1e8069c9d744a6bd4cfb6a5a2d9\",\"txid\":\"0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9\"}",
+  "claims": [
+    "invoice 91207 was paid 2500000 zatoshis in transaction 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9"
+  ],
+  "discloses": [],
+  "signer": "0cf4430f19218c28247783d800fe839e78359ee6cf8836d94133cfe633ab9233",
+  "signature": "e95c0d676565a9caed512d8245ddb5b9a8042d799fa5c5f02f4722509e9ebf35651f4323d8428fb887333da2bbaa04c68df8db2321331089a06e8f1364befc1c"
+}

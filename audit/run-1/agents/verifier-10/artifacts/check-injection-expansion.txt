@@ -1,0 +1,88 @@
+check id: check-injection-expansion
+agent: verifier-10 (independent verification of hunter-ci's candidate)
+candidate fingerprint: zanary/composite-action-input-shell-expansion
+unit: action.yml%23inputs-and-steps::.github/workflows/privacy-gate.yml%23jobs::ci-and-release::ATTACK-CLASSES.md%23Injection
+claim re-established: a caller-supplied `with:` value reaches the script text of the composite
+                      action's run: steps and is executed by the calling job's shell.
+source: /home/kiter/hackathon/zanary/action.yml @ commit 7058406 (worktree clean, 0 changed files)
+        sha256=1c58ef4994e322ff0b222943132de8744dbdb35f6af59c842c595f8db43acde3
+        (hunter-ci's artifact records 6e58f6bb... = the same content with the trailing newline
+         removed; verified derivation, so the same revision was reviewed.)
+sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+         --user 1000:1000 -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t (disposable
+         git-archive copy) -w /t rust:1-slim; no rig, no ports, no network, no live runner,
+         placeholder ./target/release/zanary-probe. Writes only under /t/verifier10 (sandbox copy).
+
+== 1. source sites asserted verbatim from the read-only target (all OK) ==
+  L23-46   inputs: flow | expect | anchor | ttl-days | out   (free-form strings, no validation)
+  L95      FLOW="${{ inputs.flow }}"
+  L96      for candidate in "${{ github.workspace }}/$FLOW" "${{ github.action_path }}/$FLOW" "$FLOW"; do
+  L100     echo "::error::ZANARY gate: no flow definition at ${{ inputs.flow }}"
+  L103     OUT="${{ github.workspace }}/${{ inputs.out }}"
+  L106     [ "${{ inputs.anchor }}" = "true" ] && anchor_flag="--anchor"
+  L107     echo "out=$OUT" >> "$GITHUB_OUTPUT"
+  L116     --expect "${{ inputs.expect }}" \
+  L117     --ttl-days "${{ inputs.ttl-days }}" \
+  L136     OUT="${{ steps.gate.outputs.out }}"          (job summary, if: always())
+  L140     --title "${{ inputs.flow }} (expect ${{ inputs.expect }})" || true
+  L153     OUT="${{ steps.gate.outputs.out }}"          (rig diagnostics)
+  L175     code="${{ steps.gate.outputs.exit_code }}"   (verdict)
+  L177/178 ${{ inputs.expect }} inside the verdict case branches
+  docs/CI.md:51  flow: flows/my-checkout.json   (documented consumer setup passes a literal)
+  .github/workflows/privacy-gate.yml:87-93 passes ${{ matrix.flow }}/${{ matrix.expect }}/
+  runs/${{ matrix.id }} from the STATIC matrix defined in the same file at :71-80 -> constants.
+  action.yml has no env: block at all (grep "env:" -> none): no value is ever passed as data.
+
+== 2. independent reproduction: expression substitution applied locally as the runner
+      documents it (literal replacement of ${{ }} tokens into the script text before bash
+      parses), with MY OWN payload form -- pure $( ) command substitution, no quote breaking ==
+  payload in inputs.flow (run A, value kept valid):
+    $(printf x >> /t/verifier10/count-flow.txt; printf 'flows/stub.json')
+  payload in inputs.flow (run A2, invalid value so L100 expands it again):
+    $(printf x >> /t/verifier10/count-flow2.txt; printf 'nowhere.json')
+  payload in inputs.out (run B):
+    $(printf x >> /t/verifier10/count-out.txt; printf 'x$(printf y >> /t/verifier10/count-roundtrip.txt)')
+  payload in inputs.out (run E, newline inside the value):
+    $(printf 'x\npayload=owned')
+  control (run D): flow=flows/stub.json out=z expect=pass anchor=true ttl-days=30
+
+  rendered line 95 (A):  FLOW="$(printf x >> /t/verifier10/count-flow.txt; printf 'flows/stub.json')"
+  rendered line 103 (B): OUT="/t/verifier10/ws/$(printf x >> /t/verifier10/count-out.txt; printf 'x$(printf y >> /t/verifier10/count-roundtrip.txt)')"
+
+  command: bash --noprofile --norc -eo pipefail /t/verifier10/render/gate-<X>.sh
+  env: GITHUB_OUTPUT=/t/verifier10/out.txt GITHUB_WORKSPACE=/t/verifier10/ws
+       GITHUB_ACTION_PATH=/t/verifier10/action GITHUB_STEP_SUMMARY=/t/verifier10/summary.md
+
+== 3. observed ==
+  D (control, all literals): step ran normally -> GITHUB_OUTPUT "out=/t/verifier10/ws/z",
+      "exit_code=0"; no counter file created. (nothing executes without a payload)
+  A (flow): payload executed at :95 - count-flow.txt = "x"; step still completed normally,
+      exit 0, normal outputs written.
+  A2 (flow, invalid): payload executed TWICE - count-flow2.txt = "xx" - at :95 and in the
+      :100 error echo; step exited 2. ("::error::ZANARY gate: no flow definition at nowhere.json")
+  B (out): payload executed at :103 - count-out.txt = "x"; step exited 0 and wrote
+      out=/t/verifier10/ws/x$(printf y >> /t/verifier10/count-roundtrip.txt)   (raw, unescaped)
+      exit_code=0
+  ROUND TRIP: the job-summary step (:136-147) rendered with that recorded value and run the same
+      way executed the embedded fragment -> count-roundtrip.txt = "y"; the benign-value render of
+      the same step executed nothing. The recorded step output re-enters script text as code.
+  E (newline in out): GITHUB_OUTPUT bytes = "out=/t/verifier10/ws/x\npayload=owned\nexit_code=0\n"
+      -> the unescaped write lets a value forge an extra output key (payload=owned).
+  Nothing outside the disposable copy was written; target worktree still clean at 7058406.
+
+== 4. not executed / boundary ==
+  - the runner's own substitution step itself (documented Actions behavior; a live runner is out
+    of bounds for this run) -- the fixture applies exactly that semantics, which the same file
+    already relies on for ${{ github.action_path }} in working-directory:.
+  - the real probe binary / regtest rig (out of bounds): placeholder probe, injection happens
+    before the probe is invoked.
+  - action.yml:175 interpolates the exit_code step output, but that value is numeric in this
+    action's flow (${PIPESTATUS[0]} with a 124 remap), so it is the same anti-pattern rather than
+    an independently reachable sink; :136/:153 carry the input-derived value and :136 was executed.
+
+== 5. verdict of this verification ==
+  confirmed. Every trace/evidence line, the raw GITHUB_OUTPUT write and the step-output round trip
+  were re-established from source at the reviewed revision and independently reproduced in the
+  sandbox with a different payload form, with a benign control that executes nothing.
+  likelihood low (no in-repo caller templates a value), impact high (arbitrary commands in the
+  consumer's calling job), overall medium.

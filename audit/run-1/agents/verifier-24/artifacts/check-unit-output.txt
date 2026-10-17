@@ -1,0 +1,26 @@
+   Compiling zanary-report v0.0.1 (/t/crates/report)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.68s
+     Running tests/verifier24_probe.rs (target/debug/deps/verifier24_probe-5dab1ff062ba8fba)
+
+running 4 tests
+V24-C contains(44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e) = true
+V24-C contains(1234567) = true
+V24-C contains(4471) = true
+V24-D states(embedding, 9120) = false
+V24-D states(embedding, 250000) = false
+V24-D states(embedding, TX) = true
+V24-D states(clean, 9120) = true
+test v24_c_embedding_of_the_candidates_own_payload_values ... ok
+V24-D states(clean, 250000) = true
+V24-D states(clean, TX) = true
+test v24_d_proposed_states_helper ... ok
+V24-B(absent invoice) -> Err(the receipt's claims never state the invoice id (9120) that its body carries)
+V24-A verify_signature OK signer=0cf4430f19218c28247783d800fe839e78359ee6cf8836d94133cfe633ab9233
+V24-A validate_claim -> Ok(["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9", "claims: state the body's invoice id, amount and transaction"])
+test v24_a_fresh_signed_superstring_claim_is_accepted ... ok
+V24-B(absent amount) -> Err(the receipt's claims never state the amount in zatoshis (250000) that its body carries)
+V24-B(exact) -> Ok(["body: zanary-receipt-v1, invoice 9120, 250000 zatoshis, txid 0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9", "claims: state the body's invoice id, amount and transaction"])
+test v24_b_controls ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

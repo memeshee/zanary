@@ -91,6 +91,53 @@ pub struct Decision {
     pub reason: String,
 }
 
+/// What paying a given receiver means for the payment record and for what the wallet layer would
+/// have to reveal — derived from the address, never asserted.
+///
+/// The audit's finding on this path was that `pool_in`/`pool_out`/`kind`/`policy` were literals, so a
+/// payment to a Sapling or transparent receiver would have been recorded — and scored by the leak
+/// properties — as same-pool, fully shielded, `FullPrivacy`. Nothing here is a literal: the receiver
+/// address decides, and a receiver whose value would land outside Orchard is refused before any money
+/// moves (see the shape pre-flight in `run`).
+#[derive(Debug, Clone)]
+pub struct PaymentShape {
+    /// The pool the value lands in.
+    pub pool_out: Pool,
+    /// The record's kind: `Shielded` only for a same-pool (Orchard → Orchard) payment.
+    pub kind: PaymentKind,
+    /// The spend policy the wallet layer demands for this recipient, named as the record records it.
+    pub policy: String,
+    /// What paying it would reveal, empty when nothing is.
+    pub revealed: &'static str,
+    /// The destination pool's name, for the refusal reason.
+    pub pool_name: &'static str,
+}
+
+/// Derive a payment's shape from the address that receives it. `None` when the address does not
+/// decode on this chain — itself a refusal, since an address the payer cannot read is not one it can
+/// record honestly.
+pub fn shape_of(
+    network: &zcash_protocol::local_consensus::LocalNetwork,
+    receiver: &str,
+) -> Option<PaymentShape> {
+    let address = Address::decode(network, receiver)?;
+    let (required, revealed) = crate::ops::required_policy_for_recipient(&address);
+    let pool_out = crate::ops::recipient_pool(&address);
+    let (kind, pool_name) = match pool_out {
+        Pool::Orchard => (PaymentKind::Shielded, "orchard"),
+        Pool::Sapling => (PaymentKind::CrossPool, "sapling"),
+        Pool::Transparent => (PaymentKind::Transparent, "transparent"),
+        Pool::CrossPool | Pool::Unknown => (PaymentKind::Unknown, "unknown"),
+    };
+    Some(PaymentShape {
+        pool_out,
+        kind,
+        policy: format!("{required:?}"),
+        revealed,
+        pool_name,
+    })
+}
+
 /// The whole policy, as one pure function.
 ///
 /// Pure on purpose: this is the part of a bounded payer that must never depend on a wallet, a clock or
@@ -416,6 +463,51 @@ pub async fn run(raw: &[String]) -> Result<()> {
     let node = NodeRpc::from_env()?;
     let started_at_height = node.block_count().await? as u32;
     let mut payer = core::bootstrap_with(profile.clone()).await?;
+
+    // The shape pre-flight: what each allowed invoice's receiver implies, derived from the address.
+    // A receiver whose value would land outside Orchard is refused here, with its own ledger line,
+    // before any money moves: paying it would reveal the amount while the record claimed
+    // FullPrivacy. This is the one rule that needs the chain's address encoding, so it lives here
+    // rather than in `decide()`, whose purity (no wallet, no clock, no network) the tests pin.
+    let mut payable: Vec<(usize, Invoice, String)> = Vec::new();
+    for (decision_index, invoice, allowed_reason) in to_pay {
+        let shape = shape_of(&payer.network, &invoice.receiver);
+        let refusal = match &shape {
+            Some(shape) if shape.pool_out == Pool::Orchard => None,
+            Some(shape) => Some(format!(
+                "refused: {} is a {} receiver — paying it would cross the Orchard pool boundary and \
+                 reveal {}; the payer's promise is a same-pool payment, so it is refused rather than \
+                 recorded as FullPrivacy",
+                invoice.receiver, shape.pool_name, shape.revealed
+            )),
+            None => Some(format!(
+                "refused: {} is not a valid address on this chain — an address the payer cannot read \
+                 is not one it can record honestly",
+                invoice.receiver
+            )),
+        };
+        match refusal {
+            None => payable.push((decision_index, invoice, allowed_reason)),
+            Some(reason) => {
+                println!("  REFUSE   {} — {}", invoice.invoice_id, reason);
+                decisions[decision_index].decision = "refused".to_string();
+                decisions[decision_index].reason = reason.clone();
+                append_ledger_line(
+                    &ledger_path,
+                    &serde_json::json!({
+                        "invoice_id": invoice.invoice_id,
+                        "amount_zat": invoice.amount_zat,
+                        "receiver": invoice.receiver,
+                        "decision": "refused",
+                        "reason": reason,
+                        "decided_at": decisions[decision_index].decided_at,
+                    }),
+                )?;
+            }
+        }
+    }
+    let to_pay = payable;
+
     let funding_shortfall = shortfall(&payer, &to_pay)?;
     if let Some(missing) = funding_shortfall {
         println!(
@@ -436,6 +528,15 @@ pub async fn run(raw: &[String]) -> Result<()> {
             to_pay.len()
         );
         let recipient = Address::decode(&payer.network, &invoice.receiver).ok_or_else(|| {
+            anyhow!(
+                "the invoice's receiver is not a valid address on this chain: {}",
+                invoice.receiver
+            )
+        })?;
+        // The recorded shape is derived from that same address, never asserted: `pool_out`, `kind`
+        // and `policy` describe what this payment is, and the pre-flight above has already refused
+        // any receiver whose value would land outside Orchard.
+        let shape = shape_of(&payer.network, &invoice.receiver).ok_or_else(|| {
             anyhow!(
                 "the invoice's receiver is not a valid address on this chain: {}",
                 invoice.receiver
@@ -489,9 +590,9 @@ pub async fn run(raw: &[String]) -> Result<()> {
             memo_text: Some(invoice.memo.clone()),
             invoice_id: Some(invoice.invoice_id.clone()),
             pool_in: Pool::Orchard,
-            pool_out: Pool::Orchard,
-            kind: PaymentKind::Shielded,
-            policy: Some("FullPrivacy".to_string()),
+            pool_out: shape.pool_out,
+            kind: shape.kind,
+            policy: Some(shape.policy.clone()),
             observed: std::collections::BTreeMap::from([(
                 "payer".to_string(),
                 format!(
@@ -618,7 +719,17 @@ pub async fn run(raw: &[String]) -> Result<()> {
 // helpers
 // ---------------------------------------------------------------------------
 
+/// The most invoices one run will consider, and the most bytes one invoice file may be.
+///
+/// The invoice directory is the documented merchant→payer channel: whoever writes it is not the
+/// operator. Intake is bounded from file metadata, before any read, so a directory of a million
+/// entries, a 4 GB "invoice", a symlink out of the directory, or a FIFO that blocks the open forever
+/// is a diagnostic — not the payer's memory, and not an afternoon with no output.
+const MAX_INVOICES: usize = 1024;
+const MAX_INVOICE_BYTES: u64 = 64 * 1024;
+
 /// Invoices from a directory (`*.json`) or from a single file, sorted by name so a run is reproducible.
+/// Every entry is type-checked and size-bounded before it is read (see the bounds above).
 fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
     let mut files: Vec<PathBuf> = Vec::new();
     if path.is_dir() {
@@ -629,6 +740,13 @@ fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
             let candidate = entry.path();
             if candidate.extension().is_some_and(|e| e == "json") {
                 files.push(candidate);
+                if files.len() > MAX_INVOICES {
+                    bail!(
+                        "the invoice directory {} holds more than {MAX_INVOICES} *.json entries — \
+                         refusing an unbounded intake",
+                        path.display()
+                    );
+                }
             }
         }
     } else {
@@ -637,6 +755,32 @@ fn load_invoices(path: &Path) -> Result<Vec<Invoice>> {
     files.sort();
     let mut invoices = Vec::new();
     for file in &files {
+        // Type before open: `read_to_string` on a FIFO blocks until a writer appears (the run hangs
+        // with no output), and it follows a symlink anywhere on the filesystem. Only a regular file
+        // the merchant wrote is an invoice.
+        let metadata = std::fs::symlink_metadata(file)
+            .with_context(|| format!("inspecting the invoice {}", file.display()))?;
+        if metadata.file_type().is_symlink() {
+            bail!(
+                "the invoice {} is a symlink — invoices are regular files the merchant wrote, and \
+                 the payer does not follow links out of its intake directory",
+                file.display()
+            );
+        }
+        if !metadata.is_file() {
+            bail!(
+                "the invoice {} is not a regular file (a directory, FIFO, socket or device) — \
+                 refusing to read it",
+                file.display()
+            );
+        }
+        if metadata.len() > MAX_INVOICE_BYTES {
+            bail!(
+                "the invoice {} is {} bytes, above the {MAX_INVOICE_BYTES} byte intake bound",
+                file.display(),
+                metadata.len()
+            );
+        }
         let text = std::fs::read_to_string(file)
             .with_context(|| format!("reading the invoice {}", file.display()))?;
         let invoice: Invoice = serde_json::from_str(&text)
@@ -693,8 +837,15 @@ fn append_ledger_line(ledger_path: &Path, line: &serde_json::Value) -> Result<()
 fn shortfall(payer: &core::Probe, to_pay: &[(usize, Invoice, String)]) -> Result<Option<u64>> {
     let needed: u64 = to_pay
         .iter()
-        .map(|(_, invoice, _)| invoice.amount_zat)
-        .sum();
+        .try_fold(0u64, |total, (_, invoice, _)| {
+            total.checked_add(invoice.amount_zat)
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "the invoices' amounts sum past u64 — no chain can hold them, and a wrapped total \
+                 would understate what the payer needs"
+            )
+        })?;
     if needed == 0 {
         return Ok(None);
     }
@@ -922,6 +1073,123 @@ mod bounded_payer_regression {
         }"#;
         let parsed: Result<Grant, _> = serde_json::from_str(text);
         assert!(parsed.is_err(), "unknown keys must not parse silently");
+    }
+}
+
+#[cfg(test)]
+mod intake_and_shape_tests {
+    use super::*;
+
+    /// A real Orchard-only unified receiver and a real transparent one, both minted by the harness
+    /// node's own wallet (`zcash-cli -regtest listaddresses`) — the two address shapes a payer can be
+    /// handed in an invoice.
+    const ORCHARD_UA: &str = "uregtest1kwt9fzatdrnlrj2ser9xcnpwrcd2ud8a479ejjvhvnqgj0vwqzfjd8dzgg9504svhaf2h9alt9hcp57xtuxn7jawq38vemsvzsqdf97g";
+    const TRANSPARENT: &str = "tmK4meE1GvK9E3CN4uVAFjS3JgszqLBe2ph";
+
+    fn invoice_json(id: &str, receiver: &str) -> String {
+        format!(
+            r#"{{"invoice_id":"{id}","amount_zat":1234567,"receiver":"{receiver}","memo":"m",
+               "uri":"zcash:{receiver}","issued_at_height":100,"merchant_account":0}}"#
+        )
+    }
+
+    fn case_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("zanary-intake-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The payment record's shape is derived from the receiver address, never asserted. The audit's
+    /// finding on this path was that `pool_out`/`kind`/`policy` were literals, so a payment to a
+    /// Sapling or transparent receiver would have been recorded — and scored — as same-pool,
+    /// fully shielded, `FullPrivacy`.
+    #[test]
+    fn a_payments_shape_comes_from_the_receiver_address() {
+        let network = core::regtest_network();
+
+        let orchard = shape_of(&network, ORCHARD_UA).expect("an Orchard UA decodes");
+        assert_eq!(orchard.pool_out, Pool::Orchard);
+        assert_eq!(orchard.kind, PaymentKind::Shielded);
+        assert_eq!(orchard.policy, "FullPrivacy");
+        assert!(
+            orchard.revealed.is_empty(),
+            "a same-pool payment reveals nothing: {}",
+            orchard.revealed
+        );
+
+        // The refusal branch: a receiver whose value lands outside Orchard. A Sapling receiver takes
+        // the same branch — it is chosen by `pool_out`, not by the address encoding — and this node
+        // cannot mint a Sapling-only regtest address to name one here.
+        let transparent = shape_of(&network, TRANSPARENT).expect("a transparent address decodes");
+        assert_eq!(transparent.pool_out, Pool::Transparent);
+        assert_eq!(transparent.kind, PaymentKind::Transparent);
+        assert!(
+            transparent.policy.starts_with("AllowRevealed"),
+            "{}",
+            transparent.policy
+        );
+        assert!(
+            transparent.revealed.contains("transparent"),
+            "{}",
+            transparent.revealed
+        );
+
+        // Not an address for this chain: no shape at all, which is itself a refusal.
+        assert!(shape_of(&network, "uregtest1merchant").is_none());
+        assert!(shape_of(&network, "").is_none());
+    }
+
+    /// The invoice directory is the documented merchant→payer channel, so intake is bounded from file
+    /// metadata before any read: a symlink out of the directory, a non-regular entry, an oversize file
+    /// and an over-count directory are diagnostics — not a blocked open, and not the payer's memory.
+    #[test]
+    fn invoice_intake_is_type_checked_and_bounded() {
+        // A regular invoice still loads.
+        let happy = case_dir("happy");
+        std::fs::write(happy.join("a.json"), invoice_json("1", ORCHARD_UA)).unwrap();
+        std::fs::write(happy.join("b.json"), invoice_json("2", ORCHARD_UA)).unwrap();
+        assert_eq!(load_invoices(&happy).unwrap().len(), 2);
+        std::fs::remove_dir_all(&happy).unwrap();
+
+        // A symlink named *.json, pointing outside the intake directory.
+        let linked = case_dir("symlink");
+        let outside =
+            std::env::temp_dir().join(format!("zanary-outside-{}.json", std::process::id()));
+        std::fs::write(&outside, invoice_json("outside", ORCHARD_UA)).unwrap();
+        std::os::unix::fs::symlink(&outside, linked.join("link.json")).unwrap();
+        let error = load_invoices(&linked).expect_err("a symlink is refused");
+        assert!(format!("{error}").contains("symlink"), "{error}");
+        std::fs::remove_dir_all(&linked).unwrap();
+        std::fs::remove_file(&outside).unwrap();
+
+        // A directory named *.json — the non-regular entry, including the FIFO shape the audit
+        // reproduced (which used to block the open until a writer appeared).
+        let odd = case_dir("nonregular");
+        std::fs::create_dir(odd.join("sub.json")).unwrap();
+        let error = load_invoices(&odd).expect_err("a non-regular entry is refused");
+        assert!(format!("{error}").contains("not a regular file"), "{error}");
+        std::fs::remove_dir_all(&odd).unwrap();
+
+        // An invoice above the per-file bound (read into memory today, refused from metadata now).
+        let big = case_dir("oversize");
+        std::fs::write(
+            big.join("big.json"),
+            vec![b'x'; (MAX_INVOICE_BYTES + 1) as usize],
+        )
+        .unwrap();
+        let error = load_invoices(&big).expect_err("an oversize invoice is refused");
+        assert!(format!("{error}").contains("intake bound"), "{error}");
+        std::fs::remove_dir_all(&big).unwrap();
+
+        // More entries than the run will consider.
+        let many = case_dir("count");
+        for index in 0..=MAX_INVOICES {
+            std::fs::write(many.join(format!("m{index}.json")), "{}").unwrap();
+        }
+        let error = load_invoices(&many).expect_err("an over-count directory is refused");
+        assert!(format!("{error}").contains("more than"), "{error}");
+        std::fs::remove_dir_all(&many).unwrap();
     }
 }
 

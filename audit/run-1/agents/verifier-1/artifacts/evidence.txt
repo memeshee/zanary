@@ -1,0 +1,56 @@
+zanary run-1 · verifier-1 · evidence summary
+===========================================
+Candidate : crates/probe/src/payer.rs:payment-loop-failure-aborts-before-ledger-and-run-artifacts-are-written
+Verdict   : needs_validation (hunter-broadcast's proposal, re-derived by the verifier; record tightened)
+Fingerprint kept unchanged: the root cause is the same source-derived ordering defect.
+
+Files in this scratch (all written by the verifier from its own runs; all inputs were synthetic,
+no network, no rig, no real funds):
+  check-source.txt  line-numbered verbatim source quotes + structural greps on the read-only target
+  check-local.txt   verifier's own unit check, run in the approved sandbox (exit 0)
+  check-binary.txt  verifier's own real-CLI run in the approved sandbox (payer exit 1, no --out)
+
+What was re-established independently (every decisive claim):
+1. The decide loop (payer.rs:246-270) prints ALLOW/REFUSE for every invoice and validates only
+   revoked/expiry/allowlist/cap/budget; the invoice intake is plain serde (payer.rs:511-518).
+   Observed both as a unit call and through the real CLI: an invoice whose receiver is
+   "not-an-address" (amount 5,000,000, empty-allowlist grant, cap 10,000,000, budget 50,000,000)
+   is decided allowed=true.
+2. The payment loop (payer.rs:291-363) propagates every step with `?`: Address::decode (298-303),
+   MemoBytes::from_bytes (304-305), propose_shielded_payment (306-307), build_sign_broadcast (308,
+   which really does send_transaction to the indexer at ops.rs:407-415), mine_and_resync (309),
+   mined_height_of (310). Address::decode("not-an-address") returns None; a 600-byte memo is
+   admitted by decide and rejected by MemoBytes::from_bytes ("Memo length 600 is larger than
+   maximum of 512"; 512 accepted).
+3. ledger.jsonl and the run/report artifacts are written only after the loop (payer.rs:406-411:
+   the two fs writes are 406 create_dir_all / 409 fs::write + 411 write_run_artifacts), and
+   --expect-refused even later (469-478). No other write to --out exists in payer.rs, there is no
+   Drop/panic path that records anything, and no Rust path anywhere reads a previous ledger
+   (only demo shell/python summaries display it).
+4. Observed through the real CLI in the sandbox: both invoices ALLOW (including the bad receiver),
+   then the run aborts non-zero (exit 1) and --out is never created — no ledger.jsonl, no
+   run.json, no report.json. (The abort sat at the node-RPC bootstrap, payer.rs:276, because the
+   loop itself needs the rig; the ordering consequence — every post-decision failure loses the
+   whole ledger — is what this shows.)
+5. payer.rs contains no "error:" string; its only refusal reasons are decide()'s grant-rule
+   strings, so the payer can never produce the "error:" refusal that payer_policy.rs:66-74
+   exists to flag; and on a mid-loop abort no report is written for the property to read anyway.
+6. docs/BOUNDED-PAYER.md:50 ("Every invoice produces exactly one ledger line — paid or refused")
+   and :28 (budget checked per run, in ledger order) are the documented contract this breaks;
+   `spent` starts at 0 on every invocation (payer.rs:247).
+
+What is still outside source/local observation (the load-bearing blockers):
+A. A real partial run: iteration 1 must broadcast and mine (funded, synced wallet + node/indexer),
+   then iteration k>1 aborts. Offline the loop cannot pass its first wallet-backed step
+   ("could not propose the payment: Must scan blocks first"), and the offline registry has none
+   of the crates the zcash_client_backend test-wallet framework would need (checked: 0 matches
+   for proptest/ambassador/assert_matches in the read-only registry cache).
+B. The two consequences that make the finding: (a) after that partial run --out holds no
+   ledger.jsonl/run.json/report.json while the iteration-1 txid is mined on chain; (b) re-running
+   the identical command re-pays the already-paid invoice under a new txid (no cross-run dedup,
+   budget per run). Only the rig can show both; the sandbox showed the weaker non-broadcast half
+   of (a).
+
+Boundary note: nothing here contacted any network service, the rig, or a public URL; all target
+execution was inside `docker run --rm --network=none ... rust:1-slim` on the disposable copy
+(register: read-only) with writes only under /t.

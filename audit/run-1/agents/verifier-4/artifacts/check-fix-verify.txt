@@ -1,0 +1,28 @@
+CHECK: verification of the candidate's proposed source fix (so the remediation in the record
+matches observed behaviour, not just reasoning).
+
+Applied to the disposable sandbox copy only, exactly the code_changes block of the candidate
+(hex_decode: reject non-ASCII-hex before slicing; new at_byte() helper; short(): slice on char
+boundaries), then ran the crate's full suite plus a fix-specific probe (check-fix-module.txt):
+
+  docker run ... -w /t rust:1-slim sh -c 'cargo test --offline -p zanary-report'
+
+VERBATIM (tail):
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+     Running tests/golden.rs
+test fixture_report_rebuilds_to_the_same_hash ... ok
+test fixture_reports_hash_correctly ... ok
+test fixture_claims_expire_on_schedule ... ok
+test index_matches_golden_html ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+Fix-specific probe:
+FIX-A verify_signature -> Err: decoding the receipt's signer key: hex string has a non-hex character (zanary-receipt-v1 says lowercase hex)
+FIX-A2 signer=zz -> Err("decoding the receipt's signer key: hex string has a non-hex character (zanary-receipt-v1 says lowercase hex)")
+FIX-B short(key) = aaaaaaa€…bbbbbbbb (len 17 chars)
+FIX-ctrl ascii unchanged: 280f51c8…55ae602e
+test result: ok. 1 passed; 0 failed
+
+So the proposed fix compiles, leaves every existing test green, converts variant A from a panic
+into the clean reported error the tool's error-path style promises, and makes variant B's display
+helper boundary-safe while leaving ASCII output byte-identical. Verdict: remediation is sound.

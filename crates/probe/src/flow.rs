@@ -129,6 +129,10 @@ pub struct FlowDefinition {
     /// settlement across unpredictable heights, so a payment's distance from its funding stops
     /// being a fixed number — which is exactly what `timing-correlation` measures. Skipped when
     /// absent, so adding this field did not change any existing definition's `flow_commit`.
+    ///
+    /// The range is bounded by [`MAX_JITTER_BLOCKS`]: each drawn block is real work (mining plus a
+    /// wallet resync), so a definition asking for four billion of them is a diagnostic rather than an
+    /// afternoon. Out of range means the jitter is ignored, exactly like a malformed range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jitter_blocks: Option<[u32; 2]>,
     /// Seed for the jitter, so a jittered run reproduces exactly. Omitted means a random seed per
@@ -159,20 +163,55 @@ struct Jitter {
     drawn: Vec<u32>,
 }
 
+/// The largest settlement jitter a definition may ask for (see `FlowDefinition::jitter_blocks`).
+///
+/// Every drawn block is real work — a mine plus a wallet resync — so an unbounded range turns a
+/// one-line definition into unbounded machine time. The repo's own jittered flow asks for [1, 8].
+pub const MAX_JITTER_BLOCKS: u32 = 1_000;
+
+/// A path as it should appear in a *published* summary: relative to the working directory when the
+/// path is inside it.
+///
+/// The gate runs from the repository root in CI (`$GITHUB_WORKSPACE`) and the summary it writes is
+/// copied into the published claims directory. Recording the invocation's absolute paths verbatim
+/// therefore publishes the runner's workspace layout (`/home/runner/work/<repo>/<repo>/flows/…`) — a
+/// disclosure the flow never claimed, in a product whose whole subject is disclosure. Relative when it
+/// can be, verbatim when it cannot: a path outside the working directory has no honest shorthand.
+pub(crate) fn publishable_path(path: &std::path::Path) -> String {
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Ok(relative) = path.strip_prefix(&cwd) {
+            return relative.display().to_string();
+        }
+    }
+    path.display().to_string()
+}
+
+/// The jitter range a definition asks for, or `None` when it is not usable: out of order, or above
+/// [`MAX_JITTER_BLOCKS`] (an unbounded range is unbounded machine time).
+fn usable_jitter(range: Option<[u32; 2]>) -> Option<(u32, u32)> {
+    match range {
+        Some([min, max]) if min >= 1 && min <= max && max <= MAX_JITTER_BLOCKS => Some((min, max)),
+        _ => None,
+    }
+}
+
 impl Jitter {
     fn from_definition(definition: &FlowDefinition) -> Self {
         use rand::SeedableRng;
         let seed = definition.jitter_seed.unwrap_or_else(rand::random::<u64>);
-        let (min, max, fixed) = match definition.jitter_blocks {
-            Some([min, max]) if min <= max && min >= 1 => (min, max, None),
-            Some([min, max]) => {
+        let (min, max, fixed) = match (
+            usable_jitter(definition.jitter_blocks),
+            definition.jitter_blocks,
+        ) {
+            (Some((min, max)), _) => (min, max, None),
+            (None, Some([min, max])) => {
                 eprintln!(
-                    "  jitter: ignoring jitter_blocks [{min}, {max}] (want 1 <= min <= max); \
-                     falling back to the fixed three blocks"
+                    "  jitter: ignoring jitter_blocks [{min}, {max}] (want 1 <= min <= max <= \
+                     {MAX_JITTER_BLOCKS}); falling back to the fixed three blocks"
                 );
                 (3, 3, Some(3))
             }
-            None => (3, 3, Some(3)),
+            (None, None) => (3, 3, Some(3)),
         };
         Jitter {
             rng: rand::rngs::StdRng::seed_from_u64(seed),
@@ -253,6 +292,10 @@ pub async fn run_recording(raw: &[String]) -> Result<crate::record::RunArtifacts
     if definition.invoices.is_empty() {
         bail!("the flow definition has no invoices");
     }
+    // Amounts are money: validate them where the definition is loaded, so an unpayable definition is
+    // a diagnostic instead of a wrapped total (release) or an arithmetic panic (debug) somewhere
+    // later. `checked_total_zat` is also the function the unit test pins.
+    let _total_zat = checked_total_zat(&definition.invoices)?;
     match definition.receiver_strategy.as_str() {
         "fresh" | "reused" => {}
         other => bail!(
@@ -1177,9 +1220,53 @@ fn fee_budget_zat(invoice_count: usize, settlement: &str) -> u64 {
     }
 }
 
+/// The definition's total in zatoshis, refusing amounts that are not money.
+///
+/// Called where a definition is loaded, so an unpayable definition — a zero-amount invoice, an amount
+/// outside the consensus money range, or a total that does not fit in `u64` — is a diagnostic instead
+/// of a wrapped total (release) or an arithmetic panic (debug) somewhere later.
+fn checked_total_zat(invoices: &[InvoiceSpec]) -> Result<u64> {
+    const MAX_MONEY_ZAT: u64 = 2_100_000_000_000_000; // 21,000,000 ZEC
+    let mut total: u64 = 0;
+    for invoice in invoices {
+        if invoice.amount_zat == 0 {
+            bail!(
+                "invoice {} asks for 0 zatoshis — an invoice that pays nothing is not a payment",
+                invoice.invoice_id
+            );
+        }
+        if invoice.amount_zat > MAX_MONEY_ZAT {
+            bail!(
+                "invoice {} asks {} zatoshis, above the 21,000,000 ZEC money range",
+                invoice.invoice_id,
+                invoice.amount_zat
+            );
+        }
+        total = total.checked_add(invoice.amount_zat).ok_or_else(|| {
+            anyhow!(
+                "the flow definition's invoice amounts sum past u64 ({} invoices, {} zatoshis so \
+                 far) — no chain can hold them",
+                invoices.len(),
+                total
+            )
+        })?;
+    }
+    Ok(total)
+}
+
 /// How short the payer is of covering `invoices`, if at all.
 fn shortfall(probe: &Probe, invoices: &[InvoiceSpec], settlement: &str) -> Result<Option<u64>> {
-    let needed: u64 = invoices.iter().map(|invoice| invoice.amount_zat).sum();
+    // Checked, not wrapping: the amounts are the definition's, and a total that does not fit in u64
+    // would silently understate what the payer needs (release) or abort on overflow (debug).
+    let needed: u64 = invoices
+        .iter()
+        .try_fold(0u64, |total, invoice| total.checked_add(invoice.amount_zat))
+        .ok_or_else(|| {
+            anyhow!(
+                "the flow definition's invoice amounts sum past u64 — no chain can hold them, so \
+                 this is a diagnostic rather than a wrapped number"
+            )
+        })?;
     let needed = needed.saturating_add(fee_budget_zat(invoices.len(), settlement));
     let spendable = spendable_orchard(probe)?;
     Ok((spendable < needed).then(|| needed - spendable))
@@ -1792,6 +1879,101 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>> {
         );
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod definition_bounds_tests {
+    use super::*;
+
+    /// An unbounded jitter range is unbounded machine time: each drawn block is a mine plus a wallet
+    /// resync. Out of range — including above the cap — means the jitter is ignored, exactly like a
+    /// malformed range.
+    #[test]
+    fn an_unbounded_jitter_range_is_ignored() {
+        assert_eq!(usable_jitter(Some([1, 8])), Some((1, 8)));
+        assert_eq!(
+            usable_jitter(Some([1, MAX_JITTER_BLOCKS])),
+            Some((1, MAX_JITTER_BLOCKS))
+        );
+        assert_eq!(usable_jitter(Some([1, MAX_JITTER_BLOCKS + 1])), None);
+        assert_eq!(usable_jitter(Some([1, u32::MAX])), None);
+        assert_eq!(usable_jitter(Some([0, 3])), None);
+        assert_eq!(usable_jitter(Some([8, 1])), None);
+        assert_eq!(usable_jitter(None), None);
+    }
+
+    /// A published summary must not carry the invocation's absolute paths: relative inside the working
+    /// directory, verbatim outside it (that case has no honest shorthand).
+    #[test]
+    fn published_paths_are_relative_to_the_working_directory() {
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(
+            publishable_path(&cwd.join("flows/ci-checkout.json")),
+            "flows/ci-checkout.json"
+        );
+        assert_eq!(
+            publishable_path(&cwd.join("data/runs/demo")),
+            "data/runs/demo"
+        );
+        assert_eq!(
+            publishable_path(std::path::Path::new("already/relative.json")),
+            "already/relative.json"
+        );
+        assert_eq!(
+            publishable_path(std::path::Path::new("/proc/version")),
+            "/proc/version"
+        );
+        // The shape CI used to publish verbatim.
+        let runner = std::path::Path::new("/home/runner/work/zanary/zanary/flows/ci-checkout.json");
+        assert_eq!(
+            publishable_path(runner),
+            "/home/runner/work/zanary/zanary/flows/ci-checkout.json",
+            "a path outside the working directory is published as it is"
+        );
+    }
+}
+
+#[cfg(test)]
+mod amount_validation_tests {
+    use super::*;
+
+    fn spec(id: &str, amount_zat: u64) -> InvoiceSpec {
+        InvoiceSpec {
+            invoice_id: id.to_string(),
+            amount_zat,
+            memo_template: None,
+        }
+    }
+
+    /// A definition is caller-supplied text: amounts that are not money must be a diagnostic, never a
+    /// wrapped total (release) or an overflowing panic (debug).
+    #[test]
+    fn unpayable_amounts_are_refused_not_wrapped() {
+        // An amount outside the consensus money range is refused on its own — the audit reached a
+        // wrap with two such files, which is exactly why the per-amount bound is checked first.
+        let over_range = [spec("a", u64::MAX)];
+        let error = checked_total_zat(&over_range).expect_err("above the money range");
+        assert!(format!("{error}").contains("money range"), "{error}");
+
+        // So the total-wrap branch needs many invoices of the largest amount that *is* money:
+        // 8 784 of them reach u64::MAX (9 000 leaves margin).
+        let wrapping: Vec<InvoiceSpec> = (0..9_000)
+            .map(|index| spec(&format!("w{index}"), 2_100_000_000_000_000))
+            .collect();
+        let error = checked_total_zat(&wrapping).expect_err("the total must not wrap");
+        assert!(format!("{error}").contains("sum past u64"), "{error}");
+
+        let zero = [spec("a", 0)];
+        let error = checked_total_zat(&zero).expect_err("zero is not a payment");
+        assert!(format!("{error}").contains("pays nothing"), "{error}");
+
+        // The ordinary case still adds up.
+        assert_eq!(
+            checked_total_zat(&[spec("a", 19_876_540), spec("b", 4_321_090)]).unwrap(),
+            24_197_630
+        );
+        assert_eq!(checked_total_zat(&[]).unwrap(), 0);
+    }
 }
 
 #[cfg(test)]

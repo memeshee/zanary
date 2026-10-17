@@ -6,7 +6,12 @@
 # See HARNESS.md for what this proves, what it does not, and the trap list.
 services:
   zcashd:
-    image: electriccoinco/zcashd:latest
+    # Pinned by digest, not `:latest`: this image *is* the chain every published claim was measured
+    # against (v6.20.0 — the `nuparams` below are its `upgrades.cpp`), and `:latest` moving would
+    # change the rig's behaviour between the run a claim was made at and the run that re-proves it.
+    # To take a new version deliberately: `docker pull electriccoinco/zcashd:<tag>`, then
+    # `docker image inspect --format '{{.RepoDigests}}'` and paste the digest here.
+    image: electriccoinco/zcashd@sha256:40cdcad6c32da8bedacf77caba149198c7674f79aeced4043128ffb3e967efba
     container_name: zanary-zcashd
     restart: unless-stopped
     # Runs as the *host* user so the bind-mounted datadir is writable. `up.sh` exports the ids;
@@ -17,8 +22,12 @@ services:
     volumes:
       - ../data/zcashd:/srv/zcashd
     ports:
-      - "18232:18232" # JSON-RPC
-      - "18233:18233" # P2P (unused: regtest has no peers)
+      # Loopback only. The rig is a throwaway chain with published RPC credentials (`zanary`/`zanary`,
+      # on purpose — nothing here is a mainnet node), but "unauthenticated by design" is not a reason
+      # to put it on every interface of whatever network the operator's laptop is attached to.
+      # A remote operator forwards the port instead: `ssh -L 18232:127.0.0.1:18232 host`.
+      - "127.0.0.1:18232:18232" # JSON-RPC
+      - "127.0.0.1:18233:18233" # P2P (unused: regtest has no peers)
     command:
       - -regtest
       - -rpcuser=zanary
@@ -31,7 +40,9 @@ services:
       retries: 10
 
   lightwalletd:
-    image: electriccoinco/lightwalletd:latest
+    # Same rule as zcashd above: the indexer's compact-block behaviour is part of what a claim was
+    # measured against, so the image is pinned by digest rather than tracked at `:latest`.
+    image: electriccoinco/lightwalletd@sha256:483a361483531f9fa7b13c67ca69d69e394179ea31746cc0022fbe3af65ab5e0
     container_name: zanary-lwd
     entrypoint: ["lightwalletd"]
     # The indexer exits when the node's RPC is not answering yet (it starts before zcashd is
@@ -43,8 +54,10 @@ services:
       zcashd:
         condition: service_started
     ports:
-      - "9067:9067" # gRPC CompactTxStreamer — what our Rust code speaks
-      - "9068:9068" # HTTP
+      # Loopback only, for the same reason as zcashd: the indexer serves compact blocks with no
+      # authentication at all (`--no-tls-very-insecure`).
+      - "127.0.0.1:9067:9067" # gRPC CompactTxStreamer — what our Rust code speaks
+      - "127.0.0.1:9068:9068" # HTTP
     command:
       - --no-tls-very-insecure
       - --grpc-bind-addr=0.0.0.0:9067

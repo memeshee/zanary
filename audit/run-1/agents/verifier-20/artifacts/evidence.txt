@@ -1,0 +1,70 @@
+# verifier-20 — independent verification of candidate zanary/unchecked-zat-sum-overflow
+# hunter: hunter-inputs (proposed: confirmed). Target: zanary @ 7058406 (read-only, worktree clean).
+
+## Method (all inside the approved sandbox; no network, no rig)
+- Built a pristine `git archive HEAD` copy of commit 7058406 at /t/v20-src inside the approved
+  disposable sandbox path (zanary-sandbox-w2), rust-toolchain.toml removed by design.
+  PARITY: all 100 tracked files compared by sha256 against the read-only target repo —
+  99/99 compared byte-identical, rust-toolchain.toml intentionally absent. 0 mismatches.
+  (The shared w2 root itself was NOT pristine: crates/probe/src/{flow,main,payer}.rs there carry
+  other agents' appended #[cfg(test)] modules — verifier-1/14/19 — so nothing was built from it.)
+- Toolchain: rustc 1.99.0 (b940084d7 2026-09-28), same as the hunter recorded.
+- dev build:  cargo build --offline -p zanary-probe --bin zanary-probe  -> Finished dev profile 7m59s
+  binary sha256 f619ce2a4a4359eeabcc403b9623b52b005f8fa5b14f575f60de2000cfe4668c
+- release build: cargo build --offline --release -p zanary-probe --bin zanary-probe -> 12m40s
+  binary sha256 b1396fcea9b9e54a9f744622bdc2999584e377f8e7fa9ea99228704f6122291d
+
+## Source trace re-established (all lines verified in the target repo)
+- flow.rs:251  let definition: FlowDefinition = serde_json::from_str(&text)   (no serde bound;
+               InvoiceSpec.amount_zat: u64 at flow.rs:62; no custom Deserialize)
+- flow.rs:253-297  validation block: invoices non-empty / receiver_strategy / receipt vs merchant
+               account / settlement mode + batch amount uniqueness. Amounts never bounded.
+- flow.rs:336  header println sums `.map(|i| i.amount_zat).sum::<u64>() as i128`
+- flow.rs:1182 sum + 1183 `needed.saturating_add(fee_budget_zat(...))`  (sibling control: fee bounded,
+               sum not) — shortfall() at 1181; used to decide funding at 423.
+- flow.rs:1291-1298 funding_target: `.sum::<u64>()` at 1296, `+ fee_budget_zat` at 1297 (plain +);
+               result is the top-up target consumed at flow.rs:424.
+- Call chain: main.rs:46 -> flow::run (229) -> run_recording (247) -> header (306-350) ->
+               NodeRpc::from_env() only at 357. Panic precedes every chain/wallet touch.
+- ops.rs:912 Zatoshis::from_u64(*zats) inside propose_shielded_payments (fn at 900) — per-payment,
+               rejects >MAX_MONEY per amount only. Sibling site ops.rs:983 in `pay --invoice`
+               (same per-amount shape). Neither bounds a total.
+- Cargo.toml (root + all 4 crate manifests): no [profile] section anywhere; no .cargo/config.toml;
+  no RUSTFLAGS in CI. CI/action/demo build --release (action.yml:80; privacy-gate.yml:135,236;
+  scripts/demo-run.sh:97); docs/FLOW-RUNNER-NOTES.md:477 and scripts/agent-pay-loop.sh:20 use the
+  dev (`target/debug`) binary.
+
+## Local reproduction (transcripts: check-panics-repro.txt, check-release-binary.txt, check-release-wrap.txt)
+- Fixture evil-sum.json: 144 bytes, sha256 6bf0d8114fbb4420359bc81dc498e7a5006ef469f1ec84e91a003e7fded89b5b
+  {"flow_id":"hostile-sum","invoices":[{"invoice_id":"1","amount_zat":18446744073709551615},
+   {"invoice_id":"2","amount_zat":18446744073709551615}]}
+- DEV build run: header prints flow commit 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c
+  (identical to the hunter's recorded commit -> same canonical definition) then
+  `thread 'main' panicked ... library/core/src/iter/traits/accum.rs:206:1: attempt to add with
+  overflow`  EXIT=101. RUST_BACKTRACE=1: frame `zanary_probe::flow::run_recording` at
+  ./crates/probe/src/flow.rs:336:18 <- flow::run (flow.rs:230:38) <- main (main.rs:46:41).
+- RELEASE build (same source, actual CLI): NO panic; header prints
+  `invoices : 2 (184467440737.09551614 ZEC total)` = wrapped 2^64-2 zats (true total would be
+  368934881474.19103230 ZEC); run proceeds to the node step and exits 1 with `Connection refused`
+  (sandbox has no node). Benign control (2 x 100000): correct 0.00200000 ZEC total, same node step.
+- rustc -O on `[u64::MAX, u64::MAX].iter().copied().sum::<u64>()` (black_box inputs): prints
+  18446744073709551614, exit 0; rustc debug default: same panic as above (exit 101).
+
+## Corrections made to the hunter's wording (record replaced; fingerprint kept)
+1. "177-byte definition" -> the file I verified is 144 bytes; the hunter's exact fixture was not
+   retained, so its byte count is unverifiable. Payload content is the same.
+2. "at least 8,788 invoices at MAX_MONEY" -> the true minimum is 8,785 (u64::MAX // 2_100_000_000_000_000
+   = 8784 r 344073709551615; 8784 x MAX_MONEY does not overflow, 8785 x MAX_MONEY does).
+3. Sink/evidence line 1294/1292 -> the sum is at flow.rs:1296 (`+ fee_budget_zat` at 1297).
+4. "The only bound on an amount ... is ops.rs:912" -> there are two per-amount Zatoshis::from_u64
+   sites on this path (ops.rs:912, ops.rs:983); both are per-amount and later, neither bounds the total.
+
+## Things NOT observed (never claimed as observed)
+- The downstream "wrong funding target" consequence needs a live node (funding_shortfall calls
+  spendable_orchard() against the rig) -> source-established only, not locally reproduced.
+- No funds, keys, or authority are exposed in either profile; release run failed on its own
+  per-amount checks / node absence before any value moved.
+
+## Sandbox hygiene
+- Writes: /t/v20-src (inside the approved disposable copy) and this scratch dir only.
+- Target repo untouched: git status clean, HEAD 7058406.

@@ -1,0 +1,63 @@
+verifier-34 · Phase-5 record verification · zanary/payer-ledger-not-durable
+================================================================================
+Target      : /home/kiter/hackathon/zanary @ 7058406, worktree clean (git status --porcelain empty)
+              payer.rs sha256 22799a3b…c9720 == sandbox copy lines 1-655 (identical);
+              record.rs a27e4ed3…16cb and observation/src/lib.rs 2a1c27c2…ce9 identical in both.
+Sandbox     : /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (docker --network=none, rust:1-slim)
+Files here  : check-verifier34.txt   my own checker output (56/56 pass) + the real-CLI re-observation
+              check-replay15.txt     my re-run of the record's declared local plan (51/51 pass)
+Verdict     : record holds as written -> decision "verified" (non-material notes only)
+
+What I re-derived myself (check-verifier34.txt, crates/probe/src/bin/verifier34_check.rs):
+1. Every file/line the record's trace/evidence name, verbatim from include_str! of the pristine files:
+   payer.rs 201 load_invoices, 244 the in-code claim, 247 spent=0, 249 decide loop, 250 decide call,
+   258 spent add, 291 payment loop, 298 Address::decode, 304 MemoBytes::from_bytes, 307 propose,
+   308 build_sign_broadcast, 309 mine_and_resync, 364 refusals buffered, 406 create_dir_all,
+   408 ledger_path, 409 the ledger write, 411 write_run_artifacts, 153 default --out,
+   530 fee margin; record.rs 45/50/61; observation 224/226/229/234/235 (222-230, 234-240);
+   ops.rs 59 (CONFIRM_BLOCKS = 11) and 409 (send_transaction); flow.rs 502; payer_policy.rs 68;
+   docs/BOUNDED-PAYER.md 50 — all exact.
+2. Structure: payer.rs has exactly one std::fs::write, at 409 (after the loop), no File::create /
+   OpenOptions / .append(, no 'error:' string, no Drop/panic hook. Under crates/ the only file that
+   mentions ledger.jsonl is the payer that writes it; nothing reads a ledger back.
+3. decide() admits the unpayable invoice: allowlisted literal receiver ALLOW; empty allowlist ALLOW;
+   600-byte memo ALLOW; the payer's serde intake accepts the JSON. Address::decode("not-an-address")
+   -> None; MemoBytes::from_bytes 512 ok / 513,600 err.
+4. PayerRun serializes to exactly {decisions,grant,label}; spent_zat() = 300 of paid 300 + refused 999.
+   std::fs::write truncates (re-demonstrated).
+5. The record's declared local plan re-runs exactly: `cargo run --offline -p zanary-probe --bin
+   verifier15_check` in the sandbox copy -> 51/51 checks pass, exit 0 (check-replay15.txt).
+6. Real CLI, --network=none: grant + one invoice with receiver "not-an-address" ->
+   "ALLOW v34-8301 — paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat
+   spent after this)", then "Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Connection
+   refused (os error 111)", EXIT=1, --out never created (no ledger.jsonl/run.json/report.json).
+   That is the weaker, broadcast-free half the record's blockers say is all the sandbox can show.
+
+Blockers stay decisive: the decisive facts (a mid-loop abort after iteration 1 broadcast+mined;
+a re-run re-paying the same invoice under one grant) need the running regtest rig (bootstrap_with +
+NodeRpc::from_env, 11 mined blocks per payment); the rig's containers and ports 18232/18233/9067/9068
+are out of bounds, and I confirmed there is no offline route past the wallet-backed first iteration.
+
+Consolidation (explicit): sound. The union is faithful — the sibling's trace items (249/298/308 and
+the sink at 408), evidence (298/304/409, payer_policy.rs 68) and blockers, and the payer record's
+items (201/291/364 and the artifact write, 244/304/409, record.rs, observation, 153, 247, docs 50),
+all appear, normalised to one entrypoint, one sink and propagations between. verifier-1 (sibling) and
+verifier-15 (this fingerprint) each derived the same root cause, and the two extra facets (no
+persisted paid-invoice state; truncating overwrite at a reused --out) are consequences of the single
+end-of-run write design at payer.rs:406-411 — one record, not two, is right. findings.json carries
+exactly one record for this root cause; the sibling fingerprint appears only as a reference.
+
+Non-material notes (no meaning or evidence changes):
+- blockers[2] ("Duplicate root cause … dedupe/merge") is a merge note, not a validation blocker, and
+  reads as pending now that the merge is done; blockers[3]/[4] restate blockers[0]/[1].
+- trace sink anchors at 408 (the ledger_path binding) while its own description names the write at
+  409 and 411 — one line of drift, same statement block; the propagation block is not in line order.
+- validation_plan.local points at the promoted path agents/verifier-15/artifacts/check-verifier15.txt,
+  which does not exist (only agents/verifier-15/scratch/check-verifier15.txt does); the re-run
+  instruction itself is exact and reproduced 51/51.
+- deployment recipe 1 names $DIR/grants/garbage.json implicitly and its step (4) parenthetical
+  "(the second txid)" does not line up with the third run; both cosmetic.
+
+Boundary: nothing contacted the rig, a network service or a URL; all target execution ran in the
+approved --network=none sandbox on the disposable copy; writes only inside that copy, this scratch,
+and (by the record's checker) /t.

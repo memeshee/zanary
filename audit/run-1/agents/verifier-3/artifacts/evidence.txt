@@ -1,0 +1,79 @@
+verifier-3 — evidence summary for candidate `crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields`
+Decision: confirmed (candidate was proposed confirmed by hunter-intake; independently re-established and reproduced).
+Fingerprint unchanged: crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields
+
+1. Provenance of what was run
+- Target /home/kiter/hackathon/zanary at commit 7058406, worktree clean (git log/status checked before reading).
+- Sandbox copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 diffed against a fresh `git archive HEAD`
+  extraction (za-v3-ref): all production files identical. The only deltas anywhere in the tracked tree are
+  `#[cfg(test)]`-only appended modules added by other hunters to crates/probe/src/main.rs and
+  crates/report/src/receipt.rs (receipt delta begins at line 522, after all production code, wrapped in
+  `#[cfg(test)] mod hunter_probe`); cargo build does not compile cfg(test) modules, so the debug binary of
+  `-p zanary-report` is built purely from reviewed production sources. rust-toolchain.toml absent from the
+  copy (as required). Cargo.toml/Cargo.lock/action.yml/etc. identical.
+- Binary rebuilt inside the sandbox: `cargo build --offline -p zanary-report` exit 0, "Finished dev profile
+  [unoptimized + debuginfo] target(s) in 40.38s"; sha256
+  2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60 (identical before/after rebuild).
+
+2. Source trace re-derived (every cited line checked read-only in the target repo)
+- Entry: crates/report/src/main.rs:517 `async fn verify(args: &[String])`; report read+parsed 521-523; no
+  validation of flow_commit/report_hash anywhere before use.
+- Report fields: crates/report/src/lib.rs:33 `pub struct Report` (`#[derive(Serialize, Deserialize)]` at 32),
+  flow_commit: String at 36, report_hash: String at 54 — plain derive, no validator.
+- FlowRun: crates/observation/src/lib.rs:154 struct, flow_commit: String at 157 — plain derive.
+- Sinks (exact expressions):
+  * main.rs:760-765 `fn short` — `&hash[..12]` at 762.
+  * main.rs:283-288 `fn short_tail` — `&value[..8]` / `&value[value.len() - 8..]` at 287.
+  * main.rs:226 matrix summary — `&column.commit[..8.min(len)]`.
+  * matrix.rs:109 and matrix.rs:148 — `&column.commit[..8.min(len)]`; commit := run.flow_commit at matrix.rs:69.
+  * verify.rs:849-855 second `fn short` — `&hash[..12]` at 851, used at verify.rs:673 (the
+    `Ok(recomputed)`/hash-mismatch FAIL branch; a hostile report_hash of 13+ bytes can never equal a 64-char
+    hex digest, so that branch is always the one taken).
+  * Same shape also duplicated at index.rs:136-138 (`&hash[..12]` at 138, applied to report.flow_commit /
+    report_hash at index.rs:298/314/326/409/411) and receipt.rs:188-190 (applied to attestation key strings at
+    receipt.rs:145-153) — source-verified; NOT executed in this verification (outside the candidate trace).
+- Call sites: main.rs:545 (verify banner), 629 (build), 392 (verify-anchor banner, operator --root or derived
+  root), 375-376 (short_tail on --root vs report root).
+- Exit contract: main.rs:49-55 Ok(code)->exit(code), Err->exit(2); a panic bypasses it (exit 101).
+- No catch_unwind / panic::set_hook anywhere in crates/report/src (searched) — no visible control.
+- No size/shape validation on the two fields: searched for ascii/hex validators; the only hex validator in the
+  crate is receipt.rs:301 for receipt signature fields, not applied to Report.flow_commit/report_hash.
+- Documentation context verified: crates/report/src/lib.rs:10 "Nothing here may depend on the reporter's
+  honesty"; crates/report/fixtures/README.md:47 "verify exits 0 when every check passes and 1 on any mismatch
+  (try editing one hex digit of a txid in a copy and re-running)".
+
+3. Independent reproduction (sandbox, --network=none, no node/indexer/keys involved)
+Fixtures written by verifier-3 at /t/verifier3-checks/ (é as \u00e9):
+- v0_benign_report.json  flow_commit "deadbeefcafebabe00112233", report_hash 64 zeros
+- v1_hostile_commit_report.json  flow_commit "aaaaaaaaaaaé" (13 bytes; byte 12 inside é)
+- v2_hostile_hash_report.json    report_hash "bbbbbbbbbbbé" (13 bytes), ASCII flow_commit
+- hostile_run_build.json / benign_run_build.json (FlowRun)
+- runs2-{benign,hostile}/run-1/{run.json,findings.json}; hostile flow_commit "abcdefgé" (9 bytes)
+- benign_report_for_anchor.json
+Observed (stdout/stderr/exit captured verbatim in check-repro.txt):
+- verify v0 benign: exit 1; full check list; summary NOT VERIFIED.
+- verify v1 hostile flow_commit: exit 101; stdout EMPTY; stderr "panicked at crates/report/src/main.rs:762:29:
+  end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)".
+- verify v2 hostile report_hash: exit 101; stdout banner + chain line only (125 B); panic at
+  crates/report/src/verify.rs:851:29 (same boundary message).
+- verify missing file (control): exit 2, "error: reading ...".
+- build hostile run: exit 101; stdout "built out/b1_report.json"; out/b1_report.json EXISTS (4122 B);
+  panic at main.rs:762:29. Benign build: exit 0, artifact 4133 B.
+- verify-anchor --root "cccccccccccé" (no report): exit 101, stdout EMPTY, panic at main.rs:762:29 —
+  offline, before any node contact (call site line 392/393 precedes anchor::scan at 397).
+- verify-anchor --report benign --root "aaaaaaaézzzzzzzzzzzzzzzz" (25 B): exit 101, stdout EMPTY, panic at
+  main.rs:287:28 "end byte index 8 is not a char boundary; it is inside 'é' (bytes 7..9 of string)".
+- matrix hostile run dir: exit 101, stdout EMPTY, out2/m1.md NOT written; panic at matrix.rs:109:27.
+  Benign matrix: exit 0, out2/m0.md rendered (654 B).
+No memory-safety, confidentiality or privilege effect in any run; the effect is safe process termination
+(exit 101) that replaces the documented 0/1/2 verdict contract — fail-closed.
+
+4. Calibration / attempted refutation
+- Tried: any validation of the two fields (none), panic catching (none), deserialization hardening (plain
+  derives), earlier node interaction for the offline claims (none — panics precede scan), a benign control for
+  every command (all behaved as documented), and whether an altered report could take a non-mismatch branch
+  (impossible: recomputed is 64-char hex ASCII). Nothing refutes the candidate.
+- The hunter's artifact claims match my independent run byte-for-byte where comparable (b1_report.json 4122 B;
+  panic sites 762:29 / 851:29 / 287:28 / 109:27; stdout sizes).
+
+Scratch files: evidence.txt, check-source-trace.txt, check-repro.txt, check-observations.json.

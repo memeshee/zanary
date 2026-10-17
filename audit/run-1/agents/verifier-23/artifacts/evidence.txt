@@ -1,0 +1,46 @@
+verifier-23 — Phase-5 record verification evidence
+record: crates/report/src/receipt.rs:hex_decode+short:utf8-byte-slice-of-untrusted-receipt-fields
+target: /home/kiter/hackathon/zanary @ 7058406 (git status clean), read-only.
+sandbox: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (crates/report/src/receipt.rs byte-identical to HEAD; binary
+target/debug/zanary-report sha256 2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60 = record's claimed sha; forced
+rebuild from pristine source (touch receipt.rs; cargo build --offline -p zanary-report, rustc 1.99.0) reproduced the same sha).
+
+SOURCE RE-CHECK (all at 7058406)
+- receipt.rs:352-363 hex_decode; only guard hex.len().is_multiple_of(2) at :353; byte slice &hex[i..i+2] at :359. Calls: :65,72,157,165.
+- receipt.rs:188-194 short; guard hex.len()>20 at :189; &hex[..8] and &hex[hex.len()-8..] both on :190; :191 is "} else {".
+- main.rs:104-106 read argv path + serde_json into Receipt; :117 verify_signature; :120-138 verdict; FAIL -> Ok(1) :135-137;
+  no---fvk attestation branch :184-190 echoes short() at :188-189; summary+Ok(0) :199-200; exit contract :49-55 (Ok(code)->exit(code), Err->exit(2)).
+- observation/src/lib.rs:115-141 signer/signature/attestation Strings, no charset validation (115,118,124,136,138,140).
+- receipt.rs:487-504 test the_attestation_is_not_part_of_the_receipt_signature (attestation outside signed bytes; signature still verifies).
+- docs/FLOW-RUNNER-NOTES.md:343-355 malformed-receipt rows exit 1; node.rs:193 and probe/src/bin/zanary-seed.rs:714 contain the safe
+  chunks(2)+from_utf8 hex decoders the remediation cites. All paths/scopes/lines as the record states.
+
+REPRODUCTION (fresh, in sandbox; stdout/stderr split; check-cli-repro.txt, check-cli-independent.txt)
+- A: /t/v4/payload-a.json (signer "a€", signature "00") -> receipt/format/claim echo lines, stderr panic
+  "panicked at crates/report/src/receipt.rs:359:36: end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)",
+  EXIT=101, no "signature :" line. Record's observed_result matches exactly.
+- B: /t/v4/receipt-b-nonascii.json -> "signature : VALID", signer 280f51c8...55ae602e, both "claim ok" lines, then panic
+  "crates/report/src/receipt.rs:190:30: end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)", EXIT=101.
+- Independent fixtures (verifier23_probe, my own module appended to the sandbox copy; pristine prefix verified unchanged; probe writes
+  /t/v23/*.json with the target's own signing code): signed receipt (seed 9, ak 280f51c8...55ae602e) with NO attestation, then two
+  attestations attached AFTER signing; test asserts verify_signature passes before AND after attaching. Copied to /t/v23/ and CLI:
+  - /t/v23/payload-a.json -> same 359:36 panic, EXIT=101.
+  - /t/v23/receipt-att-nonascii.json (receipt_key "aaaaaaa€bbbbbbbbbbbbbb", 24 bytes) -> VALID + both claim ok -> 190:30 panic, EXIT=101.
+  - /t/v23/receipt-att-ascii.json control -> "attested : receipt key 280f51c8…55ae602e is attested by wallet key 6ebb833c…11737b07",
+    summary, EXIT=0. /t/v4/clean.json control -> "binding : none", EXIT=0 (check-cli-repro.txt).
+- Bonus: same non-ASCII receipt with --fvk /t/merchant.ufvk -> "from --fvk: 6cb31f4d...db3e" then panic 190:30 (short() from
+  verify_attestation's mismatch message), EXIT=101 (check-restore-fvk.txt). Record had this one source-verified; it also executes.
+
+FIX CHECK (check-fix.txt): applied the record's fixed hex_decode + at_byte + short to the sandbox copy (production lines only; probe
+module present, mirroring the record's setup). cargo test --lib = 14 passed/0 failed (13 crate + my probe); --test golden = 4 passed.
+Rebuilt CLI: variant A -> "signature : INVALID — decoding the receipt's signer key" + FAIL, EXIT=1 (no panic; the outer context line is
+what the CLI prints, the "non-hex character" text is the next link in the anyhow chain); variant B -> EXIT=0, prints
+"attested : receipt key aaaaaaa€…bbbbbbbb ..."; ASCII twin output byte-identical to pristine. Fix enforces the invariant at the
+parse/shorten boundary (last trusted point before slicing), does not merely move trust.
+Sandbox restored: receipt.rs identical to pristine, binary rebuilt to sha 2e9034...; variant A on the restored binary panics 359:36 again
+(check-restore-fvk.txt).
+
+ASSESSMENT: record holds as written. Severity (likelihood medium / impact low, overall low) matches the demonstrated impact (panic +
+exit 101, no verdict; no false PASS since 101 is non-zero; message leaks a source path and the offending string). Root cause and
+fingerprint (byte-offset slicing of untrusted receipt fields) confirmed; conditions (no flags needed; --fvk variant also executes)
+confirmed.

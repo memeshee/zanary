@@ -1,0 +1,46 @@
+verifier-7 - independent verification of candidate probe/payer.rs:load_invoices:unbounded-intake-memory
+decision: confirmed (hunter-invoices' candidate re-established; its numbers replaced with my own)
+target: /home/kiter/hackathon/zanary @ 7058406 (read-only, worktree clean)
+  crates/probe/src/payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720
+  (identical in the disposable sandbox copy used for execution)
+sandbox: docker rust:1-slim, --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024,
+  only the disposable copy mounted at /t plus the read-only cargo registry; fixtures mine, under /t/v7-fx.
+  Binary rebuilt by me from the reviewed source: cargo build --offline -p zanary-probe --bin zanary-probe
+  -> sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416, identical to the hash the
+  hunter recorded (reproducible build of this tree; the only tree diffs are #[cfg(test)]-gated modules
+  other agents appended, which do not enter the binary).
+
+Source established by me on the pristine file (line numbers verified):
+- 150 the --invoices path becomes invoices_path (the merchant channel); 187-191 revoked/kill-switch state
+  computed; 201 load_invoices before the decide loop (249-250) and before all wallet/node work (275-277);
+  244-245 comment "Decide everything first, then pay"; 259 clone of each allowed invoice into to_pay;
+  495 fn load_invoices; 498-506 read_dir with the extension filter only (503); 510 sort; 513
+  read_to_string of each file whole; 515 serde_json::from_str; 517 push; 119-128 the only accounting in
+  the payer (monetary budget over amount_zat, no count/bytes notion).
+- No cap of any kind in 495-520 and no intake-cap knob anywhere in the tree (grep for ZANARY_MAX,
+  max_bytes, max_files, max_invoices: no hits).
+
+Independently reproduced (my fixtures; logs: check-memory-intake.txt, check-count-and-scale.txt):
+1. Control, 3 tiny invoices, full grant: header "invoices : 3" + 3 ALLOW lines, then exit 1 at the node
+   connect ("Connection refused") - intake and decisions precede all wallet/node work.
+2. Revoked grant + one 256 MiB invoice: intake completes (peak RSS 525 MiB, about 2x the file) and prints
+   "REFUSE v7big - refused: the grant was revoked (kill switch)" before the same node error: the work is
+   not conditional on authority. Kill-file run (3 tiny, --kill-file <existing path>): all 3 refused the
+   same way, after being read.
+3. Same 256 MiB invoice under RLIMIT_AS 262144 kB (256 MiB): exit 1 in under 1 s, whole log is
+   "Error: reading the invoice /t/v7-fx/inv-big/big.json / Caused by: out of memory" - zero decisions,
+   no header: the run aborts inside intake. Under RLIMIT_AS 700000 kB the read of the same file also
+   fails; with no limit it completes. The merchant file size thus decides the required memory, and the
+   debug binary's own VmPeak is already ~547 MiB on a 3-invoice run (checks3.sh), so a finite budget is
+   consumed by intake before any decision (the hunter's 768 MiB / 1.2 GB observation is the same effect).
+4. 5000 zero-amount invoices, full grant: 5000 ALLOW lines, "invoices : 5000", 9 s, peak RSS 19 MiB -
+   nothing caps count. Mixed directory (the 256 MiB invoice + the 5000 tiny ones): 5001 ALLOW, peak RSS
+   532 MiB (VmHWM 545332 kB).
+5. Correction to the candidate's wording: the clone at 259 is real and retains a second copy of every
+   allowed invoice for the payment loop, but in the single-large-invoice case the peak stays about 2x the
+   file (the freed read buffer covers the clone) - it is not additive at intake, and no larger factor is
+   claimed here.
+
+Out of scope / not exercised: the payment phase (needs the regtest node/indexer; out of bounds for the
+sandbox). Every run stopped at the node connect after intake; no payment, wallet key or network service
+was reached and no external endpoint was contacted.

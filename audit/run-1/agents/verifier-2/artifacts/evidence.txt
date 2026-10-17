@@ -1,0 +1,87 @@
+verifier-2 · zanary run-1 · independent verification trail
+=========================================================
+Candidate : crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction
+Hunter    : hunter-broadcast (proposed needs_validation) · fingerprint kept unchanged
+Read      : /home/kiter/hackathon/zanary @ 7058406 (worktree clean, verified before and after);
+            sandbox copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (payer.rs, ops.rs,
+            flow.rs, core.rs, observation/src/lib.rs, policy_downgrade.rs byte-identical to the
+            reviewed revision — cmp verified); hunter artifact check-intake.txt; vendored
+            zcash_client_backend-0.24.0 source in the read-only registry cache.
+
+Source re-established by eye + by verifier-2's own sandbox check (check-verify2.txt):
+1. payer.rs:349-352 — `pool_in: Pool::Orchard`, `pool_out: Pool::Orchard`,
+   `kind: PaymentKind::Shielded`, `policy: Some("FullPrivacy".to_string())` are literals inside the
+   Payment record written after `build_sign_broadcast` (payer.rs:339-362). payer.rs contains 0
+   occurrences of `check_policy(`, `required_policy_for_recipient(`, `proposal.steps`,
+   `payment_pools`, `decrypt` (counted by verifier-2's check from the compiled source).
+2. payer.rs:298 decodes the merchant-supplied receiver with no recipient-kind gate; payer.rs:100
+   only string-compares it against the grant allowlist; the empty-allowlist case prints
+   "every receiver is allowed" (payer.rs:222-224); invoices are deserialized directly
+   (payer.rs:495-519) with no URI cross-check (flow.rs:1740-1768 does cross-check, but only the
+   `pay --invoice` path uses it).
+3. ops.rs:900-961 (`propose_shielded_payments`, the payer's call at payer.rs:306-307) builds a
+   ZIP-321 payment to the recipient and calls propose_transfer with
+   SpendPolicy::shielded_pools([Orchard]) (ops.rs:929) + Orchard change (931-936): the spend policy
+   constrains INPUT sources only (zcash_client_backend-0.24.0 input_selection.rs:476-489), and
+   nothing constrains the recipient's output pool.
+4. ops.rs:237-263: required_policy_for_recipient maps a Sapling receiver and a UA with a Sapling
+   receiver and no Orchard receiver to AllowRevealedAmounts ("the amount (Orchard -> Sapling pool
+   crossing)", 243-246). The guard is applied on every other payment path: ops.rs:563-566 (anchor),
+   ops.rs:777-782 (shield), ops.rs:1019-1020 (pay), flow.rs:633-634 and flow.rs:826-827 (flow
+   runner). payer.rs: 0 call sites.
+5. zcash_client_backend-0.24.0 input_selection.rs (GreedyInputSelector::propose_transaction):
+   Address::Sapling -> payment_pools[idx] = SAPLING + a Sapling output (966-968); a UA with a
+   Sapling receiver and no Orchard receiver -> SAPLING (999-1003). So the transaction built for a
+   Sapling-receiver invoice carries a Sapling output (cross-pool; the Sapling value balance is
+   public); the payer writes Orchard/Orchard/Shielded/FullPrivacy regardless. This is
+   source-corroborated but NOT executed (no wallet with a spendable Orchard note is reachable
+   offline: zcash_client_backend's test-dependencies feature needs proptest/ambassador/
+   assert_matches, absent from the read-only registry cache — verifier-2 confirmed only
+   incrementalmerkletree/rand_chacha/tempfile of that set are present; --network=none forbids a
+   fetch).
+6. policy_downgrade.rs (Severity::Disqualifying, 54-56) computes the explicit signal from
+   Payment.policy token fragments (76-89; "FullPrivacy" matches none) and the implicit signal from
+   pool_in shielded + pool_out in {Transparent, CrossPool} (92-101). Reproduced in the sandbox:
+   zanary_properties::evaluate() returns policy-downgrade PASS for the payer's constant record and
+   the run passes; the fixtures' honest cross-pool record (fixtures.rs:243-246) FAILs as a positive
+   control. Calibration found while checking: an Orchard -> Sapling crossing recorded honestly with
+   pool_out: Sapling also PASSes the property (Sapling is not in the implicit signal's revealing
+   set) — the constant record is not the only thing the detector would miss.
+7. observation/src/lib.rs:28-30 defines PaymentKind::Shielded as "shielded source and shielded
+   destination, same pool"; pool_out is the payment's destination pool and `policy` is documented
+   as "the privacy policy argument the flow passed to its wallet layer, verbatim" (56-60) — the
+   payer passes no such argument. report/src/verify.rs:1-20 re-derives tx height / receiver /
+   memo / pool-total evidence from the chain, and the report crate contains 0 references to
+   pool_in/pool_out: nothing re-derives the recorded pool legs.
+8. Re-ran independently in the sandbox (check-verify2.txt): with a fundless stub wallet, the
+   payer's own intake takes a bare zregtestsapling1 receiver (the dev account's, address
+   02620dde… — identical to the hunter's) and a Sapling-only UA to the wallet layer
+   ("Must scan blocks first", same as the Orchard control), while required_policy_for_recipient +
+   check_policy refuse both under FullPrivacy. So the hunter's decisive local result reproduces.
+9. core.rs:84-95: sapling active at height 1; nu6_1/2/3 unactivated (no Ironwood), so a Sapling
+   output is the shielded cross-pool delivery this build can produce.
+
+Refutation attempts, all negative:
+- "maybe the intake/zip321 refuses Sapling receivers" — no (executed, both memo cases per hunter;
+  verifier-2 reproduced with the invoice memo).
+- "maybe SpendPolicy::shielded_pools([Orchard]) forbids a Sapling output" — no: it gates input
+  selection only (dependency source, 476-489).
+- "maybe the record is accurate because the wallet would never deliver to Sapling" — no: the
+  wallet maps Address::Sapling / Sapling-only UA to a SAPLING payment pool and a Sapling output.
+- "maybe some control catches it" — none on the payer path (no --policy argument; no grant field
+  is recipient-kind aware; payer_policy checks the ledger's amount/receiver/revoked only;
+  policy-downgrade and unshielding read the record, not the chain).
+
+Kept as needs_validation because the decisive facts remain outside source/local observation:
+- the proposal/transaction actually built for a Sapling-receiver invoice (needs a funded wallet;
+  no offline route) — source says Sapling output, execution absent;
+- the end of the path (indexer accepts it, mined tx shape, report/index published) — needs the
+  regtest rig (containers + host ports 18232/18233/9067/9068), out of bounds;
+- deployment reachability of a Sapling-receiver invoice: every recorded run here and the CI demo
+  use Orchard-only invoices with a 3-receiver allowlist (data/grants/*.json,
+  data/demo-payer/invoices/*.json, scripts/bounded-payer-demo.sh), while the payer's contract is
+  any invoice directory and an absent/empty allowlist admits every receiver.
+
+Boundary notes: target untouched (git status clean at 7058406); all execution inside the approved
+--network=none sandbox; sandbox writes confined to /t (new bin target verifier2_check.rs + its
+stub wallet DB + v2-check-out.txt); only verifier scratch files were written outside.

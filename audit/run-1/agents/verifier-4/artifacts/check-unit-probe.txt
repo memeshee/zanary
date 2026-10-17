@@ -1,0 +1,32 @@
+CHECK: unit-level independent reproduction (verifier-4 probe module appended to the disposable
+sandbox copy of crates/report/src/receipt.rs; production lines unchanged - the appended block
+starts after line 521, module source kept in check-probe-module.txt).
+
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v .../zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro \
+    -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-report \
+    verifier4_probe -- --nocapture --test-threads=1'
+
+VERBATIM:
+running 1 test
+test receipt::verifier4_probe::v4_fixtures_and_panics ...
+thread 'receipt::verifier4_probe::v4_fixtures_and_panics' (841) panicked at crates/report/src/receipt.rs:359:36:
+end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+V4-A verify_signature(signer="a\u20ac") PANICKED: end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+
+thread 'receipt::verifier4_probe::v4_fixtures_and_panics' (841) panicked at crates/report/src/receipt.rs:190:30:
+end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+V4-B short(key) PANICKED: end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+V4-ctrl short(ascii 64 hex) = 280f51c8…55ae602e
+V4-ctrl short(short ascii)   = abcdef
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 2.07s
+
+Facts established here:
+ - both panics carry the exact slice sites the candidate names (359:36 and 190:30);
+ - the ASCII controls slice fine in the same build (no miscompilation, no build-config dependence);
+ - the variant-B fixture was signed BEFORE the attestation was attached and verify_signature +
+   validate_claim still pass, i.e. the attestation is outside the signed bytes (independent
+   confirmation of the crate's own test at receipt.rs:487-504).

@@ -1,0 +1,60 @@
+
+
+#[cfg(test)]
+mod verifier38_tests {
+    use super::*;
+
+    #[test]
+    fn verifier38_seed7_reproduces_recorded_draws() {
+        let definition: FlowDefinition = serde_json::from_str(
+            r#"{"flow_id":"jitter-probe","invoices":[{"invoice_id":"1","amount_zat":1000}],"jitter_blocks":[1,4294967295],"jitter_seed":7}"#,
+        )
+        .expect("the definition parses");
+        let mut jitter = Jitter::from_definition(&definition);
+        let mut draws = Vec::new();
+        for _ in 0..32 {
+            draws.push(jitter.next());
+        }
+        println!("V38-DRAWS {draws:?}");
+        println!(
+            "V38-FIRST {} V38-MAX {} V38-SUM {}",
+            draws[0],
+            draws.iter().max().unwrap(),
+            draws.iter().sum::<u64>()
+        );
+        assert_eq!(
+            draws,
+            vec![1789459390u64, 130212073u64, 612261766u64, 1318925544u64, 260816077u64, 612643398u64, 2799673497u64, 2330093573u64, 2657231286u64, 1170366893u64, 3165678560u64, 4085077839u64, 2560095442u64, 753601963u64, 3193626250u64, 1102801312u64, 2018744231u64, 537818331u64, 1618899307u64, 3107202351u64, 2155820754u64, 2743952396u64, 1690509317u64, 88590261u64, 400456920u64, 365259399u64, 1363027663u64, 1605857143u64, 1210644521u64, 2700947112u64, 3381075689u64, 3787269421u64],
+            "seed-7 draws must reproduce the artifact sequence draw-for-draw"
+        );
+    }
+
+    #[test]
+    fn verifier38_range_is_shape_only() {
+        let parse = |j: &str| -> FlowDefinition { serde_json::from_str(j).expect("the definition parses") };
+        let def = parse(
+            r#"{"flow_id":"e","invoices":[{"invoice_id":"1","amount_zat":1000}],"jitter_blocks":[4294967295,4294967295],"jitter_seed":1}"#,
+        );
+        let mut jitter = Jitter::from_definition(&def);
+        let v = jitter.next();
+        println!("V38-EDGE {v}");
+        assert_eq!(v, 4294967295u64, "degenerate range must be accepted and draw u32::MAX");
+        let def = parse(
+            r#"{"flow_id":"m","invoices":[{"invoice_id":"1","amount_zat":1000}],"jitter_blocks":[2,1],"jitter_seed":1}"#,
+        );
+        let mut jitter = Jitter::from_definition(&def);
+        let vs: Vec<u64> = (0..3).map(|_| jitter.next()).collect();
+        println!("V38-BAD {vs:?}");
+        assert_eq!(vs, vec![3u64, 3, 3], "malformed range must fall back to fixed 3");
+        let def = parse(
+            r#"{"flow_id":"r","invoices":[{"invoice_id":"1","amount_zat":1000}],"jitter_blocks":[1,4294967295],"jitter_seed":7}"#,
+        );
+        let jitter = Jitter::from_definition(&def);
+        let described = jitter.describe();
+        println!("V38-DESCRIBE {described}");
+        assert!(
+            described.contains("1-4294967295"),
+            "range must be held verbatim: {described}"
+        );
+    }
+}

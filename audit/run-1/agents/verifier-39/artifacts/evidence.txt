@@ -1,0 +1,73 @@
+verifier-39 phase-5 verdict evidence — zanary/unchecked-zat-sum-overflow
+========================================================================
+
+Decision: VERIFIED (record holds as written; two non-material wording nits in notes below).
+
+Target: /home/kiter/hackathon/zanary @ 7058406 (worktree clean, verified at start and end; the
+target was never written to). Sandbox: approved /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2
+copy, source byte-identical to the commit (see check-sandbox-integrity.txt). All reproduction ran
+under the approved docker command with --network=none.
+
+1. Source references — every one re-read at 7058406 and confirmed:
+   - flow.rs:251  `serde_json::from_str` of the --definition file inside run_recording (fn at 247);
+                  entry point of the untrusted input.
+   - flow.rs:62   InvoiceSpec { invoice_id: String, amount_zat: u64, memo_template } — plain serde
+                  derive, no custom deserializer, no bound on amount_zat.
+   - flow.rs:253-297 the load-time validation block: non-empty invoices, receiver_strategy,
+                  receipt_account vs merchant_account, settlement batch-uniqueness. Amounts are
+                  never looked at. (Line 290 `seen.push(invoice.amount_zat)` only checks duplicates.)
+   - flow.rs:336  `.sum::<u64>() as i128` in the run-header println — the sum that panics in dev.
+   - flow.rs:1182-1183 shortfall(): `sum()` unchecked at 1182, `saturating_add(fee_budget_zat(..))`
+                  at 1183 — the fee term is bounded, the invoice sum is not (sibling-control outlier).
+   - flow.rs:1291-1298 funding_target(): `.sum::<u64>()` at 1296 + `fee_budget_zat(...)` with plain
+                  `+` at 1297; result is the top-up target consumed at flow.rs:424.
+   - flow.rs:357  NodeRpc::from_env() — comes AFTER the header sum; so the dev panic is before any
+                  node or wallet work (wallet bootstrap at flow.rs:376+ is even later).
+   - ops.rs:900-912 propose_shielded_payments: per-payment `Zatoshis::from_u64(*zats)` bound at 912
+                  (rejects one amount > MAX_MONEY; never a total). ops.rs:964-983 pay(): same
+                  per-amount bound at 983 for `pay --invoice`.
+   - No [profile] section anywhere (root Cargo.toml + 4 crate manifests = the 5 workspace
+                  manifests); no RUSTFLAGS/overflow-checks/debug-assertions overrides anywhere.
+   - Builds that use --release: action.yml:80, .github/workflows/privacy-gate.yml:135 and :236,
+                  scripts/demo-run.sh:28-29, scripts/bounded-payer-demo.sh:18.
+   - Dev build: docs/FLOW-RUNNER-NOTES.md:477 (`./target/debug/zanary-probe flow --definition ...`)
+                  and scripts/agent-pay-loop.sh:20 (BIN=./target/debug/zanary-probe).
+   - Within flow.rs the only amount sums are exactly 336, 1182, 1296 (grep of `.sum::<u64>()` /
+                  `.sum()`); payer.rs:437/524 has the same shape but is the peer-owned unit, not
+                  claimed here.
+
+2. Reproduction (my own, from the pristine sandbox copy; transcripts in
+   check-dev-release-split.txt and check-raw-sum-and-benign.txt):
+   - evil-sum.json: 144 bytes, sha256 6bf0d811…d89b5b — exactly the claimed payload.
+   - dev: exit 101, `attempt to add with overflow` at accum.rs:206:1, backtrace frames
+     flow.rs:336:18 <- flow.rs:230:38 <- main.rs:46:41 — exactly the frames the record cites.
+   - release: no panic; header prints `invoices : 2 (184467440737.09551614 ZEC total)` (the wrapped
+     2^64-2), then proceeds to the node step (exit 1, Connection refused — no node in sandbox).
+   - flow commit printed: 51b8f57faad49badfeb9a0c963fc86b6229ceed6910a74ee08f12e529b23f02c —
+     independently re-derived as sha256 of the serde-canonical definition JSON, matches the record.
+   - raw-sum contrast: unoptimized panics (101); `-O` prints 18446744073709551614 (exit 0).
+   - benign control (2x100,000 zat): both builds print 0.00200000 ZEC total, reach the node step.
+
+3. Affected principal / impact — as written, not strengthened:
+   This is the local regtest harness tool the operator runs on its own throwaway wallet; the
+   definition file is caller-supplied. Dev build: abort before any wallet/node work (no diagnostic
+   naming the invoice). Release build: wrong total, run proceeds, later per-amount checks
+   (ops.rs:912/983) or the node error stop it. No funds/keys/authority exposure, no memory-safety
+   or privilege claim — the record's low/low/low severity and its "nothing stronger than the claim
+   was observed" confidence statement are consistent with what I reproduced.
+
+4. Remediation — sound: validate amounts (1..=MAX_MONEY) and accumulate the total with checked_add
+   in run_recording beside the existing checks (the last trusted point where the definition enters),
+   then have the three sum sites consume the validated total. That enforces the invariant where the
+   untrusted values first arrive rather than moving trust downstream. The proposed snippet's
+   `total_zat` consumption covers the three flow.rs sites; no other flow.rs sum exists (see 1).
+
+Non-material notes (wording only; parent may ignore):
+  a. "the build docs/FLOW-RUNNER-NOTES.md:477 and scripts/agent-pay-loop.sh:20 use for `flow`" —
+     docs:477 does run `flow` with the debug binary; agent-pay-loop.sh:20 does set BIN to the debug
+     binary, but the script drives `invoice` / `pay --invoice` / `verify-invoice`, not `flow`. The
+     dev-build claim itself (and the reason the dev binary matters) is unaffected.
+  b. "The only amount bounds are per-amount Zatoshis::from_u64 checks (ops.rs:912 …, ops.rs:983 …)"
+     — a third per-amount from_u64 bound exists at flow.rs:1612 (issue_invoice, an operator command
+     off the definition path). The substantive claim (per-amount only, never a total, none at
+     definition load) holds.

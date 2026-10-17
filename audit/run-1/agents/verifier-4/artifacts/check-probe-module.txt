@@ -1,0 +1,138 @@
+
+// ---------------------------------------------------------------------------
+// verifier-4 independent probe — appended to this disposable sandbox copy only.
+// No production line above this marker was changed. Purpose: generate the two
+// receipt fixtures used at CLI level, and reproduce both panics under
+// catch_unwind so the message and location are recorded verbatim.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod verifier4_probe {
+    use super::*;
+    use orchard::keys::{FullViewingKey, SpendAuthorizingKey, SpendingKey};
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    const TX: &str = "44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e";
+    const MEMO: &str = "60016cf4bf951820ab397c737584734efac9c519a1f8964e8e8d749c62c50748";
+    const OUT: &str = "/t/v4";
+
+    fn keypair(seed_byte: u8) -> (SpendingKey, String) {
+        let sk = SpendingKey::from_bytes([seed_byte; 32])
+            .into_option()
+            .expect("a valid spending key");
+        let ak = ak_of_orchard_fvk(&FullViewingKey::from(&sk));
+        (sk, hex_encode(&ak))
+    }
+
+    fn sign_with(sk: &SpendingKey, payload: &[u8]) -> String {
+        let key =
+            SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64));
+        signature_to_hex(&key.sign(rand::rngs::OsRng, payload))
+    }
+
+    fn receipt_body() -> String {
+        format!(
+            "{{\"amount_zat\":1234567,\"invoice_id\":\"4471\",\"memo_sha256\":\"{MEMO}\",\"txid\":\"{TX}\"}}"
+        )
+    }
+
+    fn clean_receipt() -> Receipt {
+        let (sk, ak) = keypair(9);
+        let mut receipt = Receipt {
+            label: "verifier-4 fixture".to_string(),
+            format: "zanary-receipt-v1".to_string(),
+            body: receipt_body(),
+            claims: vec![format!(
+                "invoice 4471 was paid 1234567 zatoshis in transaction {TX}"
+            )],
+            discloses: Vec::new(),
+            signer: Some(ak),
+            signature: None,
+            attestation: None,
+        };
+        let payload = signing_payload(&receipt).expect("payload");
+        receipt.signature = Some(sign_with(&sk, &payload));
+        receipt
+    }
+
+    fn attestation_of(receipt_key: String) -> ReceiptAttestation {
+        let (wallet_sk, wallet_ak) = keypair(7);
+        let mut att = ReceiptAttestation {
+            format: "zanary-receipt-attestation-v1".to_string(),
+            receipt_key,
+            wallet_ak,
+            signature: String::new(),
+        };
+        let payload = attestation_payload(&att).expect("payload");
+        att.signature = sign_with(&wallet_sk, &payload);
+        att
+    }
+
+    fn panic_message(p: &(dyn std::any::Any + Send)) -> String {
+        if let Some(s) = p.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = p.downcast_ref::<&str>() {
+            (*s).to_string()
+        } else {
+            "(non-string panic payload)".to_string()
+        }
+    }
+
+    #[test]
+    fn v4_fixtures_and_panics() {
+        std::fs::create_dir_all(OUT).expect("create /t/v4");
+
+        // (1) clean control
+        let clean = clean_receipt();
+        let clean_signer = clean.signer.clone().unwrap();
+        std::fs::write(
+            format!("{OUT}/clean.json"),
+            serde_json::to_string_pretty(&clean).unwrap(),
+        )
+        .unwrap();
+
+        // (2) variant-B control: valid receipt + genuine attestation, ASCII receipt_key
+        let mut ascii = clean_receipt();
+        ascii.attestation = Some(attestation_of(clean_signer.clone()));
+        verify_signature(&ascii).expect("the signature must still verify with an attestation");
+        validate_claim(&ascii).expect("claims must pass");
+        std::fs::write(
+            format!("{OUT}/receipt-b-ascii.json"),
+            serde_json::to_string_pretty(&ascii).unwrap(),
+        )
+        .unwrap();
+
+        // (3) variant-B trigger: identical receipt, only receipt_key carries a multi-byte char
+        let mut nonascii = clean_receipt();
+        assert_eq!(nonascii.signer.as_deref(), Some(clean_signer.as_str()));
+        nonascii.attestation = Some(attestation_of("aaaaaaa\u{20ac}bbbbbbbbbbbbbb".to_string()));
+        verify_signature(&nonascii).expect("the signature must still verify with an attestation");
+        validate_claim(&nonascii).expect("claims must pass");
+        std::fs::write(
+            format!("{OUT}/receipt-b-nonascii.json"),
+            serde_json::to_string_pretty(&nonascii).unwrap(),
+        )
+        .unwrap();
+
+        // (4) unit-level variant A: the same input the CLI payload carries
+        let mut a = clean_receipt();
+        a.signer = Some("a\u{20ac}".to_string());
+        a.signature = Some("00".to_string());
+        match catch_unwind(AssertUnwindSafe(|| verify_signature(&a))) {
+            Err(p) => println!(
+                "V4-A verify_signature(signer=\"a\\u20ac\") PANICKED: {}",
+                panic_message(&*p)
+            ),
+            Ok(v) => println!("V4-A no panic: {:?}", v.map(|_| ())),
+        }
+
+        // (5) unit-level variant B: the exact string the CLI-file for it carries
+        match catch_unwind(|| short("aaaaaaa\u{20ac}bbbbbbbbbbbbbb")) {
+            Err(p) => println!("V4-B short(key) PANICKED: {}", panic_message(&*p)),
+            Ok(v) => println!("V4-B no panic: {v:?}"),
+        }
+
+        // (6) negative control: ASCII slices fine
+        println!("V4-ctrl short(ascii 64 hex) = {}", short(&clean_signer));
+        println!("V4-ctrl short(short ascii)   = {}", short("abcdef"));
+    }
+}

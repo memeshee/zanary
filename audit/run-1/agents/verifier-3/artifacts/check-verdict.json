@@ -1,0 +1,149 @@
+{
+  "decision": "confirmed",
+  "record": {
+    "verdict": "confirmed",
+    "fingerprint": "crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields",
+    "title": "Report CLI truncates untrusted report/run JSON fields by byte index and panics (exit 101) instead of returning a verdict",
+    "description": "The zanary-report CLI deserializes a report/run file supplied by the claim's publisher and passes its flow_commit and report_hash into the display helpers short()/short_tail(), which truncate with byte indices. Any value whose truncation offset falls inside a multi-byte UTF-8 character aborts the process with a char-boundary panic, before or while the checks are printed. The verifier is documented as the stranger's check on a claim it does not trust ('Nothing here may depend on the reporter's honesty', crates/report/src/lib.rs:10; the fixtures README invites editing a report and re-running), and the tool's contract is exit 0 on pass, 1 on any mismatch, 2 on error; the trigger reaches the panic with no node, no indexer and no keys.",
+    "root_cause": "short() (crates/report/src/main.rs:760-765) formats `&hash[..12]` (line 762) and short_tail() (main.rs:283-288) formats `&value[..8]`/`&value[value.len() - 8..]` (line 287); the matrix renderer (matrix.rs:109 and :148, and the CLI summary at main.rs:226) slices `&column.commit[..8.min(len)]`. The inputs are Report.flow_commit / Report.report_hash / FlowRun.flow_commit deserialized from caller-supplied JSON (crates/report/src/lib.rs:33-55, crates/observation/src/lib.rs:154-157) and never validated as ASCII or hex, so the slices are not on guaranteed char boundaries. The identical helper shape is duplicated in crates/report/src/verify.rs:849-855 (used at verify.rs:673, the report-hash-mismatch branch, which a hostile report_hash always takes because the recomputed value is a 64-char hex digest), and also at crates/report/src/index.rs:136-138 (applied to report.flow_commit/report_hash at index.rs:298/314/326) and crates/report/src/receipt.rs:188-190 (applied to attestation key strings at receipt.rs:145-153).",
+    "intended_behavior": "Fields that stand in for hashes should be validated at intake (or the truncation made character-safe), and every command should end in its documented verdict: verify exits 0 when every check passes, 1 on any mismatch, 2 on error; matrix either renders or fails with a diagnostic. A report the verifier does not trust must be handled as data, never as something that can terminate the process.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "crates/report/src/main.rs",
+        "line": 517,
+        "scope": "fn verify(args: &[String])",
+        "description": "`zanary-report verify <report.json>` reads and deserializes the caller-supplied report (main.rs:521-523) with no validation of flow_commit or report_hash."
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/report/src/main.rs",
+        "line": 545,
+        "scope": "fn verify — banner println (statement at 542-546)",
+        "description": "The untrusted report.flow_commit (and, in build, the untrusted run.flow_commit) is passed to the display helper short() at the call on line 545 while the first output line is formatted."
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/report/src/verify.rs",
+        "line": 673,
+        "scope": "fn Verifier::run — report-hash-mismatch branch",
+        "description": "The same untrusted report.report_hash reaches verify.rs's own copy of short() (verify.rs:851) exactly in the branch that exists to print the mismatch — the branch a hostile report_hash always takes, since the recomputed hash is 64 hex ASCII characters."
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/report/src/matrix.rs",
+        "line": 109,
+        "scope": "fn render_markdown",
+        "description": "matrix --runs <dir> copies run.flow_commit into RunColumn.commit (matrix.rs:69) and byte-slices it at [..8] (also matrix.rs:148, main.rs:226), aborting before the LEAK-MATRIX artifact is written."
+      },
+      {
+        "kind": "sink",
+        "file": "crates/report/src/main.rs",
+        "line": 762,
+        "scope": "fn short",
+        "description": "`&hash[..12]` panics with 'end byte index 12 is not a char boundary' when the field's byte 12 falls inside a multi-byte UTF-8 character: stdout stays empty, no check line and no verdict is produced, exit code 101 (observed panic location main.rs:762:29)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 762,
+        "description": "The failing expression `&hash[..12]` in short(); used by verify (main.rs:545), build (main.rs:629) and verify-anchor (main.rs:392). Reproduced panics at 762:29 in the verify, build and verify-anchor runs."
+      },
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 287,
+        "description": "short_tail()'s `&value[..8]` and `&value[value.len() - 8..]`, reached from verify-anchor with an operator --root that disagrees with the report; reproduced panic at 287:28."
+      },
+      {
+        "file": "crates/report/src/verify.rs",
+        "line": 851,
+        "description": "Second copy of the same helper, used at verify.rs:673 on report.report_hash in the hash-mismatch branch; reproduced panic at 851:29."
+      },
+      {
+        "file": "crates/report/src/matrix.rs",
+        "line": 109,
+        "description": "`&column.commit[..8.min(column.commit.len())]`; commit comes straight from the parsed run.json at matrix.rs:69; reproduced panic at 109:27."
+      },
+      {
+        "file": "crates/report/src/lib.rs",
+        "line": 33,
+        "description": "Report is a plain derive (struct at line 33; flow_commit at 36, report_hash at 54) with both fields unvalidated Strings — the untrusted source of both fields."
+      },
+      {
+        "file": "crates/report/src/main.rs",
+        "line": 49,
+        "description": "main() documents the exit contract: Ok(code) -> exit(code), Err -> exit(2); a panic bypasses it with exit 101 (controls: benign verify 1, missing file 2, benign build/matrix 0; hostile inputs 101)."
+      },
+      {
+        "file": "crates/report/src/index.rs",
+        "line": 136,
+        "description": "Third copy of the same helper shape (`&hash[..12]` at 138), applied to report.flow_commit and report_hash while rendering the index (index.rs:298/314/326). Source-verified, not executed here."
+      },
+      {
+        "file": "crates/report/src/receipt.rs",
+        "line": 188,
+        "description": "Fourth copy (`&hex[..8]`/`&hex[hex.len() - 8..]` at 190), applied to receipt attestation key strings (receipt.rs:145-153). Source-verified, not executed here."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "a report/run JSON field (flow_commit or report_hash) contains a multi-byte UTF-8 character straddling byte 12 for short(), byte 8 for the matrix/8-byte slices, or bytes 8 / len-8 for short_tail(); the rest of the file only has to parse (reproduced with U+00E9: 'aaaaaaaaaaaé' 13 bytes, 'abcdefgé' 9 bytes, 'bbbbbbbbbbbé' 13 bytes)"
+      },
+      {
+        "kind": "user_interaction",
+        "description": "the operator runs zanary-report verify/build/matrix/verify-anchor over a report or run directory written by someone else — the documented stranger-checks-a-claim usage (fixtures README: 'try editing one hex digit of a txid in a copy and re-running')"
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Whoever publishes the claim sets flow_commit (or report_hash) to a string with a non-ASCII character at the truncation offset. Nothing else in the report needs to be valid: the verifier, the builder and the matrix renderer all abort while formatting their first output. The verifier needs no node, no indexer and no keys for the crash, so the trigger works against an offline check.",
+      "payloads": [
+        "Report JSON: {\"version\":1,\"flow_id\":\"regtest-checkout\",\"flow_commit\":\"aaaaaaaaaaa\\u00e9\",\"chain\":\"regtest\",\"verified_at_height\":100,\"findings\":[],\"evidence\":[],\"merchant_is_simulated\":true,\"report_hash\":\"<64 zeros>\"} -> zanary-report verify v1_hostile_commit_report.json",
+        "Report JSON, same shape, with \"report_hash\":\"bbbbbbbbbbb\\u00e9\" and an ASCII flow_commit -> zanary-report verify v2_hostile_hash_report.json",
+        "FlowRun JSON: \"flow_commit\":\"aaaaaaaaaaa\\u00e9\" -> zanary-report build --run hostile_run_build.json --out out/b1_report.json",
+        "FlowRun JSON in a run directory (with findings.json []): \"flow_commit\":\"abcdefg\\u00e9\" -> zanary-report matrix --runs runs2-hostile --out out2/m1.md",
+        "CLI arguments only: zanary-report verify-anchor --root \"ccccccccccc\\u00e9\" --beacon-ufvk uview1invalid ; and with a parseable report beside it: zanary-report verify-anchor --report benign_report_for_anchor.json --root \"aaaaaaa\\u00e9zzzzzzzzzzzzzzzz\" --beacon-ufvk uview1invalid"
+      ],
+      "instructions": [
+        "Use the approved disposable copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (git archive HEAD with rust-toolchain.toml removed); before running, `diff -r` against a fresh git archive HEAD confirmed every production file identical — the only deltas in the copy are #[cfg(test)]-only appended modules added by other hunters (crates/probe/src/main.rs, crates/report/src/receipt.rs), which `cargo build` does not compile.",
+        "Rebuild offline inside the sandbox: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-report; sh /t/verifier3-checks/run.sh' (build exit 0, Finished in 40.38s; binary sha256 2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60).",
+        "Write the fixtures above into /t/verifier3-checks/ (e-acute stored as JSON \\u00e9 so the files are ASCII on disk; the --root arguments built with printf octal bytes), one benign control per command included.",
+        "Capture stdout, stderr and the exit code per command under /t/verifier3-checks/out/; no node, indexer, network or wallet is involved (the panics happen before any connect)."
+      ],
+      "observed_result": "Independent sandbox reproduction. verify with hostile flow_commit: exit 101, stdout EMPTY, stderr \"panicked at crates/report/src/main.rs:762:29: end byte index 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)\". verify with hostile report_hash: exit 101, stdout banner + chain line only, stderr \"panicked at crates/report/src/verify.rs:851:29\" (same boundary message). build: stdout \"built out/b1_report.json\", out/b1_report.json exists (4122 bytes), exit 101, stderr \"panicked at crates/report/src/main.rs:762:29\". verify-anchor --root: exit 101, stdout empty, \"panicked at crates/report/src/main.rs:762:29\"; with --report and mismatching --root: exit 101, stdout empty, \"panicked at crates/report/src/main.rs:287:28: end byte index 8 is not a char boundary\". matrix: exit 101, stdout empty, \"panicked at crates/report/src/matrix.rs:109:27\", out2/m1.md not written. Benign controls: verify exit 1 with the full check list and NOT VERIFIED; missing-file verify exit 2; build exit 0 (artifact 4133 bytes, flow line printed); matrix exit 0 with out2/m0.md rendered (654 bytes). No memory-safety, confidentiality or privilege effect observed in any run."
+    },
+    "remediation": {
+      "strategy": "Make the display truncation character-safe and stop accepting non-hash text in hash fields. Either reject at intake (validate that flow_commit/report_hash are ASCII hex before anything else runs, exiting 2 with the existing error style) or truncate on character boundaries; add one regression case per command that feeds a multi-byte field and asserts the documented exit code. The same two-line helper shape is duplicated in the verify, index and receipt modules; the fix should replace every copy (main.rs, verify.rs, matrix.rs including the CLI summary at main.rs:226, index.rs, receipt.rs) so a later caller cannot reintroduce the byte slice.",
+      "code_changes": [
+        {
+          "file_name": "crates/report/src/main.rs",
+          "fixed_code": "fn short(hash: &str) -> String {\n    // Char-safe: never split a UTF-8 character. Validate: reject non-ASCII in hash fields.\n    let head: String = hash.chars().take(12).collect();\n    if hash.chars().count() > 12 {\n        format!(\"{head}…\")\n    } else {\n        hash.to_string()\n    }\n}\n\nfn short_tail(value: &str) -> String {\n    if value.chars().count() <= 20 {\n        return value.to_string();\n    }\n    let chars: Vec<char> = value.chars().collect();\n    let head: String = chars[..8].iter().collect();\n    let end: String = chars[chars.len() - 8..].iter().collect();\n    format!(\"{head}…{end}\")\n}\n"
+        },
+        {
+          "file_name": "crates/report/src/matrix.rs",
+          "fixed_code": "let short_commit: String = column.commit.chars().take(8).collect();\nout.push_str(&format!(\" {} `{}` |\", column.flow_id, short_commit));\n// same for matrix.rs:148 (and the CLI summary at main.rs:226)\n"
+        },
+        {
+          "file_name": "crates/report/src/verify.rs",
+          "fixed_code": "fn short(hash: &str) -> String {\n    let head: String = hash.chars().take(12).collect();\n    if hash.chars().count() > 12 { format!(\"{head}…\") } else { hash.to_string() }\n}\n\n// plus a regression test:\n//   let report = serde_json::from_str(r#\"{\"version\":1,\"flow_id\":\"x\",\"flow_commit\":\"aaaaaaaaaaaé\",\n//     \"chain\":\"regtest\",\"verified_at_height\":1,\"findings\":[],\"evidence\":[],\n//     \"merchant_is_simulated\":true,\"report_hash\":\"0\".repeat(64)}\"#).unwrap();\n//   assert!(hash_report(&report).is_ok()); // verify_report must return a verdict, not abort\n"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "The trigger is a few bytes in a JSON field the claimant fully controls and no layer validates them, but this rig's own pipeline always writes ASCII hex hashes, so it takes an adversarial or hand-authored claimant rather than ordinary operation."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Observable effect is safe process termination: the checking process aborts (exit 101) and produces no verdict, replacing the documented 0/1/2 contract; build additionally exits 101 after writing its artifact, so automation sees a failure with output on disk. No memory-safety, confidentiality or privilege effect was observed, and the failure is fail-closed for a verifier."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Complete source trace from the parsed JSON field to the exact panicking expressions, re-derived line by line, then reproduced end-to-end in the approved sandbox: verify/build/matrix/verify-anchor all exit 101 with the predicted char-boundary panics at main.rs:762:29, verify.rs:851:29, main.rs:287:28 and matrix.rs:109:27, with a benign control for every command showing the documented behaviour."
+    }
+  }
+}

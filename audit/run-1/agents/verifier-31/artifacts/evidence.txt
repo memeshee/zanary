@@ -1,0 +1,125 @@
+Phase-5 record verification — verifier-31 on `zanary/payer-budget-excludes-fees`
+=================================================================================
+Target: /home/kiter/hackathon/zanary, commit 70584064b8d5d4a2c96c49ad16ad531573cdc5ef
+("docs: the re-derivable numbers, ..."), worktree clean (`git status --porcelain` empty).
+Record checked: the `confirmed` record in run-1/findings.json[10]; it is byte-identical to the
+copy carried in verifiers/prompt-record-verifier-31.md (compared programmatically: equal).
+Independence: this verifier did not hunt the candidate and did not run its Phase-3 validation.
+
+1. Source re-read of every trace/evidence path at 7058406 (all present, as described)
+-------------------------------------------------------------------------------------
+- docs/BOUNDED-PAYER.md:28 — "**budget** — the most the run may spend in total, checked
+  cumulatively in ledger order" — matches intended_behavior's quote. OK.
+- crates/observation/src/lib.rs:233-234 — PayerRun::spent_zat(): doc "Zatoshis actually spent
+  under this grant", body sums `amount_zat` of paid decisions only. OK.
+- crates/probe/src/payer.rs:119-128 — decide() budget rule: `let after =
+  spent_zat.saturating_add(invoice.amount_zat);` (119) compared `after > grant.budget_zat` (120);
+  fees never enter. OK.
+- crates/properties/src/properties/payer_policy.rs:77-90 — property re-derives `spent =
+  spent.saturating_add(decision.amount_zat)` (77) and compares `spent > grant.budget_zat` (84) —
+  the same principal-only number. OK.
+- crates/probe/src/payer.rs:528-530 — shortfall(): comment "one ZIP-317 fee per payment at 2
+  actions", code `let needed = needed.saturating_add(10_000 * to_pay.len() as u64);` (530). OK.
+- crates/probe/src/flow.rs:1165-1177 — fee_budget_zat(): per_invoice settlement budgets
+  10_000 * count (1176); batch form 10_000 + 5_000 * count (1174). Source-corroborates the
+  per-payment fee constant the payer uses. OK (sub-line pointer note below).
+- crates/probe/src/payer.rs:495-520 — load_invoices(): every *.json in the directory is loaded,
+  sorted by name; no count cap, no size cap, no minimum amount; bails only when the list is
+  empty. OK.
+- crates/probe/src/payer.rs:278, 286 — `shortfall(&payer, &to_pay)` then, when short,
+  `flow::top_up_for_target(profile, missing)`; flow.rs:1202 is top_up_for_target's definition
+  (top_up_payer_impl funds from the payer's coinbase / node wallet, outside the grant). OK.
+- crates/probe/src/payer.rs:291-310 — payment loop: one shielded tx per allowed invoice
+  (propose 307, build/sign/broadcast 308) plus `ops::mine_and_resync(&mut payer,
+  ops::CONFIRM_BLOCKS)` (309). crates/probe/src/ops.rs:59 — `CONFIRM_BLOCKS: u64 = 11`;
+  mine_and_resync (ops.rs:433) `node.generate(blocks)` then `core::sync_wallet(...)` — "one
+  11-block mining round and a wallet sync" per payment is accurate. OK.
+- crates/probe/src/payer.rs:428-440 — ledger summary "{paid} paid · {refused} refused · {spent}
+  of {budget}" sums paid amounts inline (format_zats_signed renders ZEC, e.g. "0.00001000 ZEC";
+  paraphrase note below). OK.
+- crates/probe/src/flow.rs:1544 — `pub amount_zat: u64` in Invoice: no minimum enforced;
+  `ops::parse_zec` accepts "0.00000001" (= 1 zat), so the target's own `invoice` command can
+  mint the exploit shape. OK.
+- scripts/bounded-payer-demo.sh:20-21 — ZANARY_PAYER_BUDGET_ZAT default 12000000,
+  ZANARY_PAYER_CAP_ZAT default 10000000 — the payload-#2 grant defaults are the real demo
+  defaults. OK.
+
+No source-visible preventing layer found: nothing bounds invoice count or minimum amount
+(grep: no min_amount/max_invoices/max_payments anywhere), the budget rule and the payer-policy
+re-derivation are both principal-only, and the observation model (PayerRun/PayerDecision) has no
+field for fees or real outflow; no other property in crates/properties/src/properties/ watches the
+payer's spend. The record's "no cap on how many invoices a run may load" holds.
+
+2. Sandbox reproduction (approved container, --network=none, rust:1-slim)
+-------------------------------------------------------------------------
+Sandbox copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (git archive HEAD, toolchain
+file removed). All production files identical to the target except an appended, cfg(test)
+verifier38_tests module in flow.rs (another verifier's, test-only, does not change production
+behaviour). This verifier added ONLY:
+  crates/probe/src/verifier31_check.rs            (own test module; calls the target's real
+                                                   payer::decide and PayerPolicy::check)
+  crates/probe/src/main.rs: three appended lines `#[cfg(test)] mod verifier31_check;`
+Command (exactly the approved form):
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+    -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe -- verifier31
+    --nocapture --test-threads=1'
+Result (transcript: check-verifier31-run.txt; module: check-verifier31-module.txt):
+  V31-1  real decide(): allowed 1000 x 1-zat invoices under a 1000-zat/400-cap grant, spent 1000;
+         1,001st -> "refused: paying 1 zat would take this run to 1001 of a 1000 zat budget";
+         payer's own fee model for 1000 payments = 10000000 zat (10_000/payment, payer.rs:530).
+         -> the record's observed_result is exactly reproduced (same allowance set, same spend,
+            same refusal string).
+  V31-1b same arithmetic for the demo-default shape: 12,000,000 x 1-zat invoices ->
+         120,000,000,000 zat under the payer's own model (arithmetic from the cited constant, not
+         a 12M-iteration rerun).
+  V31-2  real payer-policy property on a 1,000-row paid ledger: verdict=Pass; summary verbatim
+         "1000 paid · 0 refused · 1000 of 1000 zat spent (cap 400 per payment, ...)". ->
+         the record's "the ledger and payer-policy report 1,000 of 1,000 zat spent" holds.
+  V31-2b PayerRun::spent_zat() = 1000 zat for the same run (vs 10,000,000 zat under the payer's
+         own fee model). Test result: 2 passed; 0 failed (run twice, identical output).
+
+3. Affected principal / demonstrated impact / severity review
+-------------------------------------------------------------
+Affected principal: the operator who wrote the grant (funds the payer's wallet and mines the
+chain); resource: shielded-pool fees + node/mining work far beyond budget_zat. Demonstrated
+impact: the decision layer's verdict and the property's re-derivation both pass a spend whose
+per-payment cost is 10x the budget's nominal spend; the chain-observed fee is NOT claimed.
+Severity split per the audit anchors (SKILL.md): medium impact = "a real boundary violation with
+limited blast radius / consequences confined"; here the boundary violation is real but the loss is
+operator-owned demo-regtest fees on minted money — medium is right and high would be inflation.
+Overall severity = medium = demonstrated impact (rule "overall may not exceed impact" holds).
+Likelihood high is supported: the merchant-controlled invoice directory is the payer's normal,
+unbounded input (1-zat invoices are valid and issuable via the target's own tool). Confidence
+medium correctly flags that the fee magnitude is the payer's own funding constant (payer.rs:530),
+corroborated by flow.rs:1176, not a chain observation — the record already says so in
+confidence.reason and execution.observed_result, so no correction is needed there.
+
+4. Remediation review
+---------------------
+The two code_changes enforce the invariant at the last trusted decision point: add the per-payment
+ZIP-317 fee estimate (the same constant the payer's funding model uses, promoted to a named
+PAYMENT_FEE_ZAT) to decide()'s budget comparison and to the payer-policy re-derivation so the
+detector stays in step with the rule it judges, plus a cardinality bound (max_payments, serde
+default = unlimited) so the merchant cannot multiply the fixed per-payment cost (fee + 11-block
+round + wallet sync) arbitrarily. It fixes the rule where it is decided rather than moving trust:
+decide() remains the single decision point (payer.rs:246-270 loop), and payer-policy stays an
+independent re-derivation. No target file was modified.
+
+5. Non-material notes (do not change meaning or evidence)
+---------------------------------------------------------
+- execution.observed_result's "(10,000 zat per payment, payer.rs:530, matching flow.rs:1170)":
+  line 1170 is the batch-formula comment line; the per-invoice 10,000-zat rate is at flow.rs:1167
+  (doc) / 1176 (code) — inside the same, correctly cited 1165-1177 range.
+- "the ledger ... report[s] 1,000 of 1,000 zat spent": the payer's own ledger line renders the
+  numbers through format_zats_signed (payer.rs:429-439) as ZEC (e.g. "0.00001000 ZEC spent of
+  0.00001000 ZEC"); the verbatim "1000 of 1000 zat spent" text is the payer-policy summary, which
+  was reproduced exactly. The paraphrase is materially correct.
+
+Conclusion: every trace/evidence path, line, scope and described operation checks out at the
+frozen revision; the minimum observed result was reproduced twice on the target's real decide()
+and the real payer-policy property inside the approved sandbox; no preventing layer exists in the
+source; affected principal, impact and the medium/medium severity split are correctly stated and
+not inflated; the remediation enforces the invariant at the decision point. Record holds as
+written -> decision: verified.

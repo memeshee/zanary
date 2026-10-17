@@ -262,6 +262,28 @@ pub(crate) fn required_policy_for_recipient(recipient: &Address) -> (PrivacyPoli
     }
 }
 
+/// The pool the payment's value lands in, from the address that receives it.
+pub(crate) fn recipient_pool(recipient: &Address) -> zanary_observation::Pool {
+    // One function decides this for both the record and the spend policy above: a unified address
+    // that carries an Orchard receiver is paid *into Orchard* even when it also carries Sapling or
+    // transparent receivers, because the wallet picks the Orchard receiver — which is what
+    // `required_policy_for_recipient` already assumes. Keeping them in one place means the recorded
+    // pool legs and the policy can never disagree.
+    match recipient {
+        Address::Transparent(_) | Address::Tex(_) => zanary_observation::Pool::Transparent,
+        Address::Sapling(_) => zanary_observation::Pool::Sapling,
+        Address::Unified(ua) => {
+            if ua.has_orchard() {
+                zanary_observation::Pool::Orchard
+            } else if ua.has_sapling() {
+                zanary_observation::Pool::Sapling
+            } else {
+                zanary_observation::Pool::Transparent
+            }
+        }
+    }
+}
+
 /// Human-readable description of the recipient's receiver set.
 pub(crate) fn describe_address(recipient: &Address) -> String {
     match recipient {

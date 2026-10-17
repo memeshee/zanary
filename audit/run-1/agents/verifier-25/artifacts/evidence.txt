@@ -1,0 +1,29 @@
+verifier-25 (Phase-5) — evidence for record probe/payer.rs:load_invoices:nonregular-entry
+target: memeshee/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (git status clean; read-only)
+sandbox: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (docker rust:1-slim, --network=none)
+
+SOURCE RE-READ (target at 7058406; all lines verified by direct read)
+- payer.rs:150  --invoices parsed (payer::run) — entrypoint.
+- payer.rs:201  load_invoices() is the ONLY caller (grep: 2 hits, def 495 + call 201); runs before banner (210) and decide loop (249-250); no grant/kill-switch consult before it.
+- payer.rs:495-520 load_invoices; 498 read_dir loop; 503 extension=="json" is the only filter; 513 read_to_string (symlink-following, no deadline); 515 parse; no symlink_metadata/O_NOFOLLOW/timeout anywhere in crates/probe/src (grep).
+- dispatch crates/probe/src/main.rs:50 -> payer::run, no wrapper/timeout.
+- Calibration: report/src/main.rs:716 `if !candidate.is_file()` exists (anchor candidate; dir scan also is_file at 683) — wording "input paths" loose but non-material. privacy-gate.yml:223 `timeout-minutes: 60` in the payer job (starts 220). scripts/bounded-payer-demo.sh self-populates data/payer-demo/invoices (mkdir + invoice --out).
+- HEAD payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 (matches record).
+- Sandbox copy sources vs HEAD (whole crates/ tree): only appended cfg(test) modules differ (payer.rs had a verifier-14 append mid-session, restored to pristine before my build; crates/report/src/receipt.rs has a verifier-23 append; extra check bins verifier2/15_check). Probe binary built from pristine production code.
+
+INDEPENDENT REPRODUCTION (my own fixtures under /t/verifier25-fx, full driver /t/verifier25-fx/check.sh, run in approved sandbox)
+binary sha256 30435f8bf1d5962ecd2bc964aa015dd1cd567807616c21682146eeea9d8b6416 (byte-identical to hunter artifact's binary hash; rebuilt by me: touch payer.rs + cargo build --offline -p zanary-probe).
+A) control, plain inplace.json, revoked grant: exit 1; banner; "REFUSE inplace — refused: the grant was revoked (kill switch)"; then "Error: connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused".
+B) FIFO hang.json (+valid afterfifo.json), revoked grant: after 5s and 10s alive=yes, state=S, wchan=wait_for_partner, 0 bytes output, no fd for hang.json; SIGKILL at ~10s -> exit 137, log bytes 0. Never reached any REFUSE/decide.
+C) symlink link.json -> ../outside/outside.json (outside --invoices), permissive grant: "invoices : 1 in verifier25-fx/inv-link"; "ALLOW outside — paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)"; outside.json sha unchanged; run stops at offline RPC connect (exit 1).
+D) control: same bytes copied inside a directory -> identical ALLOW line, "invoices : 1 in verifier25-fx/inv-copy".
+=> reproduces every material claim of the record's observed_result.
+
+CHECKLIST
+1. All paths/lines/scopes/ops re-read and correct; single caller; no source-visible preventing layer (no type check, no O_NOFOLLOW, no deadline; refusal path unreachable while blocked).
+2. Entry interface exact: zanary-probe payer --grant <json> --invoices <dir> [--out] [--now] (USAGE 145-147; exercised).
+3. Conditions accurate: mkfifo/ln -s need only directory write; merchant side simulated (docs/BOUNDED-PAYER.md:70-71), demo/CI self-populate.
+4. Impact as demonstrated: intake availability (hang before any authority evaluation, even revoked) + weak dir-scoping bypass (read+queue outside file); no money moves, nothing persists, recovery = remove entry. Nothing stronger claimed.
+5. Severity: likelihood low / impact low / overall low — reasons match evidence; no inflation (CI timeout-minutes 60 bounds unattended hang).
+6. Remediation enforces invariant at selection (DirEntry::file_type() does not traverse symlinks; regular-file only) + symlink_metadata bail in read loop + intake deadline; does not move trust.
+VERDICT: record holds as written. Non-material nit only: calibration wording of report main.rs:716.

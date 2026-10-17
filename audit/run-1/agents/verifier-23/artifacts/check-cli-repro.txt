@@ -1,0 +1,54 @@
+CASE=a EXIT=101
+--- stdout ---
+receipt   : /t/v4/payload-a.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+--- stderr ---
+
+thread 'main' (8) panicked at crates/report/src/receipt.rs:359:36:
+end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+====
+CASE=b EXIT=101
+--- stdout ---
+receipt   : /t/v4/receipt-b-nonascii.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+--- stderr ---
+
+thread 'main' (17) panicked at crates/report/src/receipt.rs:190:30:
+end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+====
+CASE=ascii EXIT=0
+--- stdout ---
+receipt   : /t/v4/receipt-b-ascii.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+attested  : receipt key 280f51c8…55ae602e is attested by wallet key 6ebb833c…11737b07 — verify the binding with --fvk <that wallet's UFVK>
+
+  summary: signature verified offline (no node, no indexer, no rig)
+--- stderr ---
+====
+CASE=clean EXIT=0
+--- stdout ---
+receipt   : /t/v4/clean.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+binding   : none — the receipt names a receipt key and carries no attestation, so it is bound to no wallet. That is the design, not a defect: publishing it reveals which receipt key issued it and nothing about the wallet behind it.
+
+  summary: signature verified offline (no node, no indexer, no rig)
+--- stderr ---
+====

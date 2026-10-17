@@ -1,0 +1,35 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.19s
+     Running unittests src/lib.rs (target/debug/deps/zanary_report-6118578dea32949a)
+
+running 1 test
+test receipt::verifier23_probe::verifier23_probe ... verifier23 receipt_ak=280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+verifier23 wallet_ak=6ebb833c1d2f8433080abceabe47906097f90678d603f577d0486c9111737b07
+verifier23 wrote fixtures to /t/v23
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.48s
+
+     Running unittests src/main.rs (target/debug/deps/zanary_report-106d777808b79987)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/golden.rs (target/debug/deps/golden-2bc64119d54c47c0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/verifier24_probe.rs (target/debug/deps/verifier24_probe-5dab1ff062ba8fba)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/verifier5_probe.rs (target/debug/deps/verifier5_probe-6fd28a77f73a5c1c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+

@@ -1,0 +1,54 @@
+verifier-36 — Phase-5 record verification for zanary/rig-image-tags-unpinned
+record source: /home/kiter/security-audit-skill/zanary/run-1/findings.json (verdict needs_validation)
+target: /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef (worktree clean; verified)
+date: 2026-10-17  |  method: read-only source inspection (git grep, sed/awk line reads, sha256sum).
+No target code executed; no registry contact; no image pull/inspect; no network; rig containers/ports untouched.
+
+1. Every trace/evidence line re-read on the read-only checkout:
+ - harness/docker-compose.yml:9 `image: electriccoinco/zcashd:latest`; :34 `image: electriccoinco/lightwalletd:latest`;
+   no @sha256, no pull_policy, no platform anywhere in the file (grep platform: no hit; tree-wide 'platform:' 0 hits).
+   lightwalletd service (33-58) mounts nothing (no volumes key). Both compose image refs are the only tracked image refs.
+ - harness/up.sh:60 `docker compose up -d` (resolution point); :116 the only docker inspect in the tree
+   (`git grep 'docker inspect'` = 1 hit), reads `.State.Running` (liveness only).
+ - action.yml:85 `run: harness/up.sh` ("start the throwaway chain"); :157 rig-diagnostics prints `{{.Image}}`
+   via `docker ps -a` (name:tag only); header :1/:7 documents `uses: memeshee/zanary@main` (also docs/CI.md:49).
+ - .github/workflows/privacy-gate.yml:23 cron `"17 4 * * 1"`; :87 `- uses: ./` (gate job, starts :64);
+   :239 `run: harness/up.sh` (payer job, starts :220); publish job :110+, render region :151-164 (`:110-163` accurate),
+   Pages deploy via upload-pages-artifact :209 / deploy-pages :215; all jobs runs-on: ubuntu-latest (fresh VMs).
+ - crates/report/src/lib.rs:33-54 Report struct: version, flow_id, flow_commit, chain, verified_at_height,
+   verified_at, ttl_seconds, findings, evidence, merchant_is_simulated, report_hash — no image/digest/container identity.
+ - crates/report/src/verify.rs:697 is `match self.opts.node.chain_name() {`; the cited equality
+   `chain == self.report.chain` is at :698; chain_name() (node.rs:161-167) returns getblockchaininfo.chain.
+   -> line cited one line early; non-material (the sanity check opens at :697).
+ - crates/probe/src/gate.rs:156 `let verification = verify_report(&report, &opts).await?;`, :165
+   `let chain_verified = verification.verified();`, :181 `ops::anchor(` inside the "publish the evidence root"
+   section (comment :176, anchor memo comment at :188); summary fields :348 `"chain_verified"`.
+ - harness/HARNESS.md:54-55 `:latest` (v6.20.0)/(v0.5.5); README.md:75 same; README.md:111/114 one-command;
+   docs/SUBMISSION.md:36 one command; docs/CI.md:113 "the run has a timestamp nobody had to be trusted for";
+   scripts/phase0-warmup.sh:29 lists `electriccoinco/zcashd:latest`, :31 is the only `docker pull` in the tree.
+ - flow runner sets chain "regtest" as a self-asserted string (flow.rs:396, payer.rs:394).
+
+2. Mechanical claims re-derived (all match):
+   git grep '@sha256:' -> 0; 'pull_policy' -> 0; 'repoDigests' -> 0; '@sha256:' across all 24 commits -> 0;
+   `git log -S':latest' -- harness/docker-compose.yml` -> only e79f4e6 (2026-10-11), as stated.
+   sha256sum matches the promoted artifact agents/hunter-images/artifacts/check-images-refs.txt:
+   harness/docker-compose.yml 7d6e6470093047cc...; harness/up.sh 0958b05d7280c25e...
+
+3. Blockers: decisive and not locally answerable.
+   Digest resolution / re-point history and tag immutability/write-access are registry+hosting facts (out of
+   bounds for this run and for me); consumer-runs fact needs registry + Actions logs; the decisive experiment
+   needs the rig's own images and host ports 18232/18233/9067/9068 (explicitly out of bounds), and the
+   approved sandbox (--network=none, no pulls) cannot stand up a substitute node/indexer pair.
+
+4. Drift is NOT asserted as observed fact: the description itself says re-pointing "is a registry fact this run
+   cannot observe - hence needs_validation rather than confirmed"; blocker 2 explicitly leaves tag immutability
+   open. The source-supported claim (unbound reference, no identity recorded anywhere) holds as stated.
+
+5. validation_plan: both fields present and exact; `local` is bounded/read-only (two timed tag resolutions via
+   buildx imagetools/docker manifest inspect + RepoDigests capture + no-registry `docker compose config --images`
+   check); `deployment` is owner-observed (print RepoDigests on their own runner across two runs), no probing,
+   with a repo-side closure path.
+
+6. Fingerprint: unique in findings.json (only record mentioning ':latest'); consistent with the linked ledger
+   unit (coverage id .../electriccoinco%2Fzcashd%3Alatest.../local-rig/SUPPLY-CHAIN-AND-RELEASE.md) and with the
+   Phase-3 verifier-17 re-derivation. Decision: verified.

@@ -1,0 +1,61 @@
+zanary run-1 · verifier-1 · real-binary check (approved sandbox, --network=none)
+================================================================================
+What this establishes: through the target's own CLI, (a) the decide layer admits an invoice whose
+receiver is "not-an-address" (ALLOW printed), and (b) a run that fails after the decision phase —
+here at the node-RPC bootstrap that precedes the payment loop, payer.rs:275-276 — aborts non-zero
+and leaves --out with no ledger.jsonl / run.json / report.json (the directory is never created:
+create_dir_all is at payer.rs:406, after the loop). Same CLI inputs were:
+  grant.json  {budget_zat 50000000, per_payment_cap_zat 10000000, allowlist [], expires_at 2030, revoked false}
+  invoices/01-payable.json  (invoice_id v1-8401, amount 1,000,000, plausible receiver text)
+  invoices/02-bad.json      (invoice_id v1-8402, amount 5,000,000, receiver "not-an-address")
+
+Command (verbatim):
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+    -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo build --offline -p zanary-probe --bin zanary-probe 2>&1 | tail -3 \
+      && timeout 150 ./target/debug/zanary-probe payer --grant /t/verifier1-scratch/grant.json \
+         --invoices /t/verifier1-scratch/invoices --out /t/verifier1-scratch/out; echo "EXIT=$?"; \
+      ls -la /t/verifier1-scratch/; ls -la /t/verifier1-scratch/out'
+
+--- raw output (verbatim) ---
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.48s
+=== PAYER RUN (no reachable node; --network=none) ===
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier1-scratch/grant.json
+  budget / cap      : 0.50000000 ZEC · 0.10000000 ZEC per payment
+  allowlist         : (empty — every receiver is allowed)
+  expires at        : 2030-01-01T00:00:00Z
+  kill switch       : not configured
+  invoices          : 2 in /t/verifier1-scratch/invoices
+
+  ALLOW    v1-8401 — paid: within the cap (10000000 zat) and the budget (1000000 of 50000000 zat spent after this)
+  ALLOW    v1-8402 — paid: within the cap (10000000 zat) and the budget (6000000 of 50000000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+EXIT=1
+=== scratch dir listing ===
+total 20
+drwxrwxr-x  4 1000 1000 4096 Oct 17 11:00 .
+drwxrwxr-x 27 1000 1000 4096 Oct 17 11:00 ..
+-rw-rw-r--  1 1000 1000  143 Oct 17 10:59 grant.json
+drwxrwxr-x  2 1000 1000 4096 Oct 17 10:59 invoices
+drwxr-xr-x  2 root root 4096 Oct 17 11:00 stub-wallet
+=== out dir ===
+ls: cannot access '/t/verifier1-scratch/out': No such file or directory
+(docker exit status of the whole sh -c: 2 — the final `ls` of the missing dir; the payer itself: EXIT=1)
+
+--- interpretation, bounded to what was observed ---
+* The target's own CLI decided the "not-an-address" invoice allowed=true and printed it in the
+  ALLOW line; no part of the intake or decide layer refused it (matches the candidate's entrypoint
+  claim and the unit check in check-local.txt).
+* The failure here sits at payer.rs:275-276 (node RPC), one step before the payment loop, because
+  the sandbox has no rig. It still demonstrates the ordering consequence the candidate's sink
+  relies on: ANY post-decision failure aborts non-zero and writes nothing — --out was not created,
+  so there is no ledger.jsonl, run.json or report.json for the run's decisions.
+* What is NOT shown here: a run where iteration 1 actually broadcasts/mines and iteration 2 aborts
+  (needs a funded synced wallet + node/indexer — the rig), and the retry re-payment. Those remain
+  needs_validation blockers, not observed facts.

@@ -1,0 +1,159 @@
+//! verifier-31 Phase-5 independent check for the record `zanary/payer-budget-excludes-fees`.
+//!
+//! Written by the Phase-5 record verifier (it did not hunt this candidate and did not perform its
+//! Phase-3 validation). It only *calls* the target's own code — `payer::decide`
+//! (crates/probe/src/payer.rs) and the real `payer-policy` property
+//! (crates/properties/src/properties/payer_policy.rs) — and recomputes the payer's own funding
+//! arithmetic from the same constants the record cites. No production line is changed and every
+//! write stays inside the disposable sandbox copy.
+
+use crate::flow::Invoice;
+use crate::payer::decide;
+use zanary_observation::{FlowRun, PayerDecision, PayerGrant, PayerRun};
+use zanary_properties::properties::payer_policy::PayerPolicy;
+use zanary_properties::{Property, Verdict};
+
+const NOW: &str = "2026-10-16T00:00:00Z";
+
+fn v31_grant(budget_zat: u64, cap_zat: u64) -> PayerGrant {
+    PayerGrant {
+        budget_zat,
+        per_payment_cap_zat: cap_zat,
+        allowlist: vec!["uregtest1merchant".to_string()],
+        expires_at: "2026-11-01T00:00:00Z".to_string(),
+        revoked: false,
+    }
+}
+
+fn v31_invoice(i: usize, amount_zat: u64) -> Invoice {
+    Invoice {
+        invoice_id: format!("v31-{i:07}"),
+        amount_zat,
+        receiver: "uregtest1merchant".to_string(),
+        memo: format!("zanary: invoice v31-{i}"),
+        uri: format!("zcash:?address=uregtest1merchant&amount={amount_zat}"),
+        issued_at_height: 1,
+        merchant_account: 0,
+    }
+}
+
+/// The record's minimum observed result, on the real `decide()`: a 1,000-zat / 400-cap grant
+/// admits 1,000 one-zat invoices (spent 1,000) and refuses only the 1,001st, because the budget
+/// bounds invoice principal alone — never the per-payment cost the payer's own funding model
+/// budgets (payer.rs:528-530, 10_000 zat per payment).
+#[test]
+fn v31_real_decide_admits_a_thousand_one_zat_invoices_under_a_thousand_zat_grant() {
+    let grant = v31_grant(1_000, 400);
+    let mut spent: u64 = 0;
+    let mut allowed: usize = 0;
+    for i in 0..1_000 {
+        let invoice = v31_invoice(i, 1);
+        let decision = decide(&grant, spent, &invoice, NOW);
+        assert!(
+            decision.allowed,
+            "invoice {i} was refused: {}",
+            decision.reason
+        );
+        spent = spent.saturating_add(invoice.amount_zat);
+        allowed += 1;
+    }
+    assert_eq!(allowed, 1_000, "the whole thousand must be admitted");
+    assert_eq!(spent, 1_000, "nominal spend must equal the budget");
+
+    let thousand_and_one = v31_invoice(1_000, 1);
+    let refused = decide(&grant, spent, &thousand_and_one, NOW);
+    assert!(!refused.allowed, "the 1,001st invoice was allowed");
+    assert_eq!(
+        refused.reason,
+        "refused: paying 1 zat would take this run to 1001 of a 1000 zat budget",
+        "the refusal must be the budget rule on principal"
+    );
+
+    // The cost the decision never counted: the payer's own funding model for 1,000 payments
+    // (payer.rs:528-530: `needed.saturating_add(10_000 * to_pay.len() as u64)`).
+    let operator_fee_model_zat: u64 = 10_000u64 * allowed as u64;
+    assert_eq!(operator_fee_model_zat, 10_000_000);
+    println!(
+        "V31-1 real decide(): allowed {allowed} x 1-zat invoices under a {}-zat/{}-cap grant, \
+         spent {spent}; 1,001st -> \"{}\"; payer's own fee model for {allowed} payments = \
+         {operator_fee_model_zat} zat (10_000/payment, payer.rs:530)",
+        grant.budget_zat, grant.per_payment_cap_zat, refused.reason
+    );
+
+    // Payload shape #2 in the record, as arithmetic: the count bound on 1-zat invoices is the
+    // budget itself, so the demo-default grant (budget 12_000_000 / cap 10_000_000,
+    // scripts/bounded-payer-demo.sh) admits 12,000,000 payments -> 1.2e11 zat of fees, under the
+    // payer's own model. (A full 12,000,000-iteration loop is not re-run here: the 1,000-case
+    // probe above already establishes the decision behaviour; this is the same arithmetic.)
+    let demo_budget: u64 = 12_000_000;
+    let demo_payments: u64 = demo_budget / 1; // 1-zat invoices: count bound = budget / 1
+    assert_eq!(demo_payments, 12_000_000);
+    assert_eq!(10_000u64 * demo_payments, 120_000_000_000);
+    println!(
+        "V31-1b demo-default shape: {demo_payments} x 1-zat invoices -> {} zat of fees under the \
+         payer's own per-payment model (payer.rs:530)",
+        10_000u64 * demo_payments
+    );
+}
+
+/// The real `payer-policy` property re-derives only invoice principal from the ledger: the
+/// 1,000-row fee-multiplied ledger PASSES with "1000 paid · 0 refused · 1000 of 1000 zat spent",
+/// and `PayerRun::spent_zat()` (observation/src/lib.rs:234, "Zatoshis actually spent under this
+/// grant") reports 1,000 zat for a run whose payer's own fee model is 10,000,000 zat.
+#[test]
+fn v31_real_payer_policy_passes_the_fee_multiplied_ledger() {
+    let grant = v31_grant(1_000, 400);
+    let decisions: Vec<PayerDecision> = (0..1_000)
+        .map(|i| PayerDecision {
+            invoice_id: format!("v31-{i:07}"),
+            amount_zat: 1,
+            receiver: "uregtest1merchant".to_string(),
+            decision: "paid".to_string(),
+            reason: format!(
+                "paid: within the cap (400 zat) and the budget ({} of 1000 zat spent after this)",
+                i + 1
+            ),
+            txid: Some("a".repeat(64)),
+            height: Some(1),
+        })
+        .collect();
+    let run = FlowRun {
+        flow_id: "verifier31".to_string(),
+        flow_commit: "0".repeat(64),
+        chain: "regtest".to_string(),
+        started_at_height: 1,
+        ended_at_height: 2,
+        funding: vec![],
+        payments: vec![],
+        merchant_events: vec![],
+        receipts: vec![],
+        pool_totals: vec![],
+        merchant_is_simulated: true,
+        payer: Some(PayerRun {
+            label: "verifier31".to_string(),
+            grant: grant.clone(),
+            decisions,
+        }),
+    };
+    let finding = PayerPolicy.check(&run);
+    assert_eq!(
+        finding.verdict,
+        Verdict::Pass,
+        "the property did not pass: {:?}",
+        finding.evidence
+    );
+    let summary = finding.evidence.first().cloned().unwrap_or_default();
+    assert!(
+        summary.starts_with("1000 paid · 0 refused · 1000 of 1000 zat spent"),
+        "{summary}"
+    );
+    let model_spent = run.payer.as_ref().unwrap().spent_zat();
+    assert_eq!(model_spent, 1_000, "spent_zat() must sum paid amounts only");
+    println!("V31-2 real payer-policy property: verdict={:?}", finding.verdict);
+    println!("V31-2a summary: {summary}");
+    println!(
+        "V31-2b PayerRun::spent_zat() (observation/src/lib.rs:234) = {model_spent} zat while the \
+         payer's own fee model for the same 1,000 payments is {} zat",
+        10_000u64 * 1_000
+    );
+}

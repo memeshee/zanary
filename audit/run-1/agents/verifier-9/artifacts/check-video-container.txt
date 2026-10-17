@@ -1,0 +1,115 @@
+# verifier-9 independent re-check: published media asset container + metadata
+# (re-establishes hunter-video's local check from scratch; verifier-9 authored the walker below)
+# date(UTC): 2026-10-17T11:02Z
+# image rust:1-slim (local, no pulls) · Debian GNU/Linux 13 (trixie) · rustc 1.99.0
+# limits: --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+# mounts: disposable git-archive copy of reviewed commit 7058406 at /t (rw) · host cargo registry ro (no media use)
+# why: the candidate's decisive question is what the published 112 s video/zanary-demo.mp4 actually shows.
+#      This check proves (1) the inspected bytes ARE the reviewed revision's committed bytes,
+#      (2) every content-bearing container box is enumerated, (3) the approved sandbox cannot decode.
+
+== A. identity chain (host git metadata vs in-sandbox content hashes) ==
+host /home/kiter/hackathon/zanary (read-only; HEAD 70584064b8d5d4a2c96c49ad16ad531573cdc5ef; worktree clean):
+  git ls-files video/            -> video/zanary-demo.mp4      (single tracked match)
+  git ls-tree HEAD video/        -> 100644 blob df469b5a2077ae94fd86b0ddb44535bd6c4e9f38
+  git cat-file -s HEAD:video/zanary-demo.mp4 -> 3717435
+in-sandbox (disposable copy /t, same file the walker read):
+  sha256sum                     -> 38a6b73fb25bab4e3888988639658e603336a8784e5503af7783179cb159ec75
+  size                          -> 3717435
+  git-blob SHA-1 over framing   -> df469b5a2077ae94fd86b0ddb44535bd6c4e9f38   (== committed blob id above)
+  => the bytes inspected in-sandbox are byte-identical to the reviewed revision's committed media.
+
+== B. decoder/tool probe — can the approved sandbox decode the pixels/audio? ==
+ABSENT: ffmpeg ffprobe avconv gst-launch-1.0 vlc mpv python3 python convert magick exiftool mediainfo tesseract sox
+no libav*/libswscale/gstreamer/libx264/libopenh264 shared libs; dpkg lists no ffmpeg/libav/gstreamer/python packages
+offline registry (ro): 418 cached crates — zero media-capable crates
+  (grep for ffmpeg|h264|avc|aac|av1|dav1d|openh264|symphonia|mp4|image|gif|video|codec|gstreamer|png|jpeg|webp|... ->
+   only rustls-webpki-0.103.15 / webpki-roots-0.26.11 / webpki-roots-1.0.9, i.e. TLS crates matching the "webp" substring;
+   registry src/ listing: same 418, same result)
+  --network=none + no-pulls policy close the "fetch a decoder" route; running host tooling on the fixture would
+  process target-controlled bytes outside the OS-enforced sandbox and is out of policy for this audit.
+
+== C. verifier-9 independent ISO-BMFF box walk (verifier9/check.rs, rustc -O, run in-sandbox) ==
+file=/t/video/zanary-demo.mp4 len=3717435
+ftyp major=isom compatible=["isom", "iso2", "avc1", "mp41"]
+ftyp off=0 size=32
+moov off=32 size=124940
+  mvhd off=40 size=108
+     v0 timescale=48000 duration=5382400 (~112.13s) creation=0 mod=0
+  trak off=148 size=54374
+    tkhd off=156 size=92
+    edts off=248 size=36
+      elst off=256 size=28
+    mdia off=284 size=54238
+      mdhd off=292 size=32
+         v0 timescale=15360 duration=1722368 (~112.13s) creation=0 mod=0
+      hdlr off=324 size=45
+         handler_type=vide
+      minf off=369 size=54153
+        vmhd off=377 size=20
+        dinf off=397 size=36
+          dref off=405 size=28
+        stbl off=433 size=54089
+          stsd off=441 size=177
+             entry_count=1
+             entry[0] fourcc=avc1 size=161
+          stts off=618 size=24
+          stss off=642 size=80
+          ctts off=722 size=26816
+          stsc off=27538 size=40
+          stsz off=27578 size=13476
+          stco off=41054 size=13468
+  trak off=54522 size=70353
+    tkhd off=54530 size=92
+    edts off=54622 size=36
+      elst off=54630 size=28
+    mdia off=54658 size=70217
+      mdhd off=54666 size=32
+         v0 timescale=48000 duration=5383424 (~112.15s) creation=0 mod=0
+      hdlr off=54698 size=45
+         handler_type=soun
+      minf off=54743 size=70132
+        smhd off=54751 size=16
+        dinf off=54767 size=36
+          dref off=54775 size=28
+        stbl off=54803 size=70072
+          stsd off=54811 size=126
+             entry_count=1
+             entry[0] fourcc=mp4a size=110
+          stts off=54937 size=32
+          stsc off=54969 size=35332
+          stsz off=90301 size=21052
+          stco off=111353 size=13468
+          sgpd off=124821 size=26
+          sbgp off=124847 size=28
+  udta off=124875 size=97
+    meta off=124883 size=89
+      hdlr off=124895 size=33
+         handler_type=mdir
+      ilst off=124928 size=44
+        .too off=124936 size=36          (©too = Lavf63.1.101 encoder tag)
+free off=124972 size=8
+mdat off=124980 size=3592455
+top_level_end=3717435 trailing_bytes=0
+
+raw fourcc occurrence counts: text=0 sbtl=0 wvtt=0 tx3g=0 stpp=0 clcp=0 chap=0; vide=2 soun=1 avc1=2 mp4a=1 mdat=1 moov=1 ftyp=1 free=1
+raw-byte token scan (case-insensitive): abandon=0 seed phrase=0 mnemonic=0 ufvk=0 uview=0 rpcpassword=0 kiter=0
+  uregtest=0 allowlist=0 rehearsal=0 /home/=0 hackathon=0 password=0 private key=0 ssh-=0
+printable strings >=8 in first 128 KiB: 8 total, all encoder/handler tags:
+  ftypisom | isomiso2avc1mp41 | VideoHandler | Lavc63.1.101 libx264 | SoundHandler | mdirappl | Lavf63.1.101 |
+  "x264 - core 165 - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=1 ..."
+
+== D. raw fourcc offsets (grep -abo, NEW check) ==
+vide: 340 (hdlr handler_type), 125088 (inside mdat payload — the x264 encoder SEI string "http://www.videolan.org/...",
+      i.e. the "vide" of "videolan", not a second track)
+soun: 54714 (hdlr handler_type)
+avc1: 24 (ftyp compatible brand), 461 (stsd sample entry)
+mp4a: 54831 (stsd sample entry)
+text: no occurrence
+ls /t/video/  -> exactly one file: zanary-demo.mp4 (3717435 B)   [the publishing glob video/*.mp4 matches exactly it]
+
+== E. reading ==
+Every content-bearing container box is accounted for: two tracks (avc1 video, mp4a audio), 112.13 s; no
+text/subtitle/chapter/timed-text track; nothing after the last top-level box; creation/mod times 0; the only
+user-data metadata is the encoder tag. What remains unexamined is exactly the undecoded pixels and audio —
+and the approved sandbox contains no decoder for them.

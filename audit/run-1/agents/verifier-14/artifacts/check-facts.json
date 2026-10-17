@@ -1,0 +1,79 @@
+{
+  "verifier": "verifier-14",
+  "candidate": "zanary/payer-expiry-text-compare",
+  "decision": "confirmed",
+  "fingerprint": "zanary/payer-expiry-text-compare",
+  "target": {
+    "path": "/home/kiter/hackathon/zanary",
+    "commit": "70584064b8d5d4a2c96c49ad16ad531573cdc5ef",
+    "worktree_clean_before_and_after": true
+  },
+  "sandbox": {
+    "copy": "/home/kiter/.hermes/cache/scratch/zanary-sandbox-w2",
+    "image": "rust:1-slim",
+    "network": "none",
+    "command": "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v <sb>:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p <crate> -- <filter> --nocapture --test-threads=1'",
+    "rig_touched": false
+  },
+  "pre_append_md5": {
+    "crates/probe/src/payer.rs": "54d121450a61b6fb35395a40c94ee710",
+    "crates/properties/src/properties/payer_policy.rs": "0000a14d897c48f6fec7c39dd58929bc"
+  },
+  "checks": [
+    {
+      "artifact": "check-decide-run.txt",
+      "what": "real decide() exercised (5/5 passed)",
+      "results": {
+        "same_instant_canonical_past": "allowed=false (refused)",
+        "same_instant_offset_plus14": "allowed=true (paid)",
+        "fractional_clock_same_second": "allowed=true (paid)",
+        "never_2030-99-99_9999": "allowed=true (paid)",
+        "empty_string_control": "allowed=false (refused)"
+      }
+    },
+    {
+      "artifact": "check-cli-run.txt",
+      "what": "real binary zanary-probe payer --grant <file> --invoices <dir> --now 2026-11-02T00:00:00Z",
+      "results": {
+        "grant-canonical (2026-11-01T23:00:00Z)": "REFUSE v14-8301 (expired)",
+        "grant-offset (2026-11-02T13:00:00+14:00, same instant)": "ALLOW v14-8301 (paid)",
+        "grant-never (\"never\")": "ALLOW v14-8301 (paid)"
+      },
+      "note": "each run then fails at NodeRpc (no network in sandbox); decisions precede wallet use (payer.rs:246-271 vs 273-277)"
+    },
+    {
+      "artifact": "check-property-run.txt",
+      "what": "real payer-policy property over a paid row under a grant expiring 2020-01-01T00:00:00Z",
+      "result": "Verdict::Pass; expiry only echoed in evidence text"
+    },
+    {
+      "artifact": "check-fix-run.txt",
+      "what": "proposed fix (instant parse both sides, fail closed) compiled and checked",
+      "result": "all four bad encodings refused; genuine future canonical expiry still allowed"
+    }
+  ],
+  "source_confirmations": {
+    "crates/probe/src/payer.rs:91": "if now >= grant.expires_at.as_str()",
+    "crates/probe/src/payer.rs:149": "grant path from argv",
+    "crates/probe/src/payer.rs:173": "Some(ts) => ts verbatim; parse only for None (178-182)",
+    "crates/probe/src/payer.rs:250": "decide(&grant, spent, invoice, &now) per invoice",
+    "crates/probe/src/payer.rs:258": "spent update + to_pay.push for allowed invoices",
+    "crates/probe/src/payer.rs:306-308": "proposal + build_sign_broadcast (not exercised; needs rig)",
+    "crates/probe/src/record.rs:132": "utc_now_rfc3339 (fractional seconds; report.json shows .300715717Z)",
+    "crates/observation/src/lib.rs:194": "pub expires_at: String",
+    "crates/observation/src/lib.rs:202": "PayerDecision has no decision timestamp",
+    "crates/properties/src/properties/payer_policy.rs:114": "echoes expires_at in the summary; no expiry rule anywhere (rules 78-102, 68)",
+    "docs/BOUNDED-PAYER.md:31": "expiry = the instant after which the authority is void",
+    "docs/BOUNDED-PAYER.md:43": "now >= expires_at? -> refuse (authority expired)",
+    "schemas/": "only zanary-receipt-v1.json; no grant schema",
+    "grep": "no other expiry check in the probe crate (payer.rs:91 is the only grant-expiry comparison)"
+  },
+  "corrections_to_hunter_record": [
+    "payer_policy.rs evidence line 105 -> 114",
+    "execution.observed_result and instructions replaced with verifier-14's runs",
+    "remediation code rewritten fail-closed, keeping decide()'s Decision return type; compile-checked"
+  ],
+  "not_established": [
+    "actual shielded broadcast (payer.rs:306-308) requires the regtest rig (out of bounds)"
+  ]
+}

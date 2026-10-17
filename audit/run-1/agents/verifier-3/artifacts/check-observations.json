@@ -1,0 +1,23 @@
+{
+  "verifier": "verifier-3",
+  "fingerprint": "crates/report/src/main.rs:short-helper-byte-slice-on-untrusted-json-fields",
+  "decision": "confirmed",
+  "target_commit": "7058406",
+  "binary": "/t/target/debug/zanary-report, sha256 2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60, built offline in sandbox (cargo build --offline -p zanary-report, exit 0)",
+  "sandbox": "docker --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024; copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 -> /t; cargo registry mounted read-only; no node/indexer/network/keys",
+  "copy_provenance": "diff -r vs fresh git archive HEAD: production sources identical; only deltas are #[cfg(test)]-only appended modules (crates/probe/src/main.rs, crates/report/src/receipt.rs), not compiled by cargo build",
+  "observations": [
+    {"case": "v0 benign verify", "exit": 1, "stdout": "banner + 4 check lines + summary NOT VERIFIED (748 B)", "stderr": ""},
+    {"case": "v1 hostile flow_commit verify ('aaaaaaaaaaa\\u00e9')", "exit": 101, "stdout": "EMPTY (0 B)", "stderr": "panicked at crates/report/src/main.rs:762:29: end byte index 12 is not a char boundary; it is inside '\\u00e9' (bytes 11..13 of string)"},
+    {"case": "v2 hostile report_hash verify ('bbbbbbbbbbb\\u00e9')", "exit": 101, "stdout": "banner + chain line only (125 B)", "stderr": "panicked at crates/report/src/verify.rs:851:29: end byte index 12 is not a char boundary; it is inside '\\u00e9' (bytes 11..13 of string)"},
+    {"case": "vx missing file verify (control)", "exit": 2, "stdout": "EMPTY", "stderr": "error: reading /nonexistent-report.json: No such file or directory (os error 2)"},
+    {"case": "b0 benign build", "exit": 0, "stdout": "built + flow/chain/ttl/findings/evidence/report_hash/evidence_root lines (400 B)", "stderr": "", "artifacts": {"out/b0_report.json": "4133 B"}},
+    {"case": "b1 hostile build (FlowRun flow_commit 'aaaaaaaaaaa\\u00e9')", "exit": 101, "stdout": "built out/b1_report.json (25 B)", "stderr": "panicked at crates/report/src/main.rs:762:29 (same boundary message)", "artifacts": {"out/b1_report.json": "4122 B (written before the panic)"}},
+    {"case": "a1 verify-anchor --root 'ccccccccccc\\u00e9' (13 B, no report)", "exit": 101, "stdout": "EMPTY", "stderr": "panicked at crates/report/src/main.rs:762:29 (same boundary message)"},
+    {"case": "a2 verify-anchor --report benign --root 'aaaaaaa\\u00e9zzzzzzzzzzzzzzzz' (25 B)", "exit": 101, "stdout": "EMPTY", "stderr": "panicked at crates/report/src/main.rs:287:28: end byte index 8 is not a char boundary; it is inside '\\u00e9' (bytes 7..9 of string)"},
+    {"case": "m0 benign matrix", "exit": 0, "stdout": "2 summary lines (115 B)", "stderr": "", "artifacts": {"out2/m0.md": "654 B rendered"}},
+    {"case": "m1 hostile matrix (run.json flow_commit 'abcdefg\\u00e9')", "exit": 101, "stdout": "EMPTY", "stderr": "panicked at crates/report/src/matrix.rs:109:27: end byte index 8 is not a char boundary; it is inside '\\u00e9' (bytes 7..9 of string)", "artifacts": {"out2/m1.md": "ABSENT"}}
+  ],
+  "effect_class": "safe process termination (exit 101) replacing the documented 0/1/2 verdict contract; no memory-safety, confidentiality or privilege effect observed",
+  "raw_captures": "check-repro.txt (verbatim stdout/stderr/exit per case)"
+}

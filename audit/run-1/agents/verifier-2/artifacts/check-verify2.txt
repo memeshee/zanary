@@ -1,0 +1,97 @@
+verifier-2 · zanary run-1 · independent local check (offline sandbox) — raw program output
+==========================================================================================
+Candidate : crates/probe/src/payer.rs:payment-record-pool-legs-and-policy-are-constants-not-derived-from-the-built-transaction
+Hunter    : hunter-broadcast (proposed needs_validation) — verifier-2 checked it independently.
+Target    : /home/kiter/hackathon/zanary @ 7058406, worktree clean; sandbox copy
+            /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (target files byte-identical:
+            cmp payer.rs/ops.rs/flow.rs/core.rs/observation/lib.rs/policy_downgrade.rs = same).
+Isolation : docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024
+            -v <copy>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim
+            sh -c 'CARGO_BUILD_JOBS=6 cargo run --offline -p zanary-probe --bin verifier2_check'
+            (empty env; no ZANARY_* set; no network; writes only inside /t).
+Added code: /t/crates/probe/src/bin/verifier2_check.rs — a NEW bin target written by the verifier;
+            it only CALLS the target's own functions (ops::propose_shielded_payments,
+            ops::required_policy_for_recipient, ops::check_policy, core::open_db, core::dev_usk,
+            Address::decode, MemoBytes::from_bytes) and the target's own property library
+            (zanary_properties::evaluate); no production line changed.
+Result    : exit=0.
+What it settles (verifier-2's own execution, not the hunter's):
+  A. payer.rs contains 0 check_policy / 0 required_policy_for_recipient / 0 proposal.steps /
+     0 payment_pools / 0 decrypt; the four record fields are literals at payer.rs:349-352
+     (ops.rs 4/3 and flow.rs 2/2 guard call sites for comparison).
+  B. zanary_properties::evaluate(): the payer's constant record gets policy-downgrade PASS
+     (severity Disqualifying) and the run passes; the fixtures' honest cross-pool record FAILs
+     (positive control); an honest Orchard->Sapling record with pool_out=Sapling also PASSes
+     (calibration: the implicit signal only covers Transparent|CrossPool).
+  C. With a fundless stub wallet, the payer's own intake (ops::propose_shielded_payments) takes a
+     bare zregtestsapling1 receiver and a Sapling-only UA all the way to the wallet layer
+     ("Must scan blocks first" — same as the Orchard control), while
+     ops::required_policy_for_recipient + ops::check_policy refuse the same recipients under
+     FullPrivacy ("would reveal the amount (Orchard -> Sapling pool crossing)").
+Not settled (blockers retained): the proposal/transaction built for a Sapling-receiver invoice
+(needs a wallet with a spendable Orchard note — no offline route; zcash_client_backend's
+test-dependencies feature needs proptest/ambassador/assert_matches, absent from the read-only
+registry cache) and the broadcast/run/report end (needs the regtest rig, out of bounds).
+
+--- raw program output (verbatim; compiler warnings omitted) ---
+=== verifier-2 independent check (offline sandbox) ===
+
+== A. the target's own source, as compiled into this check ==
+   payer.rs: `check_policy(` = 0 · `required_policy_for_recipient(` = 0
+   ops.rs: `check_policy(` = 4 · `required_policy_for_recipient(` = 3
+   flow.rs: `check_policy(` = 2 · `required_policy_for_recipient(` = 2
+   payer.rs: `proposal.steps` = 0 · `payment_pools` = 0 · `decrypt` = 0
+   the sink literals, with their line numbers: payer.rs:349 payer.rs:350 payer.rs:351 payer.rs:352
+   payer.rs:339-352 verbatim:
+     339|        payments.push(Payment {
+     340|            label: format!("invoice {}", invoice.invoice_id),
+     341|            txid: txid.to_string(),
+     342|            height,
+     343|            amount_zat: invoice.amount_zat,
+     344|            recipient_receivers: vec![invoice.receiver.clone()],
+     345|            sender_receivers: Vec::new(),
+     346|            memo_hex: Some(hex_encode(invoice.memo.as_bytes())),
+     347|            memo_text: Some(invoice.memo.clone()),
+     348|            invoice_id: Some(invoice.invoice_id.clone()),
+     349|            pool_in: Pool::Orchard,
+     350|            pool_out: Pool::Orchard,
+     351|            kind: PaymentKind::Shielded,
+     352|            policy: Some("FullPrivacy".to_string()),
+
+== B. zanary_properties::evaluate over hand-built records ==
+   the payer's constant record (pool_in Orchard, pool_out Orchard, Shielded, FullPrivacy)
+     policy-downgrade: Pass (severity Disqualifying) · evidence=[] · note=Some("every recorded policy token was checked against the downgrade fragments; none matched, and no shielded→transparent/cross-pool spend was observed")
+     run passes (no disqualifying fail): true
+   positive control: the fixtures' cross-pool record (Orchard -> Transparent, CrossPool, AllowRevealedAmounts)
+     policy-downgrade: Fail (severity Disqualifying) · evidence=["txid=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa policy=\"AllowRevealedAmounts\" matched=AllowRevealedAmounts (wallet instructed to relax its privacy policy)", "txid=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa height=10 pool_in=orchard pool_out=transparent (cross-pool spend of shielded value reveals amounts — implicit downgrade)"] · note=Some("explicit fragments checked: AllowRevealedAmounts, AllowRevealedSenders, AllowRevealedRecipients, AllowLinkingAccountAddresses, AllowFullyTransparent and equivalents; negation prefixes (no/not/disallow/deny/without/block/never) are excluded. Implicit: shielded→transparent or shielded→mixed-bundle spends reveal amounts; zcashd refuses those by default with \"…would reveal transaction amounts. THIS MAY AFFECT YOUR PRIVACY…\".")
+     run passes (no disqualifying fail): false
+   calibration: an Orchard -> Sapling crossing recorded honestly by its destination pool (pool_out Sapling, CrossPool, FullPrivacy)
+     policy-downgrade: Pass (severity Disqualifying) · evidence=[] · note=Some("every recorded policy token was checked against the downgrade fragments; none matched, and no shielded→transparent/cross-pool spend was observed")
+     run passes (no disqualifying fail): true
+
+== C. recipients through the payer's own intake (fundless stub wallet) ==
+
+   == orchard-only UA (control; what `zanary-probe invoice` issues)
+      receiver: uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80
+      required_policy_for_recipient: FullPrivacy · would reveal: nothing
+      check_policy(requested=FullPrivacy): ok (permitted under FullPrivacy)
+      ops::propose_shielded_payments (the payer's own call): Err: could not propose the payment: Must scan blocks first
+
+   == bare sapling receiver
+      receiver: zregtestsapling1j9s20dpe62kr0jhfvnqua3j8wv873ccy7u3l3fuwgvc8l4yy0dqpnaknkp3g0uaj0jynj459npt
+      required_policy_for_recipient: AllowRevealedAmounts · would reveal: the amount (Orchard -> Sapling pool crossing)
+      check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+      ops::propose_shielded_payments (the payer's own call): Err: could not propose the payment: Must scan blocks first
+
+   == UA with a sapling receiver and no orchard receiver
+      receiver: uregtest1kn8jddm5tqkhv489sreqyhywcm6pleatgakkhmt9cvzyr7hdfc56gvk4v58sujz9pdwdap7wp37zp237kmdzrh820frw6229uzjayhgmry8pjgdugqpau28fnqzugryc5xxkuy7udje
+      required_policy_for_recipient: AllowRevealedAmounts · would reveal: the amount (Orchard -> Sapling pool crossing)
+      check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+      ops::propose_shielded_payments (the payer's own call): Err: could not propose the payment: Must scan blocks first
+
+   == receiver that is not an address
+      receiver: not-an-address
+      Address::decode: NONE (payer.rs:298 bails here)
+
+=== end of verifier-2 check ===
+exit=0

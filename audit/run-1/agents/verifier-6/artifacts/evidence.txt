@@ -1,0 +1,67 @@
+verifier-6 verification notes — fingerprint probe/payer.rs:load_invoices:nonregular-entry
+target: /home/kiter/hackathon/zanary @ 7058406 (worktree clean) · date 2026-10-17T11:0xZ
+candidate proposed by hunter-invoices as `confirmed`; this verifier did not write it and tried to refute it.
+
+1. TRACE AND EVIDENCE, LINE BY LINE (target HEAD, payer.rs sha256 22799a3b...; identical in the sandbox copy)
+- trace[0] entrypoint payer.rs:150 in payer::run: "let invoices_path = PathBuf::from(args.require(\"--invoices\")?);"
+  -> the CLI names the directory whose entries become invoices; verified, correct line and scope.
+- trace[1] propagation payer.rs:503: "if candidate.extension().is_some_and(|e| e == \"json\") {" — the extension
+  filter is the ONLY selection rule; entry.path() is never type-checked. Verified.
+- trace[2] propagation payer.rs:513: "let text = std::fs::read_to_string(file)" — follows symlinks, blocks in open()
+  on a FIFO (read_to_string -> File::open(O_RDONLY)). Verified by observation (see 3.B).
+- trace[3] sink payer.rs:515: "let invoice: Invoice = serde_json::from_str(&text)" — an outside file reached through
+  a link is parsed and retained like any invoice; with a FIFO the function never returns, so payer.rs:249 (the decide
+  loop) is never reached. Verified.
+- evidence[0] payer.rs:498: read_dir call — verified; note the extension test itself is line 503 (the description
+  bundled the two lines; corrected in the verified record, substance unchanged).
+- evidence[1] payer.rs:513 — verified.
+- evidence[2] payer.rs:201 "let invoices = load_invoices(&invoices_path)?;": intake runs before any decision
+  (decide at payer.rs:250) and does not consult the grant/kill-switch state; the revoked flag is computed at
+  payer.rs:187-191 but only used in decide(). Verified — and the banner itself prints at payer.rs:210, after intake,
+  which is why the FIFO run produces zero bytes.
+
+2. SOURCE-VISIBLE CONTROLS ON THE PATH (strongest available)
+- Validation: none on entry type; serde validates JSON shape only after the read completes.
+- Identity/authorization: none in intake; the grant/kill switch are consulted only in decide().
+- Normalization: none — no canonicalize, no path-prefix check, no metadata() call in payer.rs or ops.rs.
+- Lifecycle: load_invoices has exactly one caller (payer.rs:201). No timeout anywhere in payer.rs.
+- Framework/containment: none. Grep across all of crates/ for symlink_metadata / O_NOFOLLOW / file_type / is_file /
+  is_fifo: the only hits are crates/report/src/main.rs:683,716 and crates/report/src/matrix.rs:45 (report-side run
+  paths, a different subsystem) — i.e. the codebase applies is_file() elsewhere but not in the payer intake.
+- Deployment-level (calibration only): the repo's CI payer job carries timeout-minutes: 60
+  (.github/workflows/privacy-gate.yml:223) so an unattended CI hang is bounded to the job timeout; the tool itself
+  has no bound. The repo's own demo (scripts/bounded-payer-demo.sh) writes the invoice directory itself and the docs
+  state the merchant side is simulated (docs/BOUNDED-PAYER.md: the payer is the reference implementation for
+  "someone hands a program the ability to spend"; merchant_is_simulated: true) — so the precondition is the unit's
+  modeled input channel, and likelihood stays low.
+
+3. INDEPENDENT REPRODUCTION (approved sandbox; transcript in check-filetype.txt)
+A. Control (regular plain.json, revoked grant): banner + "REFUSE inplace — refused: the grant was revoked
+   (kill switch)", exit 1 only at the offline node connect. The fixture is sound.
+B. FIFO named hang.json beside a valid afterfifo.json, revoked grant: process alive and sleeping at 5 s and 10 s;
+   /proc state=S, kernel wchan=wait_for_partner (the FIFO-open partner wait — blocked in open(), no fd returned for
+   hang.json); 0 bytes of output; SIGKILL at ~10 s -> exit 137. Matches the hunter's 15 s / exit 137 record.
+C. Symlink link.json -> ../outside/outside.json, permissive grant: "ALLOW outside — paid: within the cap
+   (10000000 zat) and the budget (7 of 50000000 zat spent after this)" and "invoices : 1 in verifier6-fx/inv-link":
+   the outside file was read, decided and queued. Control D (the same bytes copied inside a directory) prints the
+   identical line. No money was attempted (offline sandbox); outside.json is unmodified.
+
+4. REFUTATION ATTEMPTS AND OUTCOMES
+(a) "An upstream/other control prevents it" -> refuted: no such control anywhere on the path (section 2).
+(b) "read_to_string on a FIFO may not block" -> refuted by observation (wchan=wait_for_partner, alive at 10 s).
+(c) "The hang may be bounded in-process" -> refuted: nothing in source; only the external harness kill ends it.
+(d) "The symlink may be skipped or refused" -> refuted: the outside file was loaded and ALLOWed (case C).
+(e) "The kill switch or the revoked grant could stop intake" -> refuted: zero output under a revoked grant; the
+    kill switch is consulted only in decide(), unreachable while blocked.
+(f) "Severity/impact may be overstated" -> the candidate's own scores (likelihood low, impact low, overall low,
+    confidence high; nothing moves or persists; recovery is removing the entry) match what was observed; the
+    observed_result's "decided and queued" wording is accurate (the payment phase cannot run offline).
+(g) "The hunter's binary may have been doctored" -> provenance re-established independently: all production sources
+    in the copy are blob-identical to HEAD (only two cfg(test) additions elsewhere), payer.rs sha256 matches HEAD on
+    both sides, and the result was reproduced with a forced fresh compile (Compiling zanary-probe) in the sandbox.
+
+5. VERDICT
+Confirmed. The complete path is re-established from source and both claimed effects were reproduced under the
+sandbox with the reviewed revision; no deployment or runtime fact that would change the mechanism remains unknown.
+Severity kept at low / low / low with high confidence; no stronger result was inferred or pursued.
+Scratch evidence: check-filetype.txt (transcript + provenance), check-filetype.json (structured summary).

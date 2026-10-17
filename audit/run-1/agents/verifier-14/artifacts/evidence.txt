@@ -1,0 +1,86 @@
+verifier-14 independent verification of candidate `zanary/payer-expiry-text-compare`
+proposed verdict: confirmed (hunter-payer). Decision: CONFIRMED (fingerprint unchanged).
+
+TARGET
+  /home/kiter/hackathon/zanary @ 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, worktree clean before and after.
+  Nothing was written to the target. All execution happened in the disposable
+  `git archive HEAD` copy /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (rust-toolchain.toml absent),
+  mounted at /t inside:
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v <zanary-sandbox-w2>:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p <crate> -- verifier14 --nocapture --test-threads=1'
+  The sandbox had no network; the regtest rig's containers/ports were never touched or contacted.
+  payer.rs and payer_policy.rs in the sandbox matched the repo md5 before I appended anything
+  (54d121450a61b6fb35395a40c94ee710 and 0000a14d897c48f6fec7c39dd58929bc).
+
+WHAT I INDEPENDENTLY REPRODUCED (my own tests, my own fixtures — not the hunter's)
+  1. check-decide-run.txt — real `decide()` (crates/probe/src/payer.rs), 5/5 passed:
+     - V14-1 same instant, two legal RFC3339 encodings, now=2026-11-02T00:00:00Z:
+         expires 2026-11-01T23:00:00Z        -> allowed=false "refused: the grant expired at ..."
+         expires 2026-11-02T13:00:00+14:00   -> allowed=true  "paid: within the cap (400 zat) ..."
+       and the test asserts via time::OffsetDateTime::parse that BOTH strings are the same instant and
+       that the clock is at/past it — i.e. the documented rule requires refusal in both cases.
+     - V14-2 now 2026-11-01T00:00:00.300715717Z vs expires 2026-11-01T00:00:00Z -> allowed=true
+       (the payer's own fractional clock text compares BELOW a whole-second expiry in the same second).
+     - V14-3 expires_at "never" / "2030-99-99T00:00:00Z" / "9999-01-01T00:00:00Z" -> allowed=true;
+       control "" -> allowed=false, proving the rule is a string ordering, not a parse.
+     - V14-4 control: canonical 2026-11-01T23:59:59Z past -> refused; 2030-01-01T00:00:00Z -> allowed.
+     - V14-5 ordering facts: '.' < 'Z' and '0' < '1' are what decides everything.
+  2. check-cli-run.txt — the REAL binary, real grant files on disk, no --now hidden state:
+     /t/target/debug/zanary-probe payer --grant grant-canonical.json --invoices <dir> --now 2026-11-02T00:00:00Z
+       -> "REFUSE   v14-8301 — refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at ...)"
+     --grant grant-offset.json  (expires_at 2026-11-02T13:00:00+14:00 = the SAME instant)
+       -> "ALLOW    v14-8301 — paid: within the cap (400 zat) and the budget (10 of 1000 zat spent after this)"
+     --grant grant-never.json   (expires_at "never")
+       -> "ALLOW    v14-8301 — paid: ..."
+     (each then fails at NodeRpc "Connection refused (os error 111)" because the sandbox has no network;
+      the decision and the to_pay push happen before any wallet/network use — payer.rs:246-271 < 273-277.)
+  3. check-property-run.txt — the real payer-policy property: a paid row under a grant whose
+     expires_at is 2020-01-01T00:00:00Z yields Verdict::Pass; the expiry is only echoed in the
+     evidence text. So the failure is not re-derivable after the fact, as claimed.
+  4. check-fix-run.txt — the proposed fix (parse both sides as instants; fail closed on an unparsable
+     expires_at) compiles against the crate and refuses all four bad encodings while still allowing a
+     genuine future canonical expiry.
+
+TRACE / EVIDENCE LINE CHECK (all positive lines verified against the read-only target)
+  payer.rs:149   entrypoint: `let grant_path = PathBuf::from(args.require("--grant")?);` (read at 165-166,
+                 parsed into Grant at 167-168). Reachable by whoever runs the binary; architecture boundary 3.
+  payer.rs:173   `let expires_at = match grant_file.expires_at.clone() { Some(ts) => ts, None => {...} }`
+                 — the file-supplied string is used verbatim; the RFC3339 parse at 178-182 runs ONLY for None.
+  payer.rs:250   `let decision = decide(&grant, spent, invoice, &now);` inside `for invoice in &invoices`.
+  payer.rs:91    sink: `if now >= grant.expires_at.as_str()` — lexicographic &str comparison, no parse;
+                 allowed decisions are pushed at 258-259 and paid in the loop at 291-308.
+  payer.rs:173-184 no validation/canonicalisation on the grant-file path; Grant (49-62) deserialises
+                 expires_at as Option<String> with no validator; no JSON schema exists for grants
+                 (schemas/ contains only zanary-receipt-v1.json); no other expiry check exists in the
+                 probe (grep: only payer.rs:91 plus the unrelated claim-TTL code in record/gate/report).
+  record.rs:132  `pub(crate) fn utc_now_rfc3339()` — the workspace clock; data/runs/payer-pass/report.json
+                 really carries verified_at "2026-10-16T10:57:34.300715717Z" while data/grants/*.json and
+                 the fixtures are whole-second Z (grep confirmed).
+  observation/src/lib.rs:194 `pub expires_at: String` (doc: "RFC3339 UTC instant after which the authority
+                 is void") — the observation model never derives an instant (no time parsing in the crate).
+  observation/src/lib.rs:202-214 PayerDecision carries invoice_id/amount/receiver/decision/reason/txid/height
+                 and NO decision timestamp.
+  payer_policy.rs:114 (hunter said 105) grant.expires_at is echoed in the summary; the property's rules
+                 (78-102: cap, budget, allowlist, revoked; plus the "error:" prefix rule at 68) never
+                 compare the expiry to anything, although the module doc (lines 6-7) names "after the
+                 grant expired" as a failure it should catch.
+  docs/BOUNDED-PAYER.md:31 "expiry — the instant after which the authority is void"; :43 "now >= expires_at?
+                 -> refuse (authority expired)". The code violates that intent for any legal encoding that
+                 is not canonical whole-second UTC-Z.
+
+CORRECTION APPLIED TO THE HUNTER'S RECORD
+  - payer_policy.rs evidence line moved 105 -> 114 (where grant.expires_at is actually used).
+  - observed_result / instructions replaced with MY runs (the hunter's 7-test module was not re-run).
+  - severity kept medium/medium/medium: the repo's own grants, fixtures and shipped demo data are all
+    canonical whole-second Z, so the shipped path does not trigger (likelihood medium, not high); the
+    consequence is a payment after the authority was void, invisible to ledger and property, bounded by
+    the offset window (<= ~14 h) on a regtest-only chain (impact medium).
+  - the fix snippet was rewritten as a fail-closed variant that keeps decide()'s Decision return type
+    (the hunter's `?`-based snippet would have required changing the signature); it was compile-checked
+    and behaviour-checked in the sandbox.
+
+NOT ESTABLISHED (and not claimed)
+  - the actual shielded broadcast (payer.rs:306-308) — needs the regtest node/indexer, out of bounds.
+    The reproduced result stops at the documented decision plus the to_pay push (258-259), which is the
+    step the authority model gets wrong.

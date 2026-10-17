@@ -1,0 +1,52 @@
+VERIFIER-33 real-binary reproduction (zanary-probe built from the same sandbox copy; three real grant files; --now 2026-11-02T00:00:00Z)
+canonical grant expires_at 2026-11-01T23:00:00Z; offset grant 2026-11-02T13:00:00+14:00 (SAME instant); never grant expires_at "never"
+command: docker run ... -w /t/verifier33-src rust:1-slim sh -c './target/debug/zanary-probe payer --grant /t/verifier33-cli/grants/grant-<g>.json --invoices /t/verifier33-cli/invoices --out /t/verifier33-out --now 2026-11-02T00:00:00Z'
+
+===== GRANT canonical =====
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier33-cli/grants/grant-canonical.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2026-11-01T23:00:00Z
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier33-cli/invoices
+
+  REFUSE   v33-8301 — refused: the grant expired at 2026-11-01T23:00:00Z (this invoice was shown at 2026-11-02T00:00:00Z)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+exit=1
+===== GRANT offset =====
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier33-cli/grants/grant-offset.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : 2026-11-02T13:00:00+14:00
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier33-cli/invoices
+
+  ALLOW    v33-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+exit=1
+===== GRANT never =====
+zanary-probe 0.0.1 payer — a budget instead of a key
+  grant             : /t/verifier33-cli/grants/grant-never.json
+  budget / cap      : 0.00001000 ZEC · 0.00000400 ZEC per payment
+  allowlist         : uregtest1merchant
+  expires at        : never
+  kill switch       : not configured
+  invoices          : 1 in /t/verifier33-cli/invoices
+
+  ALLOW    v33-8301 — paid: within the cap (400 zat) and the budget (300 of 1000 zat spent after this)
+
+Error: connecting to the zcashd RPC at 127.0.0.1:18232
+
+Caused by:
+    Connection refused (os error 111)
+exit=1

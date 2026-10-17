@@ -1,0 +1,139 @@
+zanary run-1 · hunter-broadcast · bounded local check (offline sandbox)
+=======================================================================
+Unit        : crates/probe/src/ops.rs#propose_shielded_payment / build_sign_broadcast
+              boundary: the authority check (decide) -> the transaction actually built and broadcast
+              subsystem: bounded-payer · class: ATTACK-CLASSES.md#Business logic
+Target      : /home/kiter/hackathon/zanary (memeshee/zanary) @ 7058406, worktree clean at review
+Sandbox copy: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (git archive of HEAD with
+              rust-toolchain.toml removed so the image's own toolchain is used)
+              crates/probe/src/ops.rs and crates/probe/src/payer.rs in the copy are byte-identical
+              to the reviewed revision (`cmp` against the worktree: no output).
+Isolation   : docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g
+              --pids-limit=1024 -v <copy>:/t -v ~/.cargo/registry:/usr/local/cargo/registry:ro
+              -w /t rust:1-slim
+Environment : CARGO_BUILD_JOBS=6 only; no ZANARY_* variable set; no network; no credentials;
+              writes only inside /t (the disposable copy) — ledger-free, no funds exist anywhere.
+Added code  : /t/crates/probe/src/check_broadcast_unit.rs (an appended #[cfg(test)] module, wired
+              in /t/crates/probe/src/main.rs as `#[cfg(test)] mod check_broadcast_unit;`). It only
+              *calls* the target's own functions: ops::required_policy_for_recipient,
+              ops::check_policy, ops::propose_shielded_payments, payer::decide,
+              flow::Invoice::from_path, core::{open_db, dev_usk, regtest_network}.
+              No production line in the copy was changed.
+Command     :
+  docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+    -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t \
+    -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim \
+    sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe \
+           -- --nocapture check_broadcast_unit'
+Result      : exit=0 · 2 passed; 0 failed
+
+--- raw output (verbatim) ---
+running 2 tests
+
+== an invoice whose receiver is not an address
+   decide(): allowed=true · paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+   Address::decode(receiver): NONE — payer.rs:298 bails here, after any earlier invoice was already broadcast
+   MemoBytes::from_bytes(memo): accepted
+
+== an invoice whose memo longer than a ZIP-302 memo (600 bytes)
+   decide(): allowed=true · paid: within the cap (10000000 zat) and the budget (5000000 of 50000000 zat spent after this)
+   Address::decode(receiver): NONE — payer.rs:298 bails here, after any earlier invoice was already broadcast
+   MemoBytes::from_bytes(memo): rejected: Memo length 600 is larger than maximum of 512 — payer.rs:304-305 bails here
+
+== an invoice whose receiver and URI disagree (sapling receiver, URI pays the orchard UA)
+   payer intake (serde, payer.rs:515-516): ACCEPTED
+   Invoice::from_path (ops::pay --invoice, flow.rs:1740): refused: the invoice's URI pays uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80 but the file says zregtestsapling1j9s20dpe62kr0jhfvnqua3j8wv873ccy7u3l3fuwgvc8l4yy0dqpnaknkp3g0uaj0jynj459npt — refusing an invoice that disagrees with itself
+test check_broadcast_unit::unit_broadcast_decision_admits_what_the_payment_loop_cannot_execute ... ok
+diversifier indices: orchard-only UA DiversifierIndex([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) · sapling DiversifierIndex([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) · sapling UA DiversifierIndex([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+== orchard-only UA (what `zanary-probe invoice` issues)
+   address: uregtest106rqhh28qq6fhdtay885kgugvq9f7sncurjhnkq5z75gu0km9jvgedvvfj093gwkx4egted9q8j82ezwhjjcqv94l2ky8694kyck5c80
+   can_receive_memo (zip321's memo rule): true
+   can_receive_as (the pool the proposal builder delivers to): transparent=false sapling=false orchard=true
+   zip321 intake (invoice memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (invoice memo): Err: could not propose the payment: Must scan blocks first
+   zip321 intake (empty memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (empty memo): Err: could not propose the payment: Must scan blocks first
+   required_policy_for_recipient: FullPrivacy · would reveal: nothing
+   check_policy(requested=FullPrivacy): ok (the payment is permitted under FullPrivacy)
+
+== bare sapling address
+   address: zregtestsapling1j9s20dpe62kr0jhfvnqua3j8wv873ccy7u3l3fuwgvc8l4yy0dqpnaknkp3g0uaj0jynj459npt
+   can_receive_memo (zip321's memo rule): true
+   can_receive_as (the pool the proposal builder delivers to): transparent=false sapling=true orchard=false
+   zip321 intake (invoice memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (invoice memo): Err: could not propose the payment: Must scan blocks first
+   zip321 intake (empty memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (empty memo): Err: could not propose the payment: Must scan blocks first
+   required_policy_for_recipient: AllowRevealedAmounts · would reveal: the amount (Orchard -> Sapling pool crossing)
+   check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+
+== UA with a sapling receiver and no orchard receiver
+   address: uregtest1kn8jddm5tqkhv489sreqyhywcm6pleatgakkhmt9cvzyr7hdfc56gvk4v58sujz9pdwdap7wp37zp237kmdzrh820frw6229uzjayhgmry8pjgdugqpau28fnqzugryc5xxkuy7udje
+   can_receive_memo (zip321's memo rule): true
+   can_receive_as (the pool the proposal builder delivers to): transparent=true sapling=true orchard=false
+   zip321 intake (invoice memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (invoice memo): Err: could not propose the payment: Must scan blocks first
+   zip321 intake (empty memo): ACCEPTED by ops::propose_shielded_payments' request construction
+   ops::propose_shielded_payments (empty memo): Err: could not propose the payment: Must scan blocks first
+   required_policy_for_recipient: AllowRevealedAmounts · would reveal: the amount (Orchard -> Sapling pool crossing)
+   check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the amount (Orchard -> Sapling pool crossing).
+
+== bare transparent address
+   address: tmBGbGFCAGzzZKynp1TD1xVFnmLthXdapG6
+   can_receive_memo (zip321's memo rule): false
+   can_receive_as (the pool the proposal builder delivers to): transparent=true sapling=false orchard=false
+   zip321 intake (invoice memo): refused at intake: Cannot send a memo to a transparent recipient address
+   ops::propose_shielded_payments (invoice memo): Err: building the ZIP-321 payment: Cannot send a memo to a transparent recipient address
+   zip321 intake (empty memo): refused at intake: Cannot send a memo to a transparent recipient address
+   ops::propose_shielded_payments (empty memo): Err: building the ZIP-321 payment: Cannot send a memo to a transparent recipient address
+   required_policy_for_recipient: AllowRevealedRecipients · would reveal: the transparent recipient and the payment amount
+   check_policy(requested=FullPrivacy): REFUSED: privacy policy FullPrivacy is too strict for this payment: it would reveal the transparent recipient and the payment amount.
+
+== source-level counts (as compiled into this check) ==
+   payer.rs: check_policy call sites = 0, required_policy_for_recipient call sites = 0
+   ops.rs: check_policy call sites = 4, required_policy_for_recipient call sites = 3
+   flow.rs: check_policy call sites = 2, required_policy_for_recipient call sites = 2
+   payer.rs records pool_out/pool_in/kind/policy as literals: pool_in Orchard=true pool_out Orchard=true kind Shielded=true policy FullPrivacy=true
+   payer.rs reads anything back from the proposal it built (payment_pools/steps): proposal.steps=false payment_pools=false
+test check_broadcast_unit::unit_broadcast_recipient_intake_and_guard ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+--- what this settles ---
+1. A merchant-supplied invoice whose `receiver` is a Sapling address (zregtestsapling1...) or a
+   unified address with a Sapling receiver and no Orchard receiver is ACCEPTED by the payer's
+   payment intake and reaches the wallet layer inside the target's own function
+   ops::propose_shielded_payments ("Must scan blocks first" — the stub wallet, not any check on
+   this path, is what stops it). Same result with the invoice memo and with an empty memo.
+2. The guard every other payment path calls — ops::required_policy_for_recipient + ops::check_policy
+   (ops.rs:1019-1020 for `pay`, ops.rs:563-566 for `anchor`, flow.rs:633-634 and flow.rs:826-827
+   for the flow runner) — REFUSES exactly that recipient under FullPrivacy: "would reveal the
+   amount (Orchard -> Sapling pool crossing)". payer.rs has 0 occurrences of either function
+   (counted from the compiled source) and writes pool_in/pool_out/kind/policy as literals without
+   ever reading the proposal back (proposal.steps / payment_pools appear nowhere in payer.rs).
+3. A bare transparent receiver never reaches that point: zip321's memo rule refuses it inside the
+   target's own intake ("Cannot send a memo to a transparent recipient address"), with the invoice
+   memo and with an empty memo. The reachable divergence is therefore limited to shielded
+   (Sapling) receivers.
+4. payer::decide admits invoices the payment loop cannot execute: with the documented empty
+   allowlist and an amount inside cap and budget, an invoice whose receiver is "not-an-address" is
+   decided allowed=true and then Address::decode returns NONE (payer.rs:298 aborts, after any
+   earlier invoice was already broadcast); an invoice whose memo is 600 bytes is likewise decided
+   allowed=true and rejected by MemoBytes::from_bytes (payer.rs:304-305).
+5. The payer's intake deserializes the invoice JSON directly (payer.rs:515-516) while
+   Invoice::from_path (the `pay --invoice` path) cross-checks the file against its own ZIP-321 URI:
+   an invoice whose URI pays the account's Orchard UA but whose `receiver` says Sapling is accepted
+   by the payer and refused by the CLI path ("refusing an invoice that disagrees with itself").
+
+--- what this does NOT settle ---
+The proposal and the broadcast itself. Building a proposal needs a wallet holding a spendable
+Orchard note; the sandbox has none (zcash_client_backend's test-wallet framework needs the
+`test-dependencies` feature set -> proptest/ambassador/assert_matches, none of which are in the
+read-only offline registry cache, and no network is permitted), and the only funded wallet lives
+in the regtest rig, which is out of bounds for hunters. So the last step — the wallet builds the
+Sapling output, the indexer accepts the transaction, and the run's report then reads
+policy-downgrade PASS — is established by source (zcash_client_backend 0.24.0,
+src/data_api/wallet/input_selection.rs:966-968 delivers Address::Sapling through a Sapling output,
+and 999-1003 does the same for a unified address with a Sapling receiver and no Orchard receiver)
+and needs owner-side execution on the rig to be observed.

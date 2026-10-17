@@ -1,0 +1,107 @@
+{
+  "decision": "confirmed",
+  "record": {
+    "verdict": "confirmed",
+    "fingerprint": "probe/payer.rs:load_invoices:nonregular-entry",
+    "title": "Bounded payer follows symlinks and blocks forever on non-regular *.json entries in the merchant-supplied invoice directory",
+    "description": "load_invoices (crates/probe/src/payer.rs:495-520) selects entries by the json extension alone (line 503) and reads each with std::fs::read_to_string (line 513). A symlinked *.json is followed and read from outside the supplied directory (verifier-reproduced: an invoice living outside --invoices was loaded, decided and queued), and a FIFO named *.json makes the process block in open() indefinitely (verifier-reproduced: the process was alive and sleeping with kernel wchan wait_for_partner after 5 s and 10 s, zero bytes of output, SIGKILL at ~10 s and exit 137) - there is no regular-file check, no O_NOFOLLOW and no timeout anywhere in intake. A party able to create one entry in the directory can therefore hang the payer before any authority evaluation (even a revoked grant never reaches its refusal) and can make the payer read and queue a file outside the directory it was given. Calibration: the report crate applies is_file() to its input paths (crates/report/src/main.rs:716) while the payer intake does not, and the repo's CI payer job bound (timeout-minutes: 60, .github/workflows/privacy-gate.yml:223) limits an unattended CI hang without preventing it.",
+    "root_cause": "The entry type is never validated: the extension filter (payer.rs:503) is the only selection rule, and read_to_string (payer.rs:513) both follows symlinks and blocks in open() on FIFOs, with no read deadline.",
+    "intended_behavior": "Only regular files inside the supplied directory should be read: reject symlinks and non-regular entries (symlink_metadata/file_type check, or an O_NOFOLLOW open) as ledger-able refusals, and put a deadline on intake reads so one blocking entry cannot hold the payer hostage.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "crates/probe/src/payer.rs",
+        "line": 150,
+        "scope": "payer::run",
+        "description": "--invoices names the merchant-supplied invoice directory; its entries are processed as invoices with no file-type check"
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/probe/src/payer.rs",
+        "line": 503,
+        "scope": "load_invoices",
+        "description": "entries are selected by extension only; entry.path() is never type-checked"
+      },
+      {
+        "kind": "propagation",
+        "file": "crates/probe/src/payer.rs",
+        "line": 513,
+        "scope": "load_invoices",
+        "description": "read_to_string opens the path: a symlink is followed outside the directory, a FIFO blocks the process in open() with no timeout"
+      },
+      {
+        "kind": "sink",
+        "file": "crates/probe/src/payer.rs",
+        "line": 515,
+        "scope": "load_invoices",
+        "description": "with a symlink, the outside file is parsed and retained like any invoice; with a FIFO the process never reaches the decide loop at payer.rs:249 - no refusal, no ledger, nothing"
+      }
+    ],
+    "evidence": [
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 498,
+        "description": "std::fs::read_dir enumerates every entry type (regular file, symlink, FIFO); the only filter in the loop is the extension test at line 503 - no file-type discrimination"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 513,
+        "description": "read_to_string: whole-file read with no size cap, following symlinks; on a FIFO it blocks in File::open() (observed kernel wchan wait_for_partner)"
+      },
+      {
+        "file": "crates/probe/src/payer.rs",
+        "line": 201,
+        "description": "the (potentially blocking) intake runs before any decision and does not consult the grant or kill-switch state; the banner and the decide loop come later (lines 210 and 249-250)"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "merchant (or any untrusted producer) write access to the --invoices directory - creating a FIFO or symlink needs the same directory write permission as creating an invoice file"
+      },
+      {
+        "kind": "data_state",
+        "description": "the directory contains a FIFO or other blocking object named *.json, or a symlink named *.json pointing at a file outside the directory"
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A party who can create one directory entry: mkfifo hang.json for a permanent hang, or ln -s /target link.json to have the payer read and act on a file outside the directory it was given.",
+      "payloads": [
+        "mkfifo verifier6-fx/inv-fifo/hang.json (with one valid invoice afterfifo.json beside it; mkfifo needs only directory write, the same permission an invoice file needs)",
+        "ln -s ../outside/outside.json verifier6-fx/inv-link/link.json (outside/outside.json is a valid invoice, invoice_id \"outside\", 7 zat, living outside the --invoices directory)",
+        "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'sh verifier6-fx/check.sh'"
+      ],
+      "instructions": [
+        "In the disposable copy, create the FIFO and the symlink fixtures above (plain filesystem operations, no privileges beyond writing the directory); keep a valid invoice in the FIFO directory and a control directory holding the same bytes as a plain file.",
+        "Build zanary-probe from the copy's sources (touch crates/probe/src/payer.rs; cargo build --offline -p zanary-probe) so no prebuilt artifact is trusted.",
+        "Run the payer against each fixture with --now 2026-10-17T00:00:00Z: the FIFO case under a revoked grant with a bounded harness kill (10 s), the symlink case under a permissive grant; run the plain-file controls under both grants.",
+        "Record: binary sha256, exit code, elapsed time, output bytes, the printed decision lines, and the blocked process's state, wchan and open file descriptors."
+      ],
+      "observed_result": "FIFO case (revoked grant, afterfifo.json sorts before hang.json): the process was alive and sleeping after 5 s and 10 s (state=S, wchan=wait_for_partner - blocked in open() on the FIFO, no fd returned for hang.json), 0 bytes of output, SIGKILL at ~10 s gives exit 137, elapsed 11 s. Control: the same directory without the FIFO prints the full banner and 'REFUSE inplace - refused: the grant was revoked (kill switch)', then 'Error: connecting to the zcashd RPC at 127.0.0.1:18232 ... Connection refused' (offline sandbox), exit 1. Symlink case (permissive grant): 'ALLOW outside - paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)' and 'invoices : 1 in verifier6-fx/inv-link' - a file living in verifier6-fx/outside was read through the link, decided and queued; the same bytes copied inside a directory produce the identical ALLOW line; no payment was attempted (the run stops at the offline node connect). Both effects match the hunter's independently recorded run."
+    },
+    "remediation": {
+      "strategy": "Validate the entry type during selection and read with a deadline: skip or refuse entries whose symlink_metadata file_type is not a regular file, open reads with O_NOFOLLOW (or refuse symlinks outright), and bound the intake with a timeout so a blocking file cannot hold the process.",
+      "code_changes": [
+        {
+          "file_name": "crates/probe/src/payer.rs",
+          "fixed_code": "// inside the read_dir loop, before pushing a candidate:\n            let entry = entry?;\n            let candidate = entry.path();\n            if candidate.extension().is_some_and(|e| e == \"json\")\n                && entry.file_type().is_ok_and(|t| t.is_file())\n            {\n                files.push(candidate);\n            }\n\n// and in the read loop, refuse anything that is not a regular file inside the directory:\n        let meta = std::fs::symlink_metadata(file)\n            .with_context(|| format!(\"statting the invoice {}\", file.display()))?;\n        if !meta.file_type().is_file() {\n            bail!(\n                \"{} is not a regular file (symlink or special file) - refusing to read it as an \\\n                 invoice\",\n                file.display()\n            );\n        }"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "One directory entry is enough and it needs no privilege beyond directory write (mkfifo and ln -s need the same permission as writing an invoice file). The precondition is merchant write access to the --invoices directory - the modeled input channel of this unit; the repo's own demo and CI populate the directory themselves and the merchant side is simulated (docs/BOUNDED-PAYER.md), so the deployed demo path is not attacker-written."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Availability of the operator's payer run: intake blocks indefinitely before any decision, so even a revoked grant never reaches its refusal or the ledger, and only killing the process recovers; plus a directory-scoping bypass - a symlinked entry makes the payer read and queue an invoice file outside the supplied directory (weak: a writer can already place an invoice inside it). No money moves while blocked, nothing persists, recovery is removing the entry; the repo's CI payer job's timeout-minutes: 60 bounds an unattended CI hang to the job timeout."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The verifier independently rebuilt zanary-probe from the reviewed revision inside the sandbox (payer.rs sha256 22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720 identical to HEAD; only cfg(test) additions elsewhere in the copy) and reproduced both effects: a FIFO entry blocked the process in open() (kernel wchan wait_for_partner) with zero output until killed (exit 137), and a symlinked entry had an outside invoice file ALLOWed and queued, matching the hunter's record. Source shows no type check, no O_NOFOLLOW and no intake timeout, and payer.rs:201 is the only caller."
+    }
+  }
+}

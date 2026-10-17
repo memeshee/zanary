@@ -1,0 +1,163 @@
+//! verifier-24 Phase-5 independent reproduction for the record
+//! `crates/report/src/receipt.rs:validate_claim:claims-body-agreement-is-substring-containment`.
+//!
+//! Added only in the disposable sandbox copy; production source is untouched. Exercises the
+//! public API of `zanary-report` exactly as the CLI does, with a keypair verifier-24 derives
+//! itself (seed 0x7e) and fresh txid/memo values, and dumps CLI-runnable fixtures to /t/verifier24/.
+
+use orchard::keys::{FullViewingKey, SpendAuthorizingKey, SpendingKey};
+use zanary_observation::Receipt;
+use zanary_report::receipt::{
+    ak_of_orchard_fvk, hex_encode, signature_to_hex, signing_payload, validate_claim,
+    verify_signature,
+};
+
+const TX: &str = "0e5831a20f58384dcebba9500c83852cedd7199add40db2462c882c13c5ab0b9";
+const MEMO: &str = "f806e7ca274202a42738da3b8bf8585b83d1c1e8069c9d744a6bd4cfb6a5a2d9";
+const SEED: u8 = 0x7e;
+
+fn keypair(seed_byte: u8) -> (SpendingKey, String) {
+    let sk = SpendingKey::from_bytes([seed_byte; 32])
+        .into_option()
+        .expect("a valid spending key");
+    let ak = ak_of_orchard_fvk(&FullViewingKey::from(&sk));
+    (sk, hex_encode(&ak))
+}
+
+fn sign_with(sk: &SpendingKey, payload: &[u8]) -> String {
+    let key = SpendAuthorizingKey::from(sk).randomize(&pasta_curves::pallas::Scalar::from(0u64));
+    signature_to_hex(&key.sign(rand::rngs::OsRng, payload))
+}
+
+fn body(invoice_id: &str, amount_zat: u64) -> String {
+    serde_json::json!({
+        "invoice_id": invoice_id,
+        "amount_zat": amount_zat,
+        "txid": TX,
+        "memo_sha256": MEMO,
+    })
+    .to_string()
+}
+
+fn signed(seed: u8, body: String, claims: Vec<String>) -> Receipt {
+    let (sk, ak) = keypair(seed);
+    let mut r = Receipt {
+        label: "verifier-24 probe".to_string(),
+        format: "zanary-receipt-v1".to_string(),
+        body,
+        claims,
+        discloses: Vec::new(),
+        signer: Some(ak),
+        signature: None,
+        attestation: None,
+    };
+    let payload = signing_payload(&r).expect("payload");
+    r.signature = Some(sign_with(&sk, &payload));
+    r
+}
+
+fn dump(name: &str, r: &Receipt) {
+    let dir = std::path::Path::new("/t/verifier24");
+    std::fs::create_dir_all(dir).expect("mkdir /t/verifier24");
+    let text = serde_json::to_string_pretty(r).expect("serialize");
+    std::fs::write(dir.join(name), &text).expect("write fixture");
+}
+
+/// The candidate's proposed replacement for `words.contains(&needle)`, copied verbatim from the
+/// record's remediation block.
+fn states(words: &str, needle: &str) -> bool {
+    words.match_indices(needle).any(|(start, _)| {
+        let before_ok = words[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        let after_ok = words[start + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        before_ok && after_ok
+    })
+}
+
+#[test]
+fn v24_a_fresh_signed_superstring_claim_is_accepted() {
+    let r = signed(
+        SEED,
+        body("9120", 250_000),
+        vec![format!("invoice 91207 was paid 2500000 zatoshis in transaction {TX}")],
+    );
+    dump("probe-superstring.json", &r);
+    match verify_signature(&r) {
+        Ok(c) => println!("V24-A verify_signature OK signer={}", c.signer),
+        Err(e) => panic!("V24-A verify_signature ERR: {e:#}"),
+    }
+    let out = validate_claim(&r);
+    println!("V24-A validate_claim -> {out:?}");
+    assert!(out.is_ok(), "fresh embedding claim must be ACCEPTED (record claims it is)");
+}
+
+#[test]
+fn v24_b_controls() {
+    // absent invoice id (9121 does not contain 9120): must be refused with the invoice message
+    let b = signed(
+        SEED,
+        body("9120", 250_000),
+        vec![format!("invoice 9121 was paid 2500000 zatoshis in transaction {TX}")],
+    );
+    dump("probe-absent-invoice.json", &b);
+    let eb = validate_claim(&b);
+    println!("V24-B(absent invoice) -> {eb:?}");
+    let msg = format!("{:?}", eb.as_ref().err());
+    assert!(eb.is_err() && msg.contains("never state the invoice id (9120)"),
+        "9121 must be refused with the invoice-id message, got {msg}");
+
+    // absent amount (250019 does not contain 250000): refused with the amount message
+    let c = signed(
+        SEED,
+        body("9120", 250_000),
+        vec![format!("invoice 9120 was paid 250019 zatoshis in transaction {TX}")],
+    );
+    dump("probe-absent-amount.json", &c);
+    let ec = validate_claim(&c);
+    println!("V24-B(absent amount) -> {ec:?}");
+    let msgc = format!("{:?}", ec.as_ref().err());
+    assert!(ec.is_err() && msgc.contains("never state the amount in zatoshis (250000)"),
+        "250019 must be refused with the amount message, got {msgc}");
+
+    // exact figures: accepted
+    let d = signed(
+        SEED,
+        body("9120", 250_000),
+        vec![format!("invoice 9120 was paid 250000 zatoshis in transaction {TX}")],
+    );
+    dump("probe-clean.json", &d);
+    let ed = validate_claim(&d);
+    println!("V24-B(exact) -> {ed:?}");
+    assert!(ed.is_ok(), "exact-figure claim must be accepted");
+}
+
+#[test]
+fn v24_c_embedding_of_the_candidates_own_payload_values() {
+    // The record's payload 0: body 4471 / 1234567; claim 44710 / 12345678 (digit-embedded).
+    // Check pure substring logic on those exact strings, independent of any signature.
+    let words = "invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e";
+    for needle in ["44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e", "1234567", "4471"] {
+        println!("V24-C contains({needle}) = {}", words.contains(needle));
+        assert!(words.contains(needle));
+    }
+}
+
+#[test]
+fn v24_d_proposed_states_helper() {
+    let embedding = format!("invoice 91207 was paid 2500000 zatoshis in transaction {TX}");
+    let clean = format!("invoice 9120 was paid 250000 zatoshis in transaction {TX}");
+    println!("V24-D states(embedding, 9120) = {}", states(&embedding, "9120"));
+    println!("V24-D states(embedding, 250000) = {}", states(&embedding, "250000"));
+    println!("V24-D states(embedding, TX) = {}", states(&embedding, TX));
+    println!("V24-D states(clean, 9120) = {}", states(&clean, "9120"));
+    println!("V24-D states(clean, 250000) = {}", states(&clean, "250000"));
+    println!("V24-D states(clean, TX) = {}", states(&clean, TX));
+    assert!(!states(&embedding, "9120") && !states(&embedding, "250000"));
+    assert!(states(&embedding, TX));
+    assert!(states(&clean, "9120") && states(&clean, "250000") && states(&clean, TX));
+}

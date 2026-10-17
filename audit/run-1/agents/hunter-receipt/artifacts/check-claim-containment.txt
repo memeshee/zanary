@@ -1,0 +1,67 @@
+CHECK: claim/body agreement in validate_claim is a substring-containment test, so a receipt whose
+claims state DIFFERENT figures than its body is accepted and printed as `claim ok` with exit 0.
+Clearance: the check is a three-needle `contains()` loop; the promise it breaks is in the same file's
+own comment and in the shipped schema, so no further reading was needed.
+
+SOURCE (crates/report/src/receipt.rs, reviewed revision 7058406)
+  250-256 doc: "Checks a receipt's `body` against the shape the format promises, and its `claims`
+              against the body ... The rules are the ones in `schemas/zanary-receipt-v1.json` ...
+              A claim that contradicts the body is worse than no claim at all, so a receipt whose
+              words and figures disagree fails here rather than being printed as if it were fine."
+  308-310 comment: "The words must state the figures. A receipt is a claim, not a data dump: if the
+              claims do not name the transaction, the amount and the invoice, the artifact is
+              asserting something other than what it carries."
+  311     let words = receipt.claims.join(" ");
+  312-322 for (what, needle) in [("the transaction", txid.to_string()),
+                                 ("the amount in zatoshis", amount_zat.to_string()),
+                                 ("the invoice id", invoice_id.to_string())] {
+              if !words.contains(&needle) { return Err(...) }   <-- containment only
+          }
+  285-306 the body values themselves are read strictly (invoice_id a non-empty string, amount_zat a
+          u64, txid/memo_sha256 64 hex chars), so the defect is only in the agreement step.
+
+THE CONTRACT IT CONTRADICTS
+  schemas/zanary-receipt-v1.json:37 ("claims") — "Every fact in the body must appear here:
+    verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and
+    refuses a receipt whose claims contradict its body."
+  docs/FLOW-RUNNER-NOTES.md:352 — the documented behaviour for a claims/body disagreement is
+    `claim : INVALID — the claims never state the amount in zatoshis (999) that its body carries`,
+    exit 1. That message is only produced when the body's figures are ABSENT, not when they are
+    contradicted by a larger figure that embeds them.
+
+EXECUTED — sandbox, unit level (check-probe-log.txt)
+  receipt body  {... "amount_zat":1234567, "invoice_id":"4471", "txid":44f2..337e ...}
+  receipt claims ["invoice 44710 was paid 12345678 zatoshis in transaction 44f2..337e"]   <- different invoice, 10x amount
+  PROBE-C validate_claim ACCEPTED claims stating invoice 44710 / 12345678 zatoshis for body invoice
+    4471 / 1234567 zatoshis: ["body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid ...",
+    "claims: state the body's invoice id, amount and transaction"]
+
+EXECUTED — sandbox, CLI level (check-cli-run.txt §4)
+  $ zanary-report verify-receipt /t/hunter/claim-superstring.json ; echo exit=$?
+  receipt   : /t/hunter/claim-superstring.json
+  format    : zanary-receipt-v1
+  claim     : invoice 44710 was paid 12345678 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+  signature : VALID (Orchard RedPallas over the receipt's own fields)
+  signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+  claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc...337e
+  claim ok  : claims: state the body's invoice id, amount and transaction
+  binding   : none — …
+    summary: signature verified offline (no node, no indexer, no rig)
+  exit=0
+  (control, checks that the check does work for an ABSENT figure: not run — the crate's own
+   data/receipts/bad-claim-mismatch.json row and receipt.rs's loop make the absent case obvious.)
+
+WHERE THE MISLEADING TEXT TRAVELS (why this is published-evidence, not just a log line)
+  crates/observation/src/lib.rs:168  FlowRun.receipts  (the run carries the receipt)
+  crates/properties/src/properties/report_leak.rs:108-115  the receipt's `claims` are rendered as the
+    artifact's claim in the report finding detail (`claim="…"`), and the run/report is what the gate
+    publishes (reports are the tool's proof artifact).
+  crates/report/src/main.rs:110-111  `claim : …` is printed for the reader before any check runs,
+    and main.rs:127-134 prints the verifier's own `claim ok` notes after the check passes.
+
+MINIMUM RESULT / IMPACT AS OBSERVED
+  The verifier's claim/body check passes (exit 0, `claim ok`) on a receipt whose human-readable
+  statement names a different invoice id and a 10x different amount than its machine-readable body.
+  The body's true figures are also printed by the same tool on the adjacent `claim ok: body:` line,
+  so the effect is that the artifact's statement is certified as agreeing with figures it contradicts
+  — not that wrong body data is silently invented by the verifier.

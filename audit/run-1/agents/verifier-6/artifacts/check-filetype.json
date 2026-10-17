@@ -1,0 +1,57 @@
+{
+  "verifier": "verifier-6",
+  "fingerprint": "probe/payer.rs:load_invoices:nonregular-entry",
+  "target": "/home/kiter/hackathon/zanary",
+  "commit": "7058406",
+  "date_utc": "2026-10-17T11:03Z",
+  "binary": {
+    "sha256": "82b22239f0b03e4cc015455340de0493d4669dd12e7d4cc8623e1164d54e3604",
+    "built": "cargo build --offline -p zanary-probe in the sandbox copy after `touch crates/probe/src/payer.rs` (log: Compiling zanary-probe v0.0.1 (/t/crates/probe))",
+    "payer_rs_sha256": "22799a3b155aa1e92d96e07650f8155122e56924b423d15195bf93684aac9720",
+    "provenance": "all tracked production sources in the copy are blob-identical to HEAD; only crates/probe/src/main.rs and crates/report/src/receipt.rs differ, each by an appended #[cfg(test)] module (not compiled into the normal profile). No .cargo/config, build.rs, rust-toolchain or RUSTFLAGS in the copy.",
+    "note": "dev-profile binaries are not bit-reproducible: two builds of the same sources gave 82b2... and cf54...; the hunter's recorded 30435f8b... likewise cannot be compared by hash, only by source"
+  },
+  "sandbox_command": "docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v /home/kiter/.cargo/registry:/usr/local/cargo/registry:ro -w /t rust:1-slim sh -c 'sh verifier6-fx/check.sh'",
+  "fixtures": {
+    "grants/grant-revoked.json": "{\"revoked\": true}",
+    "grants/grant-ok.json": "{} (defaults: budget 50000000 zat, cap 10000000 zat, empty allowlist)",
+    "inv-plain/plain.json": "valid regular invoice (control)",
+    "inv-fifo/afterfifo.json": "valid regular invoice, sorts before hang.json",
+    "inv-fifo/hang.json": "FIFO (mkfifo)",
+    "inv-link/link.json": "symlink -> ../outside/outside.json",
+    "outside/outside.json": "valid invoice invoice_id=outside amount=7, outside the --invoices dir",
+    "inv-copy/copy.json": "copy of outside.json inside a plain dir (control)"
+  },
+  "checks": [
+    {
+      "id": "A-control-regular-file",
+      "grant": "revoked",
+      "invoices_dir": "inv-plain",
+      "observed": "banner + 'REFUSE inplace - refused: the grant was revoked (kill switch)'; exit 1 at the offline node connect (127.0.0.1:18232 connection refused)",
+      "conclusion": "fixture and grant sound; the payer's normal path prints its decision"
+    },
+    {
+      "id": "B-fifo-hang-json",
+      "grant": "revoked",
+      "invoices_dir": "inv-fifo",
+      "observed": "process alive and sleeping at 5 s and 10 s; /proc state=S, wchan=wait_for_partner (blocked in open() on the FIFO, no fd returned for hang.json); 0 bytes of output; SIGKILL at ~10 s -> exit 137, elapsed 11 s",
+      "conclusion": "reproduces the claimed indefinite block in intake before any authority evaluation; the revoked grant / kill switch never reaches a refusal"
+    },
+    {
+      "id": "C-symlink-outside-json",
+      "grant": "ok",
+      "invoices_dir": "inv-link",
+      "observed": "'ALLOW outside - paid: within the cap (10000000 zat) and the budget (7 of 50000000 zat spent after this)' and 'invoices : 1 in verifier6-fx/inv-link'; the file read is verifier6-fx/outside/outside.json, outside the supplied directory; run then fails at the offline node connect (no payment attempted)",
+      "conclusion": "reproduces the claimed directory-boundary bypass: a symlinked entry is followed, parsed and queued like any invoice"
+    },
+    {
+      "id": "D-control-same-bytes-inside",
+      "grant": "ok",
+      "invoices_dir": "inv-copy",
+      "observed": "identical ALLOW line for the same bytes as a plain file inside the directory",
+      "conclusion": "the symlink case is indistinguishable from the file living inside the directory"
+    }
+  ],
+  "matches_hunter_artifact": "agents/hunter-invoices/artifacts/check-filetype.txt (same two effects, independent runs)",
+  "source_controls_found": "none: no symlink_metadata / O_NOFOLLOW / file_type / is_file check and no timeout anywhere in the payer intake (crates/probe/src/payer.rs:495-520); load_invoices has exactly one caller (payer.rs:201); the only in-tree is_file checks are crates/report/src/main.rs:683,716 and crates/report/src/matrix.rs:45, unrelated paths"
+}

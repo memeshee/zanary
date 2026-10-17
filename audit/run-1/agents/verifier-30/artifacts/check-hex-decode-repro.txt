@@ -1,0 +1,57 @@
+# verifier-30 Phase-5 check: zanary/hex-decode-str-slice-panic
+# target /home/kiter/hackathon/zanary at 70584064b8d5d4a2c96c49ad16ad531573cdc5ef, git status clean
+# sandbox copy: /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2 (git archive HEAD, rust-toolchain.toml removed)
+# container: docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024,
+#            cargo registry mounted read-only, rustc 1.99.0 (b940084d7 2026-09-28)
+
+## Source claims re-read in target (all confirmed)
+main.rs:52            Some("verify-invoice") => flow::verify_invoice(rest).await     -> entrypoint OK
+flow.rs:1654          pub async fn verify_invoice(raw: &[String])
+flow.rs:1671          txid_hex = Some(value(i, "--txid")?);                           -> verbatim argv OK
+flow.rs:1679-1685     invoice read + serde_json::from_str into Invoice (derive Deserialize at
+                      flow.rs:1541-1550, no validation on this path) -> fixture parses OK
+flow.rs:1687          let mut bytes: [u8; 32] = hex_decode(&txid_hex)                  -> call site OK
+flow.rs:1699-1700     core::bootstrap_with(WalletProfile::merchant(...))               -> after decode OK
+flow.rs:1778-1789     fn hex_decode; guard 1779 !hex.len().is_multiple_of(2);
+                      slice u8::from_str_radix(&hex[i..i + 2], 16) at 1785               -> sink OK
+report/node.rs:193-203 hex_decode iterates hex.as_bytes().chunks(2) + from_utf8 (198-199) -> sibling OK
+seed.rs:714-723       hex_decode_into iterates hex.as_bytes().chunks(2) + from_utf8 (718-719) -> sibling OK
+Only caller of flow::hex_decode is verify_invoice (flow.rs:1687).
+sha256(crates/probe/src/flow.rs) == 6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782
+  == target hash; verified in the sandbox copy before and after build.
+
+## Independent reproduction (forced recompile of zanary-probe from the copy's source, then run)
+touch crates/probe/src/flow.rs && cargo build --offline -p zanary-probe --bin zanary-probe
+  -> Compiling zanary-probe v0.0.1 (/t/crates/probe); Finished dev profile in 14.57s; BUILD_EXIT=0
+fixture /t/v30-invoice-fixture.json (written verbatim as in the record):
+  {"invoice_id":"9001","amount_zat":1,"receiver":"not-a-real-address","memo":"","uri":"","issued_at_height":1,"merchant_account":0}
+
+./target/debug/zanary-probe verify-invoice --invoice /t/v30-invoice-fixture.json --txid "$(printf 'a\303\251b')"
+  thread 'main' (310) panicked at crates/probe/src/flow.rs:1785:36:
+  end byte index 2 is not a char boundary; it is inside 'é' (bytes 1..3 of string)
+  EXIT=101
+--txid "$(printf '\342\200\224a')"  -> panic at flow.rs:1785:36, '—' (bytes 0..3), EXIT=101
+--txid "$(printf 'a\302\253b')"    -> panic at flow.rs:1785:36, '«' (bytes 1..3), EXIT=101
+--txid "$(printf 'a\360\237\246\200b')" -> panic at flow.rs:1785:36, '🦀' (bytes 1..5), EXIT=101
+
+Controls (same command/fixture), all as the record claims:
+--txid é (c3 a9, even, non-hex)   -> EXIT=1  "invalid hex at byte 0: invalid digit found in string"
+--txid 64x 'z'                    -> EXIT=1  "invalid hex at byte 0: invalid digit found in string"
+--txid zzzz                       -> EXIT=1  "invalid hex at byte 0: invalid digit found in string"
+--txid a—b (61 e2 80 94 62, odd)  -> EXIT=1  "hex string has an odd length"
+--txid 64-hex 00..01              -> EXIT=1  "connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused"
+  (i.e. passes hex_decode, reaches bootstrap -> decode happens before wallet/chain work)
+
+## Remediation check
+diff target flow.rs vs sandbox v11-pristine/crates/probe/src/flow.rs == exactly the record's
+code_changes[0].fixed_code (chunks(2) + from_utf8, error messages keep "invalid hex at byte {i}"
+with i = pair index = old i/2 semantics; unit test module included).
+Non-destructive run of verifier-11's fixed binary (/t/v11-pristine/target/debug/zanary-probe):
+--txid "aéb"  -> EXIT=1 "invalid hex at byte 0: incomplete utf-8 byte sequence from index 1" (no panic)
+--txid "—a"   -> EXIT=1 "invalid hex at byte 0: incomplete utf-8 byte sequence from index 0" (no panic)
+--txid 64-hex -> EXIT=1 "connecting to the zcashd RPC at 127.0.0.1:18232 / Connection refused" (unchanged)
+
+## Verdict
+Every trace/evidence path, line, scope, condition, control and the observed result reproduce as
+written; impact stays at "own CLI aborts, exit 101" (no code execution, no data/funds/authority);
+severity low/low/low consistent. Record holds as written -> verified.

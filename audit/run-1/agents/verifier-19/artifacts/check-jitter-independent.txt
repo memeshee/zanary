@@ -1,0 +1,45 @@
+# local check (verifier-19, independent) — the "missing bound" half of candidate zanary/unbounded-jitter-block-mining
+# reviewed revision: /home/kiter/hackathon/zanary @ 7058406 (70584064b8d5d4a2c96c49ad16ad531573cdc5ef), worktree clean
+# command:
+#   docker run --rm --network=none --cpus=6 --memory=3500m --memory-swap=5g --pids-limit=1024 \
+#     -v /home/kiter/.hermes/cache/scratch/zanary-sandbox-w2:/t -v $HOME/.cargo/registry:/usr/local/cargo/registry:ro \
+#     -w /t rust:1-slim sh -c 'CARGO_BUILD_JOBS=6 cargo test --offline -p zanary-probe --bin zanary-probe verifier19 -- --nocapture'
+# sandbox copy control: crates/probe/src/flow.rs was byte-identical to `git show HEAD:crates/probe/src/flow.rs`
+#   (sha256 6fe40483fc367ef5df33b89bca1cfe383af13c259ff5144562d5279a34970782) before the run; a uniquely named
+#   #[cfg(test)] mod verifier19_tests (scratch/check-jitter-test-module.txt) was appended to the DISPOSABLE COPY only, and the
+#   copy was restored to the same sha256 afterwards. The reviewed repository was never modified. node.rs/ops.rs also
+#   byte-identical to HEAD throughout.
+=== raw output ===
+    Blocking waiting for file lock on build directory
+   Compiling zanary-probe v0.0.1 (/t/crates/probe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 17s
+     Running unittests src/main.rs (target/debug/deps/zanary_probe-0e261770de5b7d3f)
+
+running 2 tests
+V19-RANGE Some([1, 4294967295]) fixed=Some(7)
+V19-DESCRIBE jittered 1-4294967295 blocks between payments, drawn: []
+V19-DRAWS [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+V19-MAX 4085077839
+V19-MEAN 1791207489
+V19-DESCRIBE-AFTER jittered 1-4294967295 blocks between payments, drawn: [1789459390, 130212073, 612261766, 1318925544, 260816077, 612643398, 2799673497, 2330093573, 2657231286, 1170366893, 3165678560, 4085077839, 2560095442, 753601963, 3193626250, 1102801312, 2018744231, 537818331, 1618899307, 3107202351, 2155820754, 2743952396, 1690509317, 88590261, 400456920, 365259399, 1363027663, 1605857143, 1210644521, 2700947112, 3381075689, 3787269421]
+test flow::verifier19_tests::v19_seed7_draws ... ok
+  jitter: ignoring jitter_blocks [2, 1] (want 1 <= min <= max); falling back to the fixed three blocks
+V19-BAD-DRAWS 3 3 3
+V19-EDGE-DRAW 4294967295
+test flow::verifier19_tests::v19_bounds_are_shape_only ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+=== reading (verifier-19) ===
+- A serde-parsed FlowDefinition with jitter_blocks [1, 4294967295] + jitter_seed 7 is ACCEPTED by
+  Jitter::from_definition verbatim (V19-RANGE / V19-DESCRIBE show the range held unchanged). No upper bound exists on
+  the path; the only bound applied is the shape malformed-range fallback (V19-BAD-DRAWS 3 3 3 for [2,1]).
+- The degenerate range [4294967295, 4294967295] is accepted and draws exactly 4,294,967,295 (V19-EDGE-DRAW).
+- 32 seeded draws: max 4,085,077,839; mean 1,791,207,489; first draw 1,789,459,390. Every one of these values is
+  handed to ops::mine_and_resync -> ops.rs:436 node.generate(blocks) -> node.rs:232 `generate` JSON-RPC, one call per
+  draw, client bound = 300 s response read (node.rs:122-125; connect 30 s at node.rs:94). Because the FIRST draw is
+  already ~1.79e9 blocks, this is the first payment's request, not a tail event.
+- This matches the hunter's artifact draw-for-draw (agents/hunter-inputs/artifacts/check-jitter-draw.txt), re-obtained
+  independently here. Arithmetic correction: the 32-draw mean is 1.79e9, not the "~1.9e9" the hunter wrote.
+- Not settled here: exactly what zcashd does with the request and what it costs (outside this repository; the rig's
+  containers/ports 18232/18233 are out of bounds and the approved sandbox has no node and no network).

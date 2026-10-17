@@ -1,0 +1,25 @@
+RESTORED-IDENTICAL
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 49.66s
+2e903494733440be53a656846c954ccee551f5a740773cf6f585c2b19b534e60  target/debug/zanary-report
+=== variant A on restored binary ===
+EXIT=101
+
+thread 'main' (434) panicked at crates/report/src/receipt.rs:359:36:
+end byte index 2 is not a char boundary; it is inside '€' (bytes 1..4 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+=== --fvk sink (verify_attestation short()) ===
+EXIT=101
+--- stdout ---
+receipt   : /t/v23/receipt-att-nonascii.json
+format    : zanary-receipt-v1
+claim     : invoice 4471 was paid 1234567 zatoshis in transaction 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+signature : VALID (Orchard RedPallas over the receipt's own fields)
+signer    : 280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e
+claim ok  : body: zanary-receipt-v1, invoice 4471, 1234567 zatoshis, txid 44f216cc11eb88f67d9976f8ba91f2ac5a981cc8a2f8a648f75887580f57337e
+claim ok  : claims: state the body's invoice id, amount and transaction
+from --fvk: 6cb31f4dac3d1c8a4ba98ab750a3d592ddd69e1a7ad14f2ad34f144e346cdb3e
+--- stderr ---
+
+thread 'main' (443) panicked at crates/report/src/receipt.rs:190:30:
+end byte index 8 is not a char boundary; it is inside '€' (bytes 7..10 of string)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
