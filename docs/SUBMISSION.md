@@ -18,24 +18,16 @@ publishes claims that expire unless someone re-proves them.
 
 ## Description (the form's field is ≤2000 characters)
 
-**Paste this — 1997 characters, including the markdown:**
+**Paste this — 1987 characters, including the markdown:**
 
 ```
-**The problem.** "We don't leak your identity" is un-falsifiable prose, tested by the code that makes the claim. The failure is never the UI; it's the bytes — a receiver reused, a memo left out, round amounts that fingerprint a deposit.
+**What it does.** A privacy gate for Zcash payment flows: it runs a checkout on a throwaway local chain with real shielded transactions, observes what the chain, a merchant and an observer can see, scores it against 13 named leak classes, hashes the evidence — and lets the claim expire. One command: `harness/up.sh && scripts/demo-run.sh`.
 
-**What ZANARY is.** A rig that runs a Zcash payment flow on a throwaway regtest chain with real shielded transactions, observes what the chain, the merchant and an observer can see, scores it against 13 named leak classes, hashes the evidence — and lets the claim expire.
+**Why it does not leak.** The verdict is re-derived, not reported: `zanary-report verify` is a second implementation that re-checks every line against the chain (tx exists, receiver decrypts, memo decrypts, pool totals match getblock) — flip a byte and it exits 1. Claims are flow x commit x height with a clock, dead unless CI re-proves them weekly. The gate fails builds on itself too: one flow must pass, a deliberately leaky control must be CAUGHT; exit 2 is "could not check", never a verdict. The evidence root also rides in a shielded memo to a beacon whose viewing key is published, so its time is not ours to fake. Nothing of the payer's escapes either: runs are regtest-local (no mainnet keys, no funds), and anchors carry hashes, a chain name and a height.
 
-Four things make it more than a test suite:
-· The evidence is re-derived, not reported: a second implementation re-checks every line against the chain (tx exists, receiver decrypts, memo decrypts, pool totals match getblock). Flip a byte and it exits 1.
-· Claims have a clock: flow × commit × height with a TTL — live, stale, then dead unless CI re-proves it weekly. A privacy claim is not a fact, it is a subscription.
-· The gate fails builds, including on itself: one flow must pass, a deliberately leaky control must be CAUGHT, so a library that goes quiet fails the build too. Exit 2 means "could not check" — never a privacy verdict.
-· Timestamps nobody is trusted for: the evidence root goes into a shielded memo to a public beacon; verify-anchor finds the earliest anchor with a node and the beacon's key.
+**The subject that passes.** A bounded payer — an agent given a budget instead of a key: budget, per-payment cap, receiver allowlist, expiry, kill switch. It decides every invoice before paying any, writes one ledger line per decision naming the deciding rule, and the rig checks that ledger against the grant: 4 invoices → 1 paid, 3 refused by three different rules; the same four under a tripped kill switch → all refused.
 
-**The subject that passes.** A bounded payer — an agent given a budget instead of a key: budget, per-payment cap, receiver allowlist, expiry, kill switch. It decides every invoice before paying any, writes one ledger line per decision with the rule that decided it, and the rig checks that ledger against the grant. Recorded: 4 invoices → 1 paid, 3 refused by three rules; the same four with the switch thrown → all refused, nothing spent.
-
-**One command:** `harness/up.sh && scripts/demo-run.sh`.
-
-**Scope:** regtest, local; the merchant side is the rig's simulation (the verifier skips those fields rather than pretending); the flows tested are flows in this repository.
+**Real vs mocked.** Real: the node, the shielded transactions, the memos, the proofs, the evidence hashes, and the second implementation that re-derives them. Ours: the wallets, built on librustzcash. Simulated and labelled as such: the merchant endpoint the rig runs itself — the verifier skips those fields instead of pretending. Scope: regtest and local, so network-level deanonymisation is out of scope and the flows tested are this repository's.
 ```
 
 <details>
@@ -93,7 +85,7 @@ which the control app is the reference.
 | field | constraint | state |
 |---|---|---|
 | track | exactly one | Core & Tooling |
-| description | **≤2000 characters** | the version above, **1997** — the long form is folded away and must not be pasted into the field |
+| description | **≤2000 characters** | the version above, **1987** — the long form is folded away and must not be pasted into the field |
 | repo URL | public by the deadline | <https://github.com/memeshee/zanary>, public |
 | working demo URL | a live URL a judge can open | <https://memeshee.github.io/zanary/> — the published claim index (this product is a CLI rig; the index is its live surface, with the raw claims served beside it) |
 | video URL | **≤2 minutes**, closing shot = profiler-vs-control | **<https://memeshee.github.io/zanary/video/>** (player) · direct file: `.../video/zanary-demo.mp4` · **112 s**, 1600×900, 3.7 MB, served by the same Pages deploy as the claims; frames from a real exit-0 run, narration word-counted to 1:52 |
@@ -113,6 +105,7 @@ which the control app is the reference.
 | CI green on `main` | ✅ five jobs: tests (fmt · clippy · 87 unit tests), private flow, control flow, bounded payer, publish |
 | claims published | ✅ <https://memeshee.github.io/zanary/> |
 | independent audit, in-tree | ✅ [`audit/`](../audit/README.md) — 19 findings (11 confirmed, 8 leads) from a read-only run at `7058406`, every confirmed one fixed with a regression test, three leads re-verified against the running rig |
+| GitHub release (not a form field) | ✅ [`zecathon-2026-r2`](https://github.com/memeshee/zanary/releases/tag/zecathon-2026-r2) — cut at `main`, demo mp4 attached; the earlier `zecathon-2026` snapshot is marked superseded |
 | submission form sent | ⏳ operator step: Telegram handle, one track (Core & Tooling), before Oct 28 23:59 UTC |
 
 ## Numbers a judge can re-derive
