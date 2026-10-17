@@ -97,6 +97,13 @@ on `main` with a regression test, and every lead is either closed against the ru
 the fact it still needs. The record — findings, traces, reproductions, the coverage ledger, the budget,
 and what the audit did *not* cover — is in [`audit/`](audit/README.md).
 
+The interesting half of that record is what a leak class could **not** have caught: **7 of the 19 sit
+inside a class this library names**, and three of those seven are the same mistake wearing three hats —
+*the rule and the check encoded one wrong assumption, so a run that should have failed passed with
+evidence attached* — while **12 are the tool around the flow**: hostile input, resource bounds, CI
+plumbing, the rig's own hygiene. Which finding fell on which side, with the test that guards each fix,
+is measured (not asserted) in [`docs/WHAT-IT-CAUGHT.md`](docs/WHAT-IT-CAUGHT.md).
+
 ## How it fits the track
 
 Core & Tooling: "Build something the next Zcash developer will thank you for. SDKs, explorers,
