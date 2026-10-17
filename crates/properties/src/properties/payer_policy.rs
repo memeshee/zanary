@@ -24,7 +24,7 @@
 //! Evidence: the offending decision, the rule it broke, and the grant's own numbers.
 
 use crate::{Finding, Property, Severity};
-use zanary_observation::FlowRun;
+use zanary_observation::{FlowRun, PAYMENT_FEE_ZAT};
 
 /// The property id, in one place: the ledger check and the findings must name the same thing.
 const PROPERTY: &str = "payer-policy";
@@ -59,6 +59,9 @@ impl Property for PayerPolicy {
         let mut spent: u64 = 0;
         let mut paid = 0usize;
         let mut refused = 0usize;
+        // Invoice identity: a *paid* decision is a payment, so the same invoice id paid twice is a
+        // replay however it happened — this is the detector half of the payer's own dedupe.
+        let mut paid_ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
         for decision in &payer.decisions {
             if !decision.paid() {
@@ -74,7 +77,18 @@ impl Property for PayerPolicy {
                 continue;
             }
             paid += 1;
-            spent = spent.saturating_add(decision.amount_zat);
+            // The budget counts what the run costs the operator: the invoice principal plus the
+            // ZIP-317 fee every payment also pays. Without the fee, a run at its budget could cost
+            // the operator an unbounded multiple of it in fees alone.
+            spent = spent
+                .saturating_add(decision.amount_zat)
+                .saturating_add(PAYMENT_FEE_ZAT);
+            if !paid_ids.insert(decision.invoice_id.clone()) {
+                violations.push(format!(
+                    "invoice {} was paid more than once (two paid decisions share this invoice id)",
+                    decision.invoice_id
+                ));
+            }
             if decision.amount_zat > grant.per_payment_cap_zat {
                 violations.push(format!(
                     "invoice {} paid {} zat, above the per-payment cap of {}",
@@ -83,8 +97,8 @@ impl Property for PayerPolicy {
             }
             if spent > grant.budget_zat {
                 violations.push(format!(
-                    "invoice {} took the run to {} zat, past the budget of {} (cumulative, in ledger \
-                     order)",
+                    "invoice {} took the run to {} zat (payment fee included), past the budget of {} \
+                     (cumulative, in ledger order)",
                     decision.invoice_id, spent, grant.budget_zat
                 ));
             }
@@ -103,12 +117,13 @@ impl Property for PayerPolicy {
         }
 
         let summary = format!(
-            "{} paid · {} refused · {} of {} zat spent (cap {} per payment, {} receiver(s) allowed, \
-             expires at {}{})",
+            "{} paid · {} refused · {} of {} zat spent (principal + {} zat fee per payment; cap {} per \
+             payment, {} receiver(s) allowed, expires at {}{})",
             paid,
             refused,
             spent,
             grant.budget_zat,
+            PAYMENT_FEE_ZAT,
             grant.per_payment_cap_zat,
             grant.allowlist.len(),
             grant.expires_at,
@@ -189,7 +204,7 @@ mod tests {
             payer: Some(PayerRun {
                 label: "test".to_string(),
                 grant: PayerGrant {
-                    budget_zat: 1000,
+                    budget_zat: 30_000,
                     per_payment_cap_zat: 400,
                     allowlist: vec!["uregtest1allowed".to_string()],
                     expires_at: "2026-10-16T00:00:00Z".to_string(),
@@ -207,6 +222,7 @@ mod tests {
             receiver: receiver.to_string(),
             decision: "paid".to_string(),
             reason: format!("within cap and budget; {receiver} is on the allowlist"),
+            decided_at: None,
             txid: Some("aa".repeat(32)),
             height: Some(10),
         }
@@ -219,6 +235,7 @@ mod tests {
             receiver: receiver.to_string(),
             decision: "refused".to_string(),
             reason: reason.to_string(),
+            decided_at: None,
             txid: None,
             height: None,
         }
@@ -320,5 +337,89 @@ mod tests {
     fn an_empty_ledger_under_a_grant_skips() {
         let run = run_with(vec![], false);
         assert_eq!(PayerPolicy.check(&run).verdict, Verdict::Skip);
+    }
+}
+
+#[cfg(test)]
+mod bounded_payer_regression {
+    //! Regression tests for the property side of the authority model, written from an audit of the
+    //! reference payer: the budget counts what a payment costs the operator (fee included), and a
+    //! paid invoice id is paid once.
+    use super::*;
+    use crate::Verdict;
+    use zanary_observation::{PayerDecision, PayerGrant, PayerRun};
+
+    fn run_with(decisions: Vec<PayerDecision>, budget_zat: u64) -> FlowRun {
+        FlowRun {
+            flow_id: "regression".to_string(),
+            flow_commit: "0".repeat(64),
+            chain: "regtest".to_string(),
+            started_at_height: 1,
+            ended_at_height: 2,
+            funding: vec![],
+            payments: vec![],
+            merchant_events: vec![],
+            receipts: vec![],
+            pool_totals: vec![],
+            merchant_is_simulated: true,
+            payer: Some(PayerRun {
+                label: "regression".to_string(),
+                grant: PayerGrant {
+                    budget_zat,
+                    per_payment_cap_zat: 400_000,
+                    allowlist: vec!["uregtest1allowed".to_string()],
+                    expires_at: "2030-01-01T00:00:00Z".to_string(),
+                    revoked: false,
+                },
+                decisions,
+            }),
+        }
+    }
+
+    fn paid(id: &str, amount: u64) -> PayerDecision {
+        PayerDecision {
+            invoice_id: id.to_string(),
+            amount_zat: amount,
+            receiver: "uregtest1allowed".to_string(),
+            decision: "paid".to_string(),
+            reason: "paid: within the cap and the budget".to_string(),
+            decided_at: Some("2026-10-16T00:00:00Z".to_string()),
+            txid: Some("aa".repeat(32)),
+            height: Some(10),
+        }
+    }
+
+    #[test]
+    fn the_budget_counts_the_fee_the_payer_also_spends() {
+        let fee = PAYMENT_FEE_ZAT;
+        // 19_000 principal + 10_000 fee fits a 30_000 budget; 25_000 does not.
+        let fits = run_with(vec![paid("fits", 30_000 - fee)], 30_000);
+        assert_eq!(PayerPolicy.check(&fits).verdict, Verdict::Pass);
+        let over = run_with(vec![paid("over", 30_000 - fee + 1)], 30_000);
+        let finding = PayerPolicy.check(&over);
+        assert_eq!(finding.verdict, Verdict::Fail);
+        assert!(
+            finding
+                .evidence
+                .iter()
+                .any(|line| line.contains("fee included")),
+            "{:?}",
+            finding.evidence
+        );
+    }
+
+    #[test]
+    fn a_paid_invoice_id_paid_twice_fails() {
+        let run = run_with(vec![paid("dup", 1_000), paid("dup", 1_000)], 1_000_000);
+        let finding = PayerPolicy.check(&run);
+        assert_eq!(finding.verdict, Verdict::Fail);
+        assert!(
+            finding
+                .evidence
+                .iter()
+                .any(|line| line.contains("more than once")),
+            "{:?}",
+            finding.evidence
+        );
     }
 }

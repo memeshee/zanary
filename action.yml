@@ -88,23 +88,45 @@ runs:
       id: gate
       shell: bash
       working-directory: ${{ github.action_path }}
+      env:
+        # Inputs arrive as data, never as script text. `${{ inputs.* }}` written inside a `run:`
+        # block is substituted by the runner *before* the shell parses the script, so a caller that
+        # templates one of these values (a dispatch input, a reusable-workflow parameter, a
+        # branch-derived string) would otherwise get command execution inside its own job.
+        INPUT_FLOW: ${{ inputs.flow }}
+        INPUT_OUT: ${{ inputs.out }}
+        INPUT_EXPECT: ${{ inputs.expect }}
+        INPUT_ANCHOR: ${{ inputs.anchor }}
+        INPUT_TTL_DAYS: ${{ inputs.ttl-days }}
       run: |
         set -o pipefail
+        case "$INPUT_EXPECT" in
+          pass|fail) ;;
+          *) echo "::error::ZANARY gate: expect must be pass or fail, got '$INPUT_EXPECT'"; exit 2 ;;
+        esac
+        case "$INPUT_TTL_DAYS" in
+          ''|*[!0-9]*) echo "::error::ZANARY gate: ttl-days must be a positive integer, got '$INPUT_TTL_DAYS'"; exit 2 ;;
+        esac
         # The flow and the run directory belong to the calling repository, not to this action: a
         # caller reads their own evidence and uploads it as their own artifact.
-        FLOW="${{ inputs.flow }}"
-        for candidate in "${{ github.workspace }}/$FLOW" "${{ github.action_path }}/$FLOW" "$FLOW"; do
+        FLOW="$INPUT_FLOW"
+        for candidate in "$GITHUB_WORKSPACE/$FLOW" "$GITHUB_ACTION_PATH/$FLOW" "$FLOW"; do
           if [ -f "$candidate" ]; then FLOW="$candidate"; break; fi
         done
         if [ ! -f "$FLOW" ]; then
-          echo "::error::ZANARY gate: no flow definition at ${{ inputs.flow }}"
+          echo "::error::ZANARY gate: no flow definition at $INPUT_FLOW"
           exit 2
         fi
-        OUT="${{ github.workspace }}/${{ inputs.out }}"
+        OUT="$GITHUB_WORKSPACE/$INPUT_OUT"
         mkdir -p "$OUT"
         anchor_flag=""
-        [ "${{ inputs.anchor }}" = "true" ] && anchor_flag="--anchor"
-        echo "out=$OUT" >> "$GITHUB_OUTPUT"
+        [ "$INPUT_ANCHOR" = "true" ] && anchor_flag="--anchor"
+        # Multiline-safe: a value carrying a newline cannot forge further output keys.
+        {
+          echo "out<<ZANARY_OUT"
+          printf '%s\n' "$OUT"
+          echo "ZANARY_OUT"
+        } >> "$GITHUB_OUTPUT"
         # Bounded: a rig that stops answering must fail this job in minutes with a reason, not hold a
         # runner for the job's whole timeout. `timeout` reports 124, which is a rig failure (2), never
         # a verdict about the flow.
@@ -113,8 +135,8 @@ runs:
         timeout "$GATE_TIMEOUT" ./target/release/zanary-probe test \
           --definition "$FLOW" \
           --out "$OUT" \
-          --expect "${{ inputs.expect }}" \
-          --ttl-days "${{ inputs.ttl-days }}" \
+          --expect "$INPUT_EXPECT" \
+          --ttl-days "$INPUT_TTL_DAYS" \
           $anchor_flag \
           --summary "$OUT/test.json" \
           2>&1 | tee "$OUT/gate.log"
@@ -132,12 +154,17 @@ runs:
       if: always()
       shell: bash
       working-directory: ${{ github.action_path }}
+      env:
+        # Derived from an input, so it is data here too: never re-interpolated into script text.
+        GATE_OUT: ${{ steps.gate.outputs.out }}
+        INPUT_FLOW: ${{ inputs.flow }}
+        INPUT_EXPECT: ${{ inputs.expect }}
       run: |
-        OUT="${{ steps.gate.outputs.out }}"
+        OUT="$GATE_OUT"
         {
           echo ""
           python3 scripts/ci-summary.py "$OUT/test.json" \
-            --title "${{ inputs.flow }} (expect ${{ inputs.expect }})" || true
+            --title "$INPUT_FLOW (expect $INPUT_EXPECT)" || true
         } >> "$GITHUB_STEP_SUMMARY"
         {
           echo "### gate log (tail)"
@@ -149,8 +176,10 @@ runs:
     - name: rig diagnostics (only when the gate did not pass)
       if: always() && steps.gate.outputs.exit_code != '0'
       shell: bash
+      env:
+        GATE_OUT: ${{ steps.gate.outputs.out }}
       run: |
-        OUT="${{ steps.gate.outputs.out }}"
+        OUT="$GATE_OUT"
         {
           echo "### rig state at failure"
           echo '```'
@@ -171,11 +200,14 @@ runs:
 
     - name: verdict
       shell: bash
+      env:
+        GATE_EXIT: ${{ steps.gate.outputs.exit_code }}
+        INPUT_EXPECT: ${{ inputs.expect }}
       run: |
-        code="${{ steps.gate.outputs.exit_code }}"
+        code="$GATE_EXIT"
         case "$code" in
-          0) echo "ZANARY gate: the run matched its expectation (--expect ${{ inputs.expect }})."; exit 0 ;;
-          1) echo "::error::ZANARY gate: the run did NOT match its expectation (--expect ${{ inputs.expect }}) — see the summary and gate.log."; exit 1 ;;
+          0) echo "ZANARY gate: the run matched its expectation (--expect $INPUT_EXPECT)."; exit 0 ;;
+          1) echo "::error::ZANARY gate: the run did NOT match its expectation (--expect $INPUT_EXPECT) — see the summary and gate.log."; exit 1 ;;
           2) echo "::error::ZANARY gate: the rig could not check this run (chain unreachable, report does not hash to itself, or the anchor could not be found). This says nothing about the flow either way."; exit 2 ;;
           *) echo "::error::ZANARY gate: unexpected exit code ${code}."; exit 1 ;;
         esac

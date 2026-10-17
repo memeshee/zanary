@@ -29,6 +29,39 @@ pub const REPORT_VERSION: u32 = 1;
 /// Default claim lifetime: 30 days (docs/CLAIMS.md).
 pub const DEFAULT_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
 
+/// The first `n` characters of `value`, never splitting a multi-byte character.
+///
+/// Every hash-shaped field this crate prints (`flow_commit`, `report_hash`, receipt keys, an
+/// anchor root from argv) arrives from JSON or argv the reporter does not control. Printing one
+/// used to be `&value[..n]`, which panics when byte `n` falls inside a multi-byte character —
+/// a stranger's claim could abort the verifier instead of producing a verdict. Display goes
+/// through here so the process can always finish its documented 0/1/2 exit contract.
+pub fn head_chars(value: &str, n: usize) -> String {
+    value.chars().take(n).collect()
+}
+
+/// `value` shortened to `n` characters with an ellipsis when it is longer — the display form for
+/// a hash that arrives from untrusted input. Char-safe (see [`head_chars`]).
+pub fn short_chars(value: &str, n: usize) -> String {
+    if value.chars().count() > n {
+        format!("{}…", head_chars(value, n))
+    } else {
+        value.to_string()
+    }
+}
+
+/// `abcdef12…34567890` — both ends of a hash, for comparisons where the difference lives in the
+/// tail, char-safe by the same rule.
+pub fn short_tail(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 20 {
+        return value.to_string();
+    }
+    let head: String = chars[..8].iter().collect();
+    let tail: String = chars[chars.len() - 8..].iter().collect();
+    format!("{head}…{tail}")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     pub version: u32,
@@ -373,5 +406,37 @@ mod tests {
         // No clock → no status.
         report.verified_at = None;
         assert_eq!(claim_status(&report, t("2026-01-01T12:00:00Z")), None);
+    }
+}
+
+#[cfg(test)]
+mod display_safety_tests {
+    use super::*;
+
+    /// Hash-shaped fields arrive from JSON and argv the reporter does not control: shortening them
+    /// must never split a multi-byte character, or the CLI aborts instead of printing the verdict
+    /// its own exit contract promises.
+    #[test]
+    fn shortening_never_splits_a_character() {
+        let hostile = "aaaaaaaaaaaé"; // 12 chars, 13 bytes — byte 12 lands inside 'é'
+        assert_eq!(short_chars(hostile, 12), hostile);
+        assert_eq!(head_chars(hostile, 8), "aaaaaaaa");
+
+        // The same shape the panicking byte slices produced: `&hash[..12]`.
+        let long_hostile = format!("{hostile}0000");
+        assert_eq!(short_chars(&long_hostile, 12), "aaaaaaaaaaaé…");
+        assert_eq!(
+            short_tail("bbbbbbbbbbbé0000000000000000").chars().count(),
+            17
+        ); // 8 + … + 8
+
+        // ASCII behaviour is unchanged (the golden fixtures depend on it).
+        assert_eq!(short_chars("0123456789abcdef", 12), "0123456789ab…");
+        assert_eq!(short_chars("00ff00ff00ff", 12), "00ff00ff00ff");
+        assert_eq!(
+            short_tail("280f51c8bafa209126d11a661978c5aa40a4bd61f41eb08fed0fc34255ae602e"),
+            "280f51c8…55ae602e"
+        );
+        assert_eq!(head_chars("abcdef1234567890", 8), "abcdef12");
     }
 }

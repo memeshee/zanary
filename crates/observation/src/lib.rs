@@ -10,6 +10,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// The ZIP-317 fee budget for one two-action payment, in zatoshis.
+///
+/// The bounded payer's funding model uses this number to size its own top-up, and the budget rule
+/// counts it, so "spent" means what a run costs the operator (invoice principal plus the fee to
+/// move it), not only what the invoices asked for. Kept here so the payer and the property that
+/// re-derives its verdict cannot drift apart.
+pub const PAYMENT_FEE_ZAT: u64 = 10_000;
+
 /// Which pool value moved through, as far as the rig could tell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -207,6 +215,10 @@ pub struct PayerDecision {
     pub decision: String,
     /// The grant rule (or its absence) that produced this decision, verbatim.
     pub reason: String,
+    /// The RFC3339 instant the payer decided this invoice — the clock the grant was judged
+    /// against. `None` in runs recorded before the field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decided_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub txid: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

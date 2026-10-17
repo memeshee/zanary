@@ -185,12 +185,9 @@ pub fn verify_attestation(receipt: &Receipt, wallet_ak_hex: &str) -> Result<()> 
 }
 
 /// `first8…last8` for a comparison message, so two different keys can never look alike in it.
+/// Char-safe: the key comes from a receipt a stranger wrote (see `crate::short_tail`).
 pub fn short(hex: &str) -> String {
-    if hex.len() > 20 {
-        format!("{}…{}", &hex[..8], &hex[hex.len() - 8..])
-    } else {
-        hex.to_string()
-    }
+    crate::short_tail(hex)
 }
 
 /// The Orchard spend-authorizing public key of a unified full viewing key, hex — the key a receipt
@@ -314,7 +311,7 @@ pub fn validate_claim(receipt: &Receipt) -> Result<Vec<String>> {
         ("the amount in zatoshis", amount_zat.to_string()),
         ("the invoice id", invoice_id.to_string()),
     ] {
-        if !words.contains(&needle) {
+        if !states(&words, &needle) {
             return Err(anyhow!(
                 "the receipt's claims never state {what} ({needle}) that its body carries"
             ));
@@ -349,11 +346,39 @@ pub fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// True when `words` states `needle` as a whole token, so a claim may not merely embed it.
+///
+/// Containment alone (`words.contains(needle)`) accepts a claim that reads "invoice 44710 was paid
+/// 12345678 zatoshis" for a body carrying invoice 4471 / 1234567 — the check that exists to catch a
+/// contradiction would print `claim ok` for it. Both sides of the match must be non-alphanumeric.
+fn states(words: &str, needle: &str) -> bool {
+    words.match_indices(needle).any(|(start, _)| {
+        let before_ok = words[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        let after_ok = words[start + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_ascii_alphanumeric());
+        before_ok && after_ok
+    })
+}
+
 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
-    if !hex.len().is_multiple_of(2) {
+    let bytes = hex.as_bytes();
+    if !bytes.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has an odd length"));
     }
-    (0..hex.len())
+    // Validate before slicing: `&hex[i..i + 2]` panics on a multi-byte character, and a receipt is
+    // exactly the kind of file a stranger supplies. A non-ASCII field is a malformed receipt
+    // (INVALID, exit 1), never a crash.
+    if !bytes.iter().all(u8::is_ascii_hexdigit) {
+        return Err(anyhow!(
+            "hex string has a non-hex character (zanary-receipt-v1 says lowercase hex)"
+        ));
+    }
+    (0..bytes.len())
         .step_by(2)
         .map(|i| {
             u8::from_str_radix(&hex[i..i + 2], 16)
@@ -516,6 +541,84 @@ mod tests {
         assert!(
             format!("{err}").contains("unknown attestation format"),
             "{err}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod hardening_tests {
+    use super::*;
+
+    const TXID: &str = "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00";
+    const MEMO_SHA256: &str = "0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d0badf00d";
+
+    fn receipt_with(claims: Vec<String>) -> Receipt {
+        Receipt {
+            label: "hardening".to_string(),
+            format: "zanary-receipt-v1".to_string(),
+            body: format!(
+                r#"{{"amount_zat":250000,"invoice_id":"9120","memo_sha256":"{MEMO_SHA256}","txid":"{TXID}"}}"#
+            ),
+            claims,
+            discloses: Vec::new(),
+            signer: None,
+            signature: None,
+            attestation: None,
+        }
+    }
+
+    /// A receipt is a file a stranger supplies: a non-ASCII key field is a malformed receipt
+    /// (`signature : INVALID`, exit 1), never a panic. `a€` is 4 bytes, so it passes the
+    /// even-length guard that used to be the only check before `&hex[i..i + 2]`.
+    #[test]
+    fn non_ascii_key_fields_are_refused_not_fatal() {
+        let mut r = receipt_with(vec![format!(
+            "invoice 9120 was paid 250000 zatoshis in transaction {TXID}"
+        )]);
+        r.signer = Some("a€".to_string());
+        assert!(verify_signature(&r).is_err());
+
+        r.signer = Some("aa".to_string()); // pure hex, wrong length → clean error
+        assert!(verify_signature(&r).is_err());
+
+        let mut long = receipt_with(vec![format!(
+            "invoice 9120 was paid 250000 zatoshis in transaction {TXID}"
+        )]);
+        long.attestation = Some(ReceiptAttestation {
+            format: "zanary-receipt-attestation-v1".to_string(),
+            receipt_key: "aaaaaaa€bbbbbbbbbbbbbb".to_string(), // 17 bytes, non-ASCII
+            wallet_ak: "3bae3a087f1476fe7722d4421baf2027de4cd2390be4d1489bb2162be7bfea1b"
+                .to_string(),
+            signature: "00".repeat(64),
+        });
+        // Display of that key must not abort either.
+        let shown = short(&long.attestation.as_ref().unwrap().receipt_key);
+        assert!(shown.contains('…'));
+    }
+
+    /// The claims must state the body's figures as whole tokens. Containment alone accepted
+    /// "invoice 91207 was paid 2500000 zatoshis" for a body carrying invoice 9120 / 250000.
+    #[test]
+    fn claims_may_not_merely_embed_the_bodys_figures() {
+        let embedding = receipt_with(vec![format!(
+            "invoice 91207 was paid 2500000 zatoshis in transaction {TXID}"
+        )]);
+        assert!(
+            validate_claim(&embedding).is_err(),
+            "an embedding claim must be refused"
+        );
+
+        let wrong_id_only = receipt_with(vec![format!(
+            "invoice 9121 was paid 250000 zatoshis in transaction {TXID}"
+        )]);
+        assert!(validate_claim(&wrong_id_only).is_err());
+
+        let exact = receipt_with(vec![format!(
+            "invoice 9120 was paid 250000 zatoshis in transaction {TXID}"
+        )]);
+        assert!(
+            validate_claim(&exact).is_ok(),
+            "an exact claim must still pass"
         );
     }
 }

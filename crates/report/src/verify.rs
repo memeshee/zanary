@@ -847,9 +847,7 @@ fn script_bytes(script: &zcash_transparent::address::Script) -> &[u8] {
 }
 
 fn short(hash: &str) -> String {
-    if hash.len() > 12 {
-        format!("{}…", &hash[..12])
-    } else {
-        hash.to_string()
-    }
+    // The report hash arrives from the file being checked, so this is untrusted text: shorten it
+    // by characters, never by bytes, or a hostile hash aborts the branch that reports it.
+    crate::short_chars(hash, 12)
 }

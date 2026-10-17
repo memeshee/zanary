@@ -223,7 +223,7 @@ fn matrix(args: &[String]) -> Result<i32> {
         println!(
             "  {} @ {} — {} pass · {} fail · {} skip",
             column.flow_id,
-            &column.commit[..8.min(column.commit.len())],
+            zanary_report::head_chars(&column.commit, 8),
             column.count(Verdict::Pass),
             column.count(Verdict::Fail),
             column.count(Verdict::Skip),
@@ -279,12 +279,10 @@ fn arg_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
 
 /// `abcdef12…34567890`: a hash shown with both ends, for comparisons where the difference lives in
 /// the tail. A root that differs only in its last digit must not print identically to the one it
-/// disagrees with — that would read as "these agree" while the check says FAIL.
+/// disagrees with — that would read as "these agree" while the check says FAIL. Char-safe: the
+/// value can come from a report or argv someone else wrote (see `zanary_report::short_tail`).
 fn short_tail(value: &str) -> String {
-    if value.len() <= 20 {
-        return value.to_string();
-    }
-    format!("{}…{}", &value[..8], &value[value.len() - 8..])
+    zanary_report::short_tail(value)
 }
 
 fn parse_ts(s: &str) -> Result<OffsetDateTime> {
@@ -758,9 +756,5 @@ fn index(args: &[String]) -> Result<i32> {
 }
 
 fn short(hash: &str) -> String {
-    if hash.len() > 12 {
-        format!("{}…", &hash[..12])
-    } else {
-        hash.to_string()
-    }
+    zanary_report::short_chars(hash, 12)
 }

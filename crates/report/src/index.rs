@@ -134,11 +134,9 @@ fn esc(s: &str) -> String {
 }
 
 fn short(hash: &str) -> String {
-    if hash.len() > 12 {
-        format!("{}…", &hash[..12])
-    } else {
-        hash.to_string()
-    }
+    // The published page renders flow_commit/report_hash straight out of a report directory the
+    // operator was handed: shorten by characters so a hostile field cannot abort the renderer.
+    crate::short_chars(hash, 12)
 }
 
 fn severity_str(s: Severity) -> &'static str {

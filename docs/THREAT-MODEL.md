@@ -42,8 +42,10 @@ by the wallet directly is what earlier runs produced.
 
 **Receipt bodies.** A receipt's `body` is a closed object and its `claims` must state the body's
 figures in words (`schemas/zanary-receipt-v1.json`); an extra field is refused, because a field
-beyond the format is a disclosure nobody claimed. `report-leak` applies the same rule to every
-artifact the flow exports.
+beyond the format is a disclosure nobody claimed. Each figure must appear as a whole token: a claim
+that only embeds it inside a longer number (`invoice 91207` for a body carrying `9120`) contradicts
+the body it is supposed to restate, and `verify-receipt` refuses it rather than printing `claim ok`.
+`report-leak` applies the same rule to every artifact the flow exports.
 
 **Anchored reports.** An anchor publishes three hashes (`evidence_root`, `report_hash`,
 `flow_commit`) and the height the report was made at, in a shielded memo to a public beacon whose

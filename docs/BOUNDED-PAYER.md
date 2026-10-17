@@ -25,11 +25,15 @@ own — no spending key, no seed, no viewing key:
 }
 ```
 
-* **budget** — the most the run may spend in total, checked cumulatively in ledger order;
+* **budget** — the most the run may spend in total — invoice principal **plus the per-payment fee**
+  (`PAYMENT_FEE_ZAT`, the ZIP-317 fee the wallet also pays to move value at all) — checked cumulatively
+  in ledger order;
 * **per-payment cap** — the most any single invoice may be;
 * **allowlist** — the receivers it may pay. An invoice from anyone else is a stranger;
-* **expiry** — the instant after which the authority is void (`--now` makes this testable without
-  waiting for a date);
+* **expiry** — the instant after which the authority is void, compared as an **instant**: any RFC3339
+  encoding (an offset, fractional seconds, `Z`) names the same instant and gets the same verdict, and an
+  expiry the payer cannot read voids the grant instead of extending it. `--now` makes this testable
+  without waiting for a date;
 * **kill switch** — `revoked: true`, or a `--kill-file <path>` that the operator can `touch` to withdraw
   authority while the grant file itself stays immutable evidence.
 
@@ -40,18 +44,23 @@ rule that applied:
 
 ```text
 revoked?                    → refuse (kill switch)
-now ≥ expires_at?           → refuse (authority expired)
+now ≥ expires_at?           → refuse (authority expired, instants compared)
+invoice id already decided? → refuse (one invoice is one decision)
+invoice id already paid?    → refuse (the ledger at --out is the payer's memory)
 receiver not on allowlist?  → refuse (stranger)
 amount > per_payment_cap?   → refuse (per-payment cap)
-spent + amount > budget?    → refuse (budget)
+spent + amount + fee > budget? → refuse (budget)
 otherwise                   → pay: shielded, ZIP-302 memo from the invoice, fresh invoice receiver
 ```
 
 Every invoice produces exactly one ledger line — `paid` or `refused` — with the rule in it, the amount,
-the receiver, and the txid when there is one. The ledger is written to `ledger.jsonl` and recorded in the
-run as `payer`, which is where `payer-policy` reads it (see below). A refusal is a *result*: `--expect-refused N`
-is how a caller says "this run was supposed to refuse exactly N invoices", and the exit code says whether
-that happened.
+the receiver, and the txid when there is one. The ledger is **append-only and written as the run
+progresses** (refusals as they are decided, a payment the moment it broadcasts), so a crash or an
+interrupt cannot leave a payment on chain with no record of it; the same file is read back at startup and
+an invoice it already paid is refused, so a re-run cannot pay it twice. It is written to `ledger.jsonl`
+and recorded in the run as `payer`, which is where `payer-policy` reads it (see below). A refusal is a
+*result*: `--expect-refused N` is how a caller says "this run was supposed to refuse exactly N invoices",
+and the exit code says whether that happened.
 
 ## How the rig tests it
 
