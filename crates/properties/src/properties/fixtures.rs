@@ -167,6 +167,7 @@ pub(crate) fn clean_run() -> FlowRun {
                     decision: "paid".to_string(),
                     reason: "paid: within the cap (30000000 zat) and the budget (25000000 of                              50000000 zat spent after this)"
                         .to_string(),
+                    decided_at: None,
                     txid: Some(tid(0x41)),
                     height: Some(110),
                 },
@@ -177,6 +178,7 @@ pub(crate) fn clean_run() -> FlowRun {
                     decision: "refused".to_string(),
                     reason: "refused: invoice 4472 asks 40000000 zat, above the per-payment cap of                              30000000"
                         .to_string(),
+                    decided_at: None,
                     txid: None,
                     height: None,
                 },
@@ -187,6 +189,7 @@ pub(crate) fn clean_run() -> FlowRun {
                     decision: "refused".to_string(),
                     reason: "refused: uregtest1stranger+fixture is not on the allowlist (1 entries)"
                         .to_string(),
+                    decided_at: None,
                     txid: None,
                     height: None,
                 },
@@ -351,6 +354,7 @@ pub(crate) fn leaky_run() -> FlowRun {
                     receiver: "uregtest1stranger+fixture".to_string(),
                     decision: "paid".to_string(),
                     reason: "paid: within the cap and the budget".to_string(),
+                    decided_at: None,
                     txid: Some(tid(0x51)),
                     height: Some(60),
                 },
@@ -360,6 +364,7 @@ pub(crate) fn leaky_run() -> FlowRun {
                     receiver: "uregtest1merchant+fixture".to_string(),
                     decision: "paid".to_string(),
                     reason: "paid: within the cap and the budget".to_string(),
+                    decided_at: None,
                     txid: Some(tid(0x52)),
                     height: Some(60),
                 },

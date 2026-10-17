@@ -1775,15 +1775,39 @@ fn hex_encode(bytes: &[u8]) -> String {
 }
 
 /// Decodes lowercase hex into bytes, for txids that arrive as text.
+///
+/// Byte-wise, not index-wise: `--txid` is caller-supplied, and `&hex[i..i + 2]` panics when an
+/// index falls inside a multi-byte character — a crash where this function's contract is
+/// `invalid hex at byte N` and exit 1.
 fn hex_decode(hex: &str) -> Result<Vec<u8>> {
     if !hex.len().is_multiple_of(2) {
         bail!("hex string has an odd length");
     }
-    (0..hex.len())
-        .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&hex[i..i + 2], 16)
-                .map_err(|e| anyhow!("invalid hex at byte {}: {e}", i / 2))
-        })
-        .collect()
+    let mut out = Vec::with_capacity(hex.len() / 2);
+    for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+        let pair =
+            std::str::from_utf8(chunk).map_err(|e| anyhow!("invalid hex at byte {i}: {e}"))?;
+        out.push(
+            u8::from_str_radix(pair, 16).map_err(|e| anyhow!("invalid hex at byte {i}: {e}"))?,
+        );
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod hex_decode_tests {
+    use super::*;
+
+    /// `--txid` is caller-supplied text. A multi-byte character must produce the documented
+    /// `invalid hex` error (exit 1), never a panic from slicing a `&str` inside a character.
+    #[test]
+    fn multi_byte_input_is_refused_without_panicking() {
+        assert!(hex_decode("a\u{e9}b").is_err()); // aéb — 4 bytes, even
+        assert!(hex_decode("\u{2014}a").is_err()); // —a
+        assert!(hex_decode("a\u{1f980}b").is_err()); // a🦀b
+        assert!(hex_decode("a\u{2014}b").is_err()); // odd length guard
+        assert!(hex_decode("zz").is_err()); // non-hex ASCII
+        assert_eq!(hex_decode("00ff").unwrap(), vec![0x00, 0xff]);
+        assert_eq!(hex_decode("").unwrap(), Vec::<u8>::new());
+    }
 }

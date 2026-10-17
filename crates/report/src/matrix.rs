@@ -106,7 +106,7 @@ pub fn render_markdown(columns: &[RunColumn]) -> String {
         out.push_str(&format!(
             " {} `{}` |",
             column.flow_id,
-            &column.commit[..8.min(column.commit.len())]
+            crate::head_chars(&column.commit, 8)
         ));
     }
     out.push('\n');
@@ -145,7 +145,7 @@ pub fn render_markdown(columns: &[RunColumn]) -> String {
         out.push_str(&format!(
             "- `{}` @ `{}` — run in `{}`",
             column.flow_id,
-            &column.commit[..8.min(column.commit.len())],
+            crate::head_chars(&column.commit, 8),
             column.dir.display()
         ));
         match &column.report_hash {

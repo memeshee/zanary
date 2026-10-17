@@ -34,7 +34,7 @@
       "items": {
         "type": "string"
       },
-      "description": "What the receipt is meant to prove, in words. Every fact in the body must appear here: verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and refuses a receipt whose claims contradict its body."
+      "description": "What the receipt is meant to prove, in words. Every fact in the body must appear here: verify-receipt checks that the body's txid, amount and invoice id are stated in the claims, and refuses a receipt whose claims contradict its body. Each figure must appear as a whole token — a claim that merely embeds it inside a longer number (invoice 91207 for a body carrying 9120) is a contradiction, not a statement, and is refused."
     },
     "discloses": {
       "type": "array",
