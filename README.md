@@ -17,6 +17,10 @@ passing, the deliberately leaky control flow being **caught**, the bounded payer
 over-cap, off-allowlist and revoked invoices, and the published claims with their expiry clocks
 ([cut sheet](docs/VIDEO-SCRIPT.md)).
 
+**▶ [Audited, and fixed](#audited-and-fixed)** — the rig's own standard, applied to the rig: an
+independent read-only audit of revision `7058406` returned 19 findings, and that section says which
+**7 a leak class could have caught** — and why the other **12 are the shape of the product**.
+
 ![ZANARY — the rig, end to end](docs/rig.svg)
 
 > **On the name:** this project ran as *CANARY* until Oct 15, 2026 and is **ZANARY** since. Evidence
@@ -91,18 +95,66 @@ flow starts leaking.
 
 This repository was audited the way it audits payment flows: a read-only hunter/verifier run against
 revision `7058406`, with every finding reproduced in a `--network=none` disposable copy before it was
-reported, then re-verified by a second agent that read neither the finding nor its author's claim. It
-returned **19 findings — 11 confirmed (4 medium, 7 low) and 8 leads**; every confirmed finding is fixed
-on `main` with a regression test, and every lead is either closed against the running rig or named with
-the fact it still needs. The record — findings, traces, reproductions, the coverage ledger, the budget,
-and what the audit did *not* cover — is in [`audit/`](audit/README.md).
+reported, then re-checked by a second agent that read neither the finding nor its author's claim. It
+returned **19 findings — 11 confirmed (4 medium, 7 low) and 8 leads, 0 rejected**. Every confirmed
+finding is fixed on `main` with a regression test named after it; every lead is either closed against
+the running rig or named with the fact it still needs. Tests went **67 → 89** across the audit
+(`cargo test --workspace`, 0 failures). The record — findings, traces, reproductions, the coverage
+ledger, the budget, and what the audit did *not* cover — is in [`audit/`](audit/README.md).
 
-The interesting half of that record is what a leak class could **not** have caught: **7 of the 19 sit
-inside a class this library names**, and three of those seven are the same mistake wearing three hats —
-*the rule and the check encoded one wrong assumption, so a run that should have failed passed with
-evidence attached* — while **12 are the tool around the flow**: hostile input, resource bounds, CI
-plumbing, the rig's own hygiene. Which finding fell on which side, with the test that guards each fix,
-is measured (not asserted) in [`docs/WHAT-IT-CAUGHT.md`](docs/WHAT-IT-CAUGHT.md).
+### The half of it a leak class could not have caught
+
+Nineteen findings invites the wrong question (*"is this a list of defects?"*). The useful one is **which
+of them could a leak class in this library have caught in a flow run?** — because the answer is the
+boundary of what a flow prober can prove. Of the 19, **7 sit inside a class this library names** and
+**12 do not**. The 12 are not a gap in the coverage ledger; they are the shape of the product: a checker
+that watches a payment flow is blind, by construction, to the tool around the flow.
+
+**Inside (7).** The top three rows are one failure mode wearing three hats — *the rule and the check
+encoded the same wrong assumption, so a run that should have failed passed, with evidence attached.* No
+amount of extra property coverage finds that: a property is only as right as its definition of the leak.
+
+| finding | class | what the check could not see | fix (each carries a test named after the finding) |
+| --- | --- | --- | --- |
+| `payer-budget-excludes-fees` | `payer-policy` | "budget" meant invoice principal in the *rule* **and** in the *property*, so the fee that paying costs was invisible to both | the fee is part of the budget rule and of the property; the grant carries a cardinality bound |
+| `payer-expiry-text-compare` | `payer-policy` | the property compared the same expiry text the rule did, so an expiry written with a UTC offset still paid | instants compared; an unreadable expiry fails closed; `decided_at` recorded |
+| `payment-record-pool-legs-and-policy-are-constants-not-derived` | `payer-policy`, `policy-downgrade`, `unshielding` | the record the properties read claimed `Orchard → Orchard · Shielded · FullPrivacy` for **every** payment, because those fields were literals | `pool_out`, `kind` and `policy` derived from the receiver address; a value that would land outside Orchard is refused before any money moves, with a ledger line naming the pool |
+| `payer-duplicate-invoice-id-replay` | `payer-policy` | invoice identity was a label, not a key: two files carrying one `invoice_id` were both paid, and the duplicated ledger passed the property | ids deduped in decision order; txids attributed by position; ledger replay refused |
+| `payer.rs:run:unbounded-payment-count` | `payer-policy` | the grant bounded the sum of amounts, not how many payments the authority covers | cardinality bound in the grant and in the property; intake capped (1024 files, 64 KiB each) |
+| `payer-ledger-not-durable` | `payer-policy` | a run killed mid-flight left on-chain payments with no ledger, and a re-run would pay them again | the ledger is appended and flushed per decision; a replay is refused, not paid again (verified under SIGKILL) |
+| `published-summary-carries-invocation-paths` | `report-leak` | published claim files carried the gate's absolute invocation paths — the class whose job is *an exported report reveals more than the claim it supports*, applied to us | the gate's summary records workspace-relative paths |
+
+**The finding that says the observation can lie.** The third row is the sharpest thing the audit found,
+because it attacks what this repository sells: *evidence*. The property was right about the record; the
+record was wrong. A payment to a Sapling receiver would have been recorded as Orchard→Orchard and scored
+clean. The fix derives the pool legs from the receiver address and refuses — before any money moves,
+naming the pool it would have crossed — a receiver whose value would leave Orchard: verified on the
+running rig, an allowlisted transparent receiver is refused while the Orchard invoice under the same
+grant is paid. The **flow runner's** records were deliberately left exactly as they were: rewriting how
+it records would change the bytes of reports whose hashes are in claims already published. A tidier
+record is worth less than a re-derivable one.
+
+**Outside (12), by the kind of check that actually catches them.** None of these needs a leak class; all
+of them needed someone reading the code as a tool rather than as a flow.
+
+| what it is | n | what catches it |
+| --- | --- | --- |
+| a tool reading a file someone else wrote | 4 | hostile-input handling, per call site — truncating untrusted JSON by byte index, non-ASCII hex, a multi-byte txid, `u64` amounts summed unchecked — each one a panic, which is no verdict at all |
+| a verifier certifying what it did not check | 1 | the verifier's own test suite: `verify-receipt` accepted a receipt whose claims merely *embedded* the body's figures by substring |
+| resources a stranger controls | 3 | bounds taken from metadata, before the work — a FIFO or symlink stalling the run, unbounded intake memory ahead of any authority check, a definition asking for 2³²−1 mined blocks per payment |
+| the plumbing around the rig | 3 | reading the plumbing: composite-action inputs expanded into shell script text, the rig that produces every published claim running from mutable `:latest` images, the control plane and indexer published on every interface behind credentials the public repository carries |
+| still open | 1 | a human, for now — nothing machine-checks what the demo video's pixels say ([`audit/run-1/NEEDS-VALIDATION.md`](audit/run-1/NEEDS-VALIDATION.md)) |
+
+All 8 leads were closed on the fixed code — the rig-dependent ones by re-running them against the live
+harness ([`audit/README.md`](audit/README.md) § *Verified against the running rig*) — except the open one
+above, which is named rather than papered over.
+
+Every row here is re-checkable. [`docs/WHAT-IT-CAUGHT.md`](docs/WHAT-IT-CAUGHT.md) carries this split row
+by row, all 14 guarding test names, and the command that re-derives each count;
+[`audit/run-1/findings.json`](audit/run-1/findings.json) carries the 19 findings with their evidence;
+[`audit/run-1/coverage-ledger.json`](audit/run-1/coverage-ledger.json) names the 20 coverage units and the
+7 the budget did not fund. The 7/12 line is a judgment call, drawn by the rule that page states —
+relabel a row and the count moves, which is why every row also carries its fix.
 
 ## How it fits the track
 
