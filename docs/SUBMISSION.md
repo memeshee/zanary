@@ -12,7 +12,7 @@ transactions on a throwaway chain, proves or breaks each privacy claim with repr
 publishes claims that expire unless someone re-proves them.
 
 **Repo:** <https://github.com/memeshee/zanary> (public) · **Live claims:**
-<https://memeshee.github.io/zanary/> · **CI:** the `privacy gate` workflow, five jobs per push (fmt + clippy + the 87-test unit suite; private flow must pass; control flow must be caught; the bounded payer's ledger must show its refusals; the index and the demo video are republished)
+<https://memeshee.github.io/zanary/> · **CI:** the `privacy gate` workflow, five jobs per push (fmt + clippy + the 89-test unit suite; private flow must pass; control flow must be caught; the bounded payer's ledger must show its refusals; the index and the demo video are republished)
 
 **Track:** Core & Tooling (one submission, one track)
 
