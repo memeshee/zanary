@@ -18,8 +18,10 @@ over-cap, off-allowlist and revoked invoices, and the published claims with thei
 ([cut sheet](docs/VIDEO-SCRIPT.md)).
 
 **▶ [Audited, and fixed](#audited-and-fixed)** — the rig's own standard, applied to the rig: an
-independent read-only audit of revision `7058406` returned 19 findings, and that section says which
-**7 a leak class could have caught** — and why the other **12 are the shape of the product**.
+independent read-only audit of revision `7058406` returned 19 findings, and the section below says which
+**7 a leak class could have caught**, why the other **12 are the shape of the product**, and what each fix
+was. The full record, row by row with every guarding test named, is
+[`docs/WHAT-IT-CAUGHT.md`](docs/WHAT-IT-CAUGHT.md).
 
 ![ZANARY — the rig, end to end](docs/rig.svg)
 
@@ -108,7 +110,9 @@ Nineteen findings invites the wrong question (*"is this a list of defects?"*). T
 of them could a leak class in this library have caught in a flow run?** — because the answer is the
 boundary of what a flow prober can prove. Of the 19, **7 sit inside a class this library names** and
 **12 do not**. The 12 are not a gap in the coverage ledger; they are the shape of the product: a checker
-that watches a payment flow is blind, by construction, to the tool around the flow.
+that watches a payment flow is blind, by construction, to the tool around the flow. This section is the
+short form — [`docs/WHAT-IT-CAUGHT.md`](docs/WHAT-IT-CAUGHT.md) is the row-by-row record, with every fix's
+guarding test named and the command that re-derives each count.
 
 **Inside (7).** The top three rows are one failure mode wearing three hats — *the rule and the check
 encoded the same wrong assumption, so a run that should have failed passed, with evidence attached.* No

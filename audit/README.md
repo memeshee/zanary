@@ -12,6 +12,9 @@ reading alone: each record carries the probe output that reproduced it.
 ## Result
 
 - **19 findings** — **11 confirmed**, **8 leads**, 0 rejected.
+- **Where each one landed:** 7 sit inside a leak class this library names, 12 live in the tool around the
+  flow, 1 is still open — [`../docs/WHAT-IT-CAUGHT.md`](../docs/WHAT-IT-CAUGHT.md) sorts all 19 by what
+  could actually have caught them, with each fix's guarding test.
 - **20 coverage units** (2 covered, 11 candidate, 7 deferred by budget), **113 recorded checks**.
 - **56 of 60 agent invocations** spent; the units that budget could not fund are named with their reason in `run-1/REPORT.md` §7.
 - Every retained finding was reproduced by a verifier that did not write it, and re-verified by a

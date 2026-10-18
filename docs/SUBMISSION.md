@@ -102,9 +102,9 @@ which the control app is the reference.
 | description | ✅ this file |
 | video (≤2 min) | ✅ built and served: <https://memeshee.github.io/zanary/video/> — 112 s, frames verbatim from a real run, published by the same workflow as the claims (`docs/VIDEO-SCRIPT.md` is the cut sheet; replace the audio track with your own voice any time) |
 | repo public by the deadline | ✅ public since the first commit |
-| CI green on `main` | ✅ five jobs: tests (fmt · clippy · 87 unit tests), private flow, control flow, bounded payer, publish |
+| CI green on `main` | ✅ five jobs: tests (fmt · clippy · 89 unit tests), private flow, control flow, bounded payer, publish |
 | claims published | ✅ <https://memeshee.github.io/zanary/> |
-| independent audit, in-tree | ✅ [`audit/`](../audit/README.md) — 19 findings (11 confirmed, 8 leads) from a read-only run at `7058406`, every confirmed one fixed with a regression test, three leads re-verified against the running rig |
+| independent audit, in-tree | ✅ [`audit/`](../audit/README.md) — 19 findings (11 confirmed, 8 leads) from a read-only run at `7058406`, every confirmed one fixed with a regression test, three leads re-verified against the running rig; which of them a leak class could have caught: [`docs/WHAT-IT-CAUGHT.md`](WHAT-IT-CAUGHT.md) (7 inside, 12 outside, 1 open) |
 | GitHub release (not a form field) | ✅ [`zecathon-2026-r2`](https://github.com/memeshee/zanary/releases/tag/zecathon-2026-r2) — cut at `main`, demo mp4 attached; the earlier `zecathon-2026` snapshot is marked superseded |
 | submission form sent | ⏳ operator step: Telegram handle, one track (Core & Tooling), before Oct 28 23:59 UTC |
 
